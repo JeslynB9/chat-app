@@ -138,8 +138,12 @@
             </div>
         </div>
     </div>
+    
+    <!-- Include Socket.IO -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            const socket = io('http://localhost:3000'); // Connect to the backend server
             const inputField = document.querySelector('.input-area input');
             const messagesContainer = document.querySelector('.messages');
             const cameraButton = document.querySelector('.input-area button:nth-child(2)');
@@ -159,11 +163,8 @@
             function sendMessage() {
                 const messageText = inputField.value.trim();
                 if (messageText) {
-                    const messageElement = document.createElement('div');
-                    messageElement.classList.add('message', 'sent');
-                    messageElement.textContent = messageText;
-                    messagesContainer.appendChild(messageElement);
-                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                    // Emit the message to the server
+                    socket.emit('sendMessage', { message: messageText, sender: 'User1' });
                     inputField.value = '';
                 }
             }
@@ -173,6 +174,15 @@
                 if (event.key === 'Enter') {
                     sendMessage();
                 }
+            });
+
+            // Listen for incoming messages
+            socket.on('receiveMessage', (data) => {
+                const messageElement = document.createElement('div');
+                messageElement.classList.add('message', data.sender === 'User1' ? 'sent' : 'received');
+                messageElement.textContent = `${data.sender}: ${data.message}`;
+                messagesContainer.appendChild(messageElement);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
             });
 
             // Camera button functionality
