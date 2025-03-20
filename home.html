@@ -89,9 +89,9 @@
             <h2>Chats</h2>
             <input type="text" placeholder="Search">
             <div>
-                <button>all</button>
-                <button>unread</button>
-                <button>+</button>
+                <button id="all-button">All</button>
+                <button id="unread-button">Unread</button>
+                <button id="add-chat-button">+</button>
             </div>
         </div>
         <div class="chat-list">
@@ -122,9 +122,9 @@
                 <div>Name</div>
                 <div>Typing...</div>
             </div>
-            <button>Urgent</button>
-            <button>General</button>
-            <button>+</button>
+            <button id="urgent-button">Urgent</button>
+            <button id="general-button">General</button>
+            <button id="add-category-button">+</button>
         </div>
         <div class="messages">
             <div class="message received">Hello!</div>
@@ -142,23 +142,28 @@
         document.addEventListener('DOMContentLoaded', () => {
             const inputField = document.querySelector('.input-area input');
             const messagesContainer = document.querySelector('.messages');
+            const cameraButton = document.querySelector('.input-area button:nth-child(2)');
+            const plusButton = document.querySelector('.input-area button:nth-child(3)');
+
+            // Sidebar Buttons
+            const allButton = document.getElementById('all-button');
+            const unreadButton = document.getElementById('unread-button');
+            const addChatButton = document.getElementById('add-chat-button');
+
+            // Header Buttons
+            const urgentButton = document.getElementById('urgent-button');
+            const generalButton = document.getElementById('general-button');
+            const addCategoryButton = document.getElementById('add-category-button');
 
             // Function to send a message
             function sendMessage() {
                 const messageText = inputField.value.trim();
                 if (messageText) {
-                    // Create a new message element
                     const messageElement = document.createElement('div');
                     messageElement.classList.add('message', 'sent');
                     messageElement.textContent = messageText;
-
-                    // Append the message to the messages container
                     messagesContainer.appendChild(messageElement);
-
-                    // Scroll to the bottom of the messages container
                     messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
-                    // Clear the input field
                     inputField.value = '';
                 }
             }
@@ -168,6 +173,52 @@
                 if (event.key === 'Enter') {
                     sendMessage();
                 }
+            });
+
+            // Camera button functionality
+            cameraButton.addEventListener('click', () => {
+                const fileInput = document.createElement('input');
+                fileInput.type = 'file';
+                fileInput.accept = 'image/*';
+                fileInput.click();
+
+                fileInput.addEventListener('change', (event) => {
+                    const file = event.target.files[0];
+                    if (file) {
+                        alert(`Selected file: ${file.name}`);
+                    }
+                });
+            });
+
+            // Plus button functionality
+            plusButton.addEventListener('click', () => {
+                alert('Plus button clicked! You can implement additional actions here.');
+            });
+
+            // Sidebar button functionality
+            allButton.addEventListener('click', () => {
+                alert('All chats displayed!');
+            });
+
+            unreadButton.addEventListener('click', () => {
+                alert('Unread chats displayed!');
+            });
+
+            addChatButton.addEventListener('click', () => {
+                alert('Add new chat!');
+            });
+
+            // Header button functionality
+            urgentButton.addEventListener('click', () => {
+                alert('Urgent chats displayed!');
+            });
+
+            generalButton.addEventListener('click', () => {
+                alert('General chats displayed!');
+            });
+
+            addCategoryButton.addEventListener('click', () => {
+                alert('Add new category!');
             });
         });
     </script>
