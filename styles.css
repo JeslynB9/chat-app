@@ -1,8 +1,36 @@
+:root {
+    --bg-color: white;
+    --text-color: black;
+    --text-color-2: white;
+    --chat-bg: #f1f1f1;
+    --sent-bg: #007bff;
+    --received-bg: #ddd;
+}
+
+[data-theme="dark"] {
+    --bg-color: #1e1e1e;
+    --text-color: white;
+    --chat-bg: #333;
+    --sent-bg: #555;
+    --received-bg: #666;
+}
+
+[data-theme="blue"] {
+    --bg-color: #e3f2fd;
+    --text-color: #01579b;
+    --text-color-2: white;
+    --chat-bg: #bbdefb;
+    --sent-bg: #0288d1;
+    --received-bg: #81d4fa;
+}
+
 body {
     display: flex;
     height: 100vh;
     margin: 0;
     font-family: Arial, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
 }
 .sidebar {
     width: 25%;
@@ -115,13 +143,13 @@ body {
 }
 
 .sent .message-bubble {
-    background-color: #007bff;
-    color: white;
+    background-color: var(--sent-bg);
+    color: var(--text-color-2);
     align-self: flex-end;
 }
 
 .received .message-bubble {
-    background-color: #f1f1f1;
-    color: black;
+    background-color: var(--received-bg);
+    color: var(--text-color);
     align-self: flex-start;
 }
