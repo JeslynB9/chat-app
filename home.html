@@ -146,6 +146,10 @@
             const socket = io('http://localhost:3000'); // Connect to the backend server
             const inputField = document.querySelector('.input-area input');
             const messagesContainer = document.querySelector('.messages');
+
+            // Set a username (this can be dynamic, based on login)
+            const username = prompt("Enter your username:");  // Change this to get from the actual user session
+
             const cameraButton = document.querySelector('.input-area button:nth-child(2)');
             const plusButton = document.querySelector('.input-area button:nth-child(3)');
 
@@ -163,8 +167,8 @@
             function sendMessage() {
                 const messageText = inputField.value.trim();
                 if (messageText) {
-                    // Emit the message to the server
-                    socket.emit('sendMessage', { message: messageText, sender: 'User1' });
+                    const messageData = { message: messageText, sender: username };
+                    socket.emit('sendMessage', messageData);
                     inputField.value = '';
                 }
             }
@@ -179,7 +183,15 @@
             // Listen for incoming messages
             socket.on('receiveMessage', (data) => {
                 const messageElement = document.createElement('div');
-                messageElement.classList.add('message', data.sender === 'User1' ? 'sent' : 'received');
+                messageElement.classList.add('message');
+                
+                // If the sender is the current user, align it to the right
+                if (data.sender === username) {
+                    messageElement.classList.add('sent');
+                } else {
+                    messageElement.classList.add('received');
+                }
+
                 messageElement.textContent = `${data.sender}: ${data.message}`;
                 messagesContainer.appendChild(messageElement);
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
