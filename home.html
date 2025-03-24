@@ -35,13 +35,22 @@
         </div>
         <div class="sidebar-footer">
             <img src="user.jpg" alt="User" width="40" height="40">
-            <button>Settings</button>
-            <button id="theme-button">Customize</button>
-            <div id="theme-options" class="theme-options">
-                <button class="theme-option" data-theme="light">Light</button>
-                <button class="theme-option" data-theme="dark">Dark</button>
-                <button class="theme-option" data-theme="blue">Blue</button>
+            <!-- Settings Button (Already in sidebar-footer) -->
+            <button id="settings-button">Settings</button>
+
+            <!-- Settings Modal -->
+            <div id="settings-modal" class="modal">
+                <div class="modal-content">
+                    <span class="close-button">&times;</span>
+                    <h2>Settings</h2>
+                    
+                    <h3>Theme Selection</h3>
+                    <button class="theme-button" data-theme="light">Light Mode</button>
+                    <button class="theme-button" data-theme="dark">Dark Mode</button>
+                    <button class="theme-button" data-theme="blue">Blue Mode</button>
+                </div>
             </div>
+
         </div>
     </div>
     <div class="main-chat">
@@ -198,6 +207,51 @@
                     document.body.setAttribute('data-theme', theme);
                 });
             });
+        });
+
+            document.addEventListener('DOMContentLoaded', () => {
+            const settingsButton = document.getElementById('settings-button');
+            const modal = document.getElementById('settings-modal');
+            const closeButton = document.querySelector('.close-button');
+            const themeButtons = document.querySelectorAll('.theme-button');
+
+            // Open modal when settings button is clicked
+            settingsButton.addEventListener('click', () => {
+                modal.style.display = 'block';
+            });
+
+            // Close modal when "X" button is clicked
+            closeButton.addEventListener('click', () => {
+                modal.style.display = 'none';
+            });
+
+            // Close modal when clicking outside of it
+            window.addEventListener('click', (event) => {
+                if (event.target === modal) {
+                    modal.style.display = 'none';
+                }
+            });
+
+            // Theme Change Functionality
+            themeButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const theme = button.getAttribute('data-theme');
+                    applyTheme(theme);
+                });
+            });
+
+            function applyTheme(theme) {
+                if (theme === 'dark') {
+                    document.body.style.backgroundColor = '#333';
+                    document.body.style.color = '#fff';
+                } else if (theme === 'blue') {
+                    document.body.style.backgroundColor = '#007bff';
+                    document.body.style.color = '#fff';
+                } else {
+                    document.body.style.backgroundColor = '#fff';
+                    document.body.style.color = '#000';
+                }
+            }
         });
     </script>
 </body>
