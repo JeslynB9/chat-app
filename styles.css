@@ -24,6 +24,22 @@
     --received-bg: #81d4fa;
 }
 
+body[data-theme="light"] {
+    background-color: #f1f1f1;
+    color: black;
+}
+
+body[data-theme="dark"] {
+    background-color: #555;
+    color: white;
+}
+
+body[data-theme="blue"] {
+    background-color: #bbdefb;
+    color: #01579b;
+}
+
+
 body {
     display: flex;
     height: 100vh;
@@ -168,7 +184,8 @@ body {
 
 /* Modal Content */
 .modal-content {
-    background-color: white;
+    background-color: var(--bg-color);
+    color: var(--text-color);
     margin: 10% auto;
     padding: 20px;
     border-radius: 8px;
