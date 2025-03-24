@@ -45,9 +45,9 @@
                     <h2>Settings</h2>
                     
                     <h3>Theme Selection</h3>
-                    <button class="theme-button" data-theme="light">Light Mode</button>
-                    <button class="theme-button" data-theme="dark">Dark Mode</button>
-                    <button class="theme-button" data-theme="blue">Blue Mode</button>
+                    <button class="theme-button" data-theme="light" style="width: 40px; height: 40px; background-color: white; border: 1px solid black;"></button>
+                    <button class="theme-button" data-theme="dark" style="width: 40px; height: 40px; background-color: #333; border: 1px solid white;"></button>
+                    <button class="theme-button" data-theme="blue" style="width: 40px; height: 40px; background-color: #bbdefb; border: 1px solid black;"></button>
                 </div>
             </div>
 
@@ -237,20 +237,12 @@
                 button.addEventListener('click', () => {
                     const theme = button.getAttribute('data-theme');
                     applyTheme(theme);
+                    localStorage.setItem('theme', theme); // Save selection
                 });
             });
 
             function applyTheme(theme) {
-                if (theme === 'dark') {
-                    document.body.style.backgroundColor = '#333';
-                    document.body.style.color = '#fff';
-                } else if (theme === 'blue') {
-                    document.body.style.backgroundColor = '#007bff';
-                    document.body.style.color = '#fff';
-                } else {
-                    document.body.style.backgroundColor = '#fff';
-                    document.body.style.color = '#000';
-                }
+                document.body.setAttribute('data-theme', theme);
             }
         });
     </script>
