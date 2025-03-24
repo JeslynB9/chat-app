@@ -30,7 +30,7 @@ body[data-theme="light"] {
 }
 
 body[data-theme="dark"] {
-    background-color: #555;
+    background-color: #1e1e1e;
     color: white;
 }
 
