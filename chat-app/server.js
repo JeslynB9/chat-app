@@ -4,6 +4,7 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
+const db = require('./database');
 
 const app = express();
 const server = http.createServer(app);
@@ -69,4 +70,39 @@ io.on('connection', (socket) => {
 
 server.listen(3000, () => {
     console.log('Server running on http://localhost:3000');
+});
+
+app.post('/save-username', express.json(), (req, res) => {
+    const { username } = req.body;
+
+    if (!username) {
+        return res.status(400).json({ error: 'Username is required' });
+    }
+
+    db.saveUsername(username, (err, result) => {
+        if (err) {
+            if (err.message.includes('UNIQUE constraint failed')) {
+                return res.status(400).json({ error: 'Username already exists' });
+            }
+            return res.status(500).json({ error: 'Failed to save username' });
+        }
+        res.status(201).json({ message: 'Username saved successfully', user: result });
+    });
+});
+app.post('/save-username', express.json(), (req, res) => {
+    const { username } = req.body;
+
+    if (!username) {
+        return res.status(400).json({ error: 'Username is required' });
+    }
+
+    db.saveUsername(username, (err, result) => {
+        if (err) {
+            if (err.message.includes('UNIQUE constraint failed')) {
+                return res.status(400).json({ error: 'Username already exists' });
+            }
+            return res.status(500).json({ error: 'Failed to save username' });
+        }
+        res.status(201).json({ message: 'Username saved successfully', user: result });
+    });
 });

@@ -88,7 +88,28 @@
             const messagesContainer = document.querySelector('.messages');
 
             // Set a username (this can be dynamic, based on login)
-            const username = prompt("Enter your username:");  // Change this to get from the actual user session
+            const username = prompt("Enter your username:");
+
+            fetch('http://localhost:3000/save-username', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                    location.reload(); // Reload the page to prompt for a new username
+                } else {
+                    console.log('Username saved:', data.user);
+                }
+            })
+            .catch(error => {
+                console.error('Error saving username:', error);
+            });
+
 
             const cameraButton = document.querySelector('.input-area button:nth-child(2)');
             const plusButton = document.querySelector('.input-area button:nth-child(3)');
