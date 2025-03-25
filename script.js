@@ -2,6 +2,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const socket = io('http://localhost:3000'); // Connect to the backend server
     const inputField = document.querySelector('.input-area input');
     const messagesContainer = document.querySelector('.messages');
+    const toggleBtn = document.getElementById('toggle-sidebar');
+    const sidebar = document.querySelector('.sidebar');
+  
+    toggleBtn.addEventListener('click', () => {
+      sidebar.classList.toggle('collapsed');
+      // Flip the arrow direction
+      toggleBtn.textContent = sidebar.classList.contains('collapsed') ? '→' : '←';
+    });
+  });
 
     // Set a username (this can be dynamic, based on login)
     const username = prompt("Enter your username:");
