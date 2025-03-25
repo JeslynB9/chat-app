@@ -2,7 +2,7 @@
     --bg-color: white;
     --text-color: #1e1e1e;
     --text-color-2: white;
-    --chat-bg: #f1f1f1;
+    --chat-bg: hsl(0, 0%, 95%);
     --sent-bg: #007bff;
     --received-bg: #ddd;
     --border-color: #1e1e1e;
@@ -80,6 +80,24 @@ body {
     border-top: 1px solid var(--border-color);
     margin-top: auto;
 }
+
+/* Settings Button Styles */
+#settings-button {
+    background: none; /* Remove default button background */
+    border: none; /* Remove the border */
+    padding: 0; /* Remove padding */
+    cursor: pointer; /* Show pointer cursor on hover */
+}
+
+#settings-button img {
+    border-radius: 50%; /* Optional: Make the image circular */
+    transition: transform 0.2s; /* Optional: Add a hover effect */
+}
+
+#settings-button img:hover {
+    transform: scale(1.1); /* Optional: Slightly enlarge the image on hover */
+}
+
 .chat-list {
     flex-grow: 1;
     overflow-y: auto;
