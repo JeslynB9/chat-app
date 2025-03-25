@@ -69,11 +69,11 @@
             <!-- Default pins -->
             <div class="pin">
                 <span class="pin-text">Urgent</span>
-                <button class="remove-pin-button">✖</button>
+                <button class="remove-pin-button">&times;</button>
             </div>
             <div class="pin">
                 <span class="pin-text">General</span>
-                <button class="remove-pin-button">✖</button>
+                <button class="remove-pin-button">&times;</button>
             </div>
             <button id="add-pin-button">+</button>
         </div>
@@ -285,7 +285,7 @@
                 pin.className = "pin";
                 pin.innerHTML = `
                     <span class="pin-text">${pinText}</span>
-                    <button class="remove-pin-button">✖</button>
+                    <button class="remove-pin-button">&times;</button>
                 `;
                 pinsContainer.insertBefore(pin, addPinButton);
 

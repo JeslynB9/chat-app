@@ -252,7 +252,7 @@ body {
     color: var(--text-color-2);
     padding: 5px 10px;
     border-radius: 20px;
-    margin-left: 5px;
+    margin-left: 7px;
     font-size: 0.9rem;
     white-space: nowrap; /* Prevent text wrapping */
 }
@@ -274,4 +274,18 @@ body {
     border-radius: 20px;
     cursor: pointer;
     font-size: 0.9rem;
+    margin-left: 5px;
+    transition: transform 0.2s;
+}
+
+/* Enlarge pins on hover */
+.pin:hover {
+    transform: scale(1.1); /* Enlarge the pin */
+    transition: transform 0.2s; /* Smooth transition */
+}
+
+/* Enlarge the Add Pin button on hover */
+#add-pin-button:hover {
+    transform: scale(1.1); /* Enlarge the button */
+    transition: transform 0.2s; /* Smooth transition */
 }
