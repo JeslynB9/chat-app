@@ -214,3 +214,34 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 });
+
+document.addEventListener("DOMContentLoaded", () => {
+    const pinsContainer = document.querySelector(".pins-container-sidebar");
+    const addPinButton = document.getElementById("add-pin-button-sidebar");
+
+    // Add a new pin
+    addPinButton.addEventListener("click", () => {
+        const pinText = prompt("Enter the text for the new pin:");
+        if (pinText) {
+            const pin = document.createElement("div");
+            pin.className = "pin-sidebar";
+            pin.innerHTML = `
+                <span class="pin-text-sidebar">${pinText}</span>
+                <button class="remove-pin-button-sidebar">&times;</button>
+            `;
+            pinsContainer.insertBefore(pin, addPinButton);
+
+            // Add event listener to remove the pin
+            pin.querySelector(".remove-pin-button-sidebar").addEventListener("click", () => {
+                pin.remove();
+            });
+        }
+    });
+
+    // Remove existing pins
+    pinsContainer.addEventListener("click", (event) => {
+        if (event.target.classList.contains("remove-pin-button-sidebar")) {
+            event.target.parentElement.remove();
+        }
+    });
+});
