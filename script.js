@@ -5,6 +5,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const socket = io('http://localhost:3000');
     const inputField = document.querySelector('.input-area input');
     const messagesContainer = document.querySelector('.messages');
+    const typingStatus = document.querySelector('.typing-status');
+    let typingTimeout;
     const toggleBtn = document.getElementById('toggle-sidebar');
     const sidebar = document.querySelector('.sidebar');
 
@@ -50,6 +52,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    inputField.addEventListener('input', () => {
+        socket.emit('typing', username);
+        clearTimeout(typingTimeout);
+        typingTimeout = setTimeout(() => {
+            socket.emit('stopTyping', username);
+        }, 1000);
+    });
+
     socket.on('receiveMessage', (data) => {
         const messageElement = document.createElement('div');
         messageElement.classList.add('message');
@@ -76,6 +86,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         messagesContainer.appendChild(messageElement);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    });
+
+    socket.on('typing', (user) => {
+        if (user !== username) {
+            typingStatus.textContent = 'Typing...';
+        }
+    });
+    
+    socket.on('stopTyping', (user) => {
+        if (user !== username) {
+            typingStatus.textContent = '';
+        }
     });
 
     // ==========================

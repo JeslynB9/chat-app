@@ -72,6 +72,15 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
     });
+
+    socket.on('typing', (username) => {
+        socket.broadcast.emit('typing', username);
+    });
+    
+    socket.on('stopTyping', (username) => {
+        socket.broadcast.emit('stopTyping', username);
+    });
+    
 });
 
 // Start the server
