@@ -4,7 +4,7 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
-const db = require('./database');
+const db = require('./database'); // SQLite DB
 
 const app = express();
 const server = http.createServer(app);
@@ -17,21 +17,12 @@ const io = new Server(server, {
 });
 
 app.use(cors());
+app.use(express.json()); // Middleware to parse JSON
 
 // Set up multer for file uploads
-const upload = multer({ dest: 'uploads/' }); // Images will be saved in the 'uploads' folder
+const upload = multer({ dest: 'uploads/' }); // Images saved in 'uploads' folder
 
-const connectDB = require('./db');
-
-// Connect to MongoDB
-connectDB();
-
-const userRoutes = require('./routes/user_routes');
-
-app.use(express.json()); // Middleware to parse JSON
-app.use('/api/users', userRoutes);
-
-// Serve static files (e.g., uploaded images)
+// Serve static files (uploaded images)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Handle image uploads
@@ -43,6 +34,25 @@ app.post('/upload', upload.single('image'), (req, res) => {
     res.json({ imageUrl });
 });
 
+// Save username to SQLite
+app.post('/save-username', (req, res) => {
+    const { username } = req.body;
+
+    if (!username) {
+        return res.status(400).json({ error: 'Username is required' });
+    }
+
+    db.saveUsername(username, (err, result) => {
+        if (err) {
+            if (err.message.includes('UNIQUE constraint failed')) {
+                return res.status(400).json({ error: 'Username already exists' });
+            }
+            return res.status(500).json({ error: 'Failed to save username' });
+        }
+        res.status(201).json({ message: 'Username saved successfully', user: result });
+    });
+});
+
 // Handle socket connections
 io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
@@ -50,16 +60,12 @@ io.on('connection', (socket) => {
     // Listen for text messages
     socket.on('sendMessage', (data) => {
         console.log('Message received:', data);
-        
-        // Broadcast message to all clients
-        io.emit('receiveMessage', data);
+        io.emit('receiveMessage', data); // Broadcast to all clients
     });
 
     // Listen for image messages
     socket.on('sendImage', (data) => {
         console.log('Image received:', data);
-        
-        // Broadcast image to all clients
         io.emit('receiveMessage', data);
     });
 
@@ -68,41 +74,7 @@ io.on('connection', (socket) => {
     });
 });
 
+// Start the server
 server.listen(3000, () => {
     console.log('Server running on http://localhost:3000');
-});
-
-app.post('/save-username', express.json(), (req, res) => {
-    const { username } = req.body;
-
-    if (!username) {
-        return res.status(400).json({ error: 'Username is required' });
-    }
-
-    db.saveUsername(username, (err, result) => {
-        if (err) {
-            if (err.message.includes('UNIQUE constraint failed')) {
-                return res.status(400).json({ error: 'Username already exists' });
-            }
-            return res.status(500).json({ error: 'Failed to save username' });
-        }
-        res.status(201).json({ message: 'Username saved successfully', user: result });
-    });
-});
-app.post('/save-username', express.json(), (req, res) => {
-    const { username } = req.body;
-
-    if (!username) {
-        return res.status(400).json({ error: 'Username is required' });
-    }
-
-    db.saveUsername(username, (err, result) => {
-        if (err) {
-            if (err.message.includes('UNIQUE constraint failed')) {
-                return res.status(400).json({ error: 'Username already exists' });
-            }
-            return res.status(500).json({ error: 'Failed to save username' });
-        }
-        res.status(201).json({ message: 'Username saved successfully', user: result });
-    });
 });
