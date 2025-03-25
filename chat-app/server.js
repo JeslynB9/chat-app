@@ -20,6 +20,16 @@ app.use(cors());
 // Set up multer for file uploads
 const upload = multer({ dest: 'uploads/' }); // Images will be saved in the 'uploads' folder
 
+const connectDB = require('./db');
+
+// Connect to MongoDB
+connectDB();
+
+const userRoutes = require('./routes/user_routes');
+
+app.use(express.json()); // Middleware to parse JSON
+app.use('/api/users', userRoutes);
+
 // Serve static files (e.g., uploaded images)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
