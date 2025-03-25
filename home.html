@@ -63,19 +63,22 @@
                 <div>Name</div>
                 <div>Typing...</div>
             </div>
-            <button id="urgent-button">Urgent</button>
-            <button id="general-button">General</button>
-            <button id="add-category-button">+</button>
+        </div>
+        <!-- Pins Section -->
+        <div class="pins-container">
+            <!-- Default pins -->
+            <div class="pin">
+                <span class="pin-text">Urgent</span>
+                <button class="remove-pin-button">✖</button>
+            </div>
+            <div class="pin">
+                <span class="pin-text">General</span>
+                <button class="remove-pin-button">✖</button>
+            </div>
+            <button id="add-pin-button">+</button>
         </div>
         <div class="messages">
             
-        </div>
-        <div class="main-chat-footer">
-            <div class="input-area">
-                <input type="text" placeholder="Type a message">
-                <button><img src="images/camera.png" alt="Camera" width="24" height="24"></button>
-                <button><img src="images/plus.png" alt="Plus" width="24" height="24"></button>
-            </div>
         </div>
     </div>
     
@@ -269,6 +272,37 @@
                 document.body.setAttribute('data-theme', theme);
             }
         });
+
+        document.addEventListener("DOMContentLoaded", () => {
+        const pinsContainer = document.querySelector(".pins-container");
+        const addPinButton = document.getElementById("add-pin-button");
+
+        // Add a new pin
+        addPinButton.addEventListener("click", () => {
+            const pinText = prompt("Enter the text for the new pin:");
+            if (pinText) {
+                const pin = document.createElement("div");
+                pin.className = "pin";
+                pin.innerHTML = `
+                    <span class="pin-text">${pinText}</span>
+                    <button class="remove-pin-button">✖</button>
+                `;
+                pinsContainer.insertBefore(pin, addPinButton);
+
+                // Add event listener to remove the pin
+                pin.querySelector(".remove-pin-button").addEventListener("click", () => {
+                    pin.remove();
+                });
+            }
+        });
+
+        // Remove existing pins
+        pinsContainer.addEventListener("click", (event) => {
+            if (event.target.classList.contains("remove-pin-button")) {
+                event.target.parentElement.remove();
+            }
+        });
+    });
     </script>
 </body>
 </html>
