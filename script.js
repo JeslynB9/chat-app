@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
         toggleBtn.textContent = sidebar.classList.contains('collapsed') ? '→' : '←';
     });
 
-    const username = prompt("Enter your username:");
+    // const username = prompt("Enter your username:");
 
     fetch('http://localhost:3000/save-username', {
         method: 'POST',
