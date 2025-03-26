@@ -78,20 +78,33 @@
             </div>
         </div>
         <!-- Pins Section -->
-        <div class="pins-container">
-            <!-- Default pins -->
-            <div class="pin">
-                <span class="pin-text">Urgent</span>
-                <button class="remove-pin-button">&times;</button>
+        <div class="pins-task-container">
+            <div class="pins-container">
+                <!-- Default pins -->
+                <div class="pin">
+                    <span class="pin-text">Urgent</span>
+                    <button class="remove-pin-button">&times;</button>
+                </div>
+                <div class="pin">
+                    <span class="pin-text">General</span>
+                    <button class="remove-pin-button">&times;</button>
+                </div>
+                <button id="add-pin-button">+</button>
             </div>
-            <div class="pin">
-                <span class="pin-text">General</span>
-                <button class="remove-pin-button">&times;</button>
+            <div class="task-bar">
+                <div class="progress-circle">
+                    <span class="progress-percentage">0%</span>
+                </div>
+                <div class="task-list hidden">
+                    <ul id="task-items">
+                        <!-- Tasks will be dynamically added here -->
+                    </ul>
+                    <button id="add-task-button">Add Task</button>
+                </div>
             </div>
-            <button id="add-pin-button">+</button>
         </div>
         <div class="messages">
-            
+            <!-- Messages will appear here -->
         </div>
         <div class="main-chat-footer">
             <div class="input-area">

@@ -217,4 +217,56 @@ document.addEventListener('DOMContentLoaded', () => {
     // 🔘 Sidebar Button Logic (Optional Future)
     // ==========================
     // Add more button handlers here if needed
+
+    // ==========================
+    // 📝 Task Bar Logic
+    // ==========================
+    const progressCircle = document.querySelector('.progress-circle');
+    const progressPercentage = document.querySelector('.progress-percentage');
+    const taskList = document.querySelector('.task-list');
+    const taskItems = document.getElementById('task-items');
+    const addTaskButton = document.getElementById('add-task-button');
+
+    let tasks = [];
+    let completedTasks = 0;
+
+    progressCircle.addEventListener('click', () => {
+        taskList.classList.toggle('hidden');
+    });
+
+    addTaskButton.addEventListener('click', () => {
+        const taskText = prompt('Enter a new task:');
+        if (taskText) {
+            const taskId = `task-${tasks.length}`;
+            tasks.push({ id: taskId, text: taskText, completed: false });
+
+            const taskItem = document.createElement('li');
+            taskItem.innerHTML = `
+                <input type="checkbox" id="${taskId}">
+                <label for="${taskId}">${taskText}</label>
+            `;
+            taskItems.appendChild(taskItem);
+
+            updateProgress();
+        }
+    });
+
+    taskItems.addEventListener('change', (event) => {
+        if (event.target.type === 'checkbox') {
+            const taskId = event.target.id;
+            const task = tasks.find(t => t.id === taskId);
+            if (task) {
+                task.completed = event.target.checked;
+                completedTasks = tasks.filter(t => t.completed).length;
+                updateProgress();
+            }
+        }
+    });
+
+    function updateProgress() {
+        const progress = tasks.length ? Math.round((completedTasks / tasks.length) * 100) : 0;
+        progressPercentage.textContent = `${progress}%`;
+        progressCircle.style.background = `conic-gradient(var(--sent-bg) 0% ${progress}%, var(--received-bg) ${progress}% 100%)`;
+        progressCircle.style.transition = 'background 0.3s ease-in-out';
+    }
 });
