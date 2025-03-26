@@ -1,5 +1,21 @@
 document.addEventListener('DOMContentLoaded', () => {
     // ==========================
+    // 👤 USERNAME SETUP
+    // ==========================
+    const username = localStorage.getItem('username');
+
+    if (!username) {
+        alert('You are not logged in. Redirecting to login page...');
+        window.location.href = 'login.html';
+        return;
+    }
+
+    const sidebarUsername = document.getElementById('sidebar-username');
+    if (sidebarUsername) {
+        sidebarUsername.textContent = username;
+    }
+
+    // ==========================
     // 🔌 SOCKET & MESSAGE HANDLING
     // ==========================
     const socket = io('http://localhost:3000');
@@ -15,34 +31,18 @@ document.addEventListener('DOMContentLoaded', () => {
         toggleBtn.textContent = sidebar.classList.contains('collapsed') ? '→' : '←';
     });
 
-    // const username = prompt("Enter your username:");
-
-    fetch('http://localhost:3000/save-username', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ username })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.error) {
-            alert(data.error);
-            location.reload();
-        } else {
-            console.log('Username saved:', data.user);
-        }
-    })
-    .catch(error => {
-        console.error('Error saving username:', error);
-    });
-
     function sendMessage() {
         const messageText = inputField.value.trim();
-        if (messageText) {
-            const messageData = { message: messageText, sender: username };
+        if (messageText && activeReceiver) {
+            const messageData = {
+                message: messageText,
+                sender: username,
+                receiver: activeReceiver
+            };
             socket.emit('sendMessage', messageData);
             inputField.value = '';
+        } else if (!activeReceiver) {
+            alert('Please select a user to chat with.');
         }
     }
 
@@ -93,7 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
             typingStatus.textContent = 'Typing...';
         }
     });
-    
+
     socket.on('stopTyping', (user) => {
         if (user !== username) {
             typingStatus.textContent = '';
