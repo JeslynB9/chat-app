@@ -235,20 +235,54 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     addTaskButton.addEventListener('click', () => {
-        const taskText = prompt('Enter a new task:');
-        if (taskText) {
-            const taskId = `task-${tasks.length}`;
-            tasks.push({ id: taskId, text: taskText, completed: false });
+        const taskId = `task-${tasks.length}`;
+        tasks.push({ id: taskId, text: '', completed: false });
 
-            const taskItem = document.createElement('li');
-            taskItem.innerHTML = `
-                <input type="checkbox" id="${taskId}">
-                <label for="${taskId}">${taskText}</label>
-            `;
-            taskItems.appendChild(taskItem);
+        const taskItem = document.createElement('li');
+        taskItem.innerHTML = `
+            <input type="checkbox" id="${taskId}">
+            <span class="task-name" data-task-id="${taskId}">New Task</span>
+        `;
+        taskItems.appendChild(taskItem);
 
-            updateProgress();
+        const taskName = taskItem.querySelector('.task-name');
+
+        function enableEditing() {
+            const taskId = taskName.getAttribute('data-task-id');
+            const task = tasks.find(t => t.id === taskId);
+
+            const taskInput = document.createElement('input');
+            taskInput.type = 'text';
+            taskInput.className = 'task-input';
+            taskInput.value = task.text || taskName.textContent;
+            taskName.replaceWith(taskInput);
+            taskInput.focus();
+
+            function finalizeTaskInput(event) {
+                if (event.type === 'blur' || (event.type === 'keypress' && event.key === 'Enter')) {
+                    const taskText = taskInput.value.trim();
+                    if (taskText) {
+                        task.text = taskText;
+                        taskInput.replaceWith(taskName);
+                        taskName.textContent = taskText;
+                    } else {
+                        // Remove the task if no text is entered
+                        tasks = tasks.filter(t => t.id !== taskId);
+                        taskItem.remove();
+                    }
+                    updateProgress();
+                }
+            }
+
+            taskInput.addEventListener('blur', finalizeTaskInput);
+            taskInput.addEventListener('keypress', finalizeTaskInput);
         }
+
+        // Immediately enable editing for the new task
+        enableEditing();
+
+        // Allow editing on double-click
+        taskName.addEventListener('dblclick', enableEditing);
     });
 
     taskItems.addEventListener('change', (event) => {

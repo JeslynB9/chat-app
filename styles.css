@@ -484,18 +484,18 @@ body {
 
 .task-list {
     margin-top: 10px;
-    width: 100%; /* Match the width of the task-bar */
+    width: 150%; /* Keep the task list wider */
+    height: 200px; /* Set a fixed height for the task list */
     background-color: var(--chat-bg);
     border: 1px solid var(--border-color);
     border-radius: 8px;
-    padding: 10px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
     position: absolute; /* Position the task list absolutely */
     top: 120px; /* Position it below the progress circle */
     right: 20px; /* Align it with the right edge of the task-bar */
     z-index: 5; /* Ensure it appears above other elements */
+    overflow: hidden; /* Prevent content from overflowing */
 }
 
 .task-list.hidden {
@@ -504,18 +504,32 @@ body {
 
 .task-list ul {
     list-style: none;
-    padding: 0;
+    padding: 10px;
     margin: 0;
+    flex-grow: 1; /* Allow the task list to grow and take up available space */
+    overflow-y: auto; /* Enable vertical scrolling for tasks */
 }
 
 .task-list li {
     display: flex;
-    align-items: center;
+    align-items: flex-start; /* Align checkbox and text at the top */
     gap: 10px;
+    word-wrap: break-word; /* Allow text to wrap */
+    word-break: break-word; /* Break long words if necessary */
+    line-height: 1.5; /* Add spacing between lines */
+    position: relative; /* Enable positioning for the text indent */
 }
 
 .task-list li input[type="checkbox"] {
-    cursor: pointer;
+    flex-shrink: 0; /* Prevent the checkbox from shrinking */
+    margin-top: 3px; /* Align the checkbox with the text */
+}
+
+.task-list li span {
+    display: inline-block;
+    white-space: normal; /* Allow text to wrap */
+    padding-left: 0; /* Remove extra padding */
+    text-indent: 0; /* Align wrapped lines with the text after the checkbox */
 }
 
 #add-task-button {
@@ -526,10 +540,12 @@ body {
     border-radius: 5px;
     cursor: pointer;
     font-size: 0.9rem;
-    align-self: center;
+    align-self: center; /* Center the button horizontally */
+    margin: 10px 0; /* Add spacing above and below the button */
+    flex-shrink: 0; /* Prevent the button from shrinking */
 }
 
 #add-task-button:hover {
-    transform: scale(1.1);
+    transform: scale(1.1); /* Enlarge the button on hover */
     transition: transform 0.2s;
 }
