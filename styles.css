@@ -549,3 +549,69 @@ body {
     transform: scale(1.1); /* Enlarge the button on hover */
     transition: transform 0.2s;
 }
+
+.auth-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    width: 100vw; /* Ensure it takes up the full width */
+    background-color: var(--bg-color);
+    margin: 0; /* Remove any default margin */
+    padding: 0; /* Remove any default padding */
+}
+
+.auth-box {
+    background-color: var(--chat-bg);
+    padding: 40px; /* Increase padding for a larger box */
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    width: 400px; /* Increase width for a bigger box */
+    text-align: center;
+    padding-left: 20px; /* Shift the contents slightly to the left */
+}
+
+.auth-box h1 {
+    margin-bottom: 30px; /* Add more spacing below the heading */
+    padding-left: 20px;
+    font-size: 2rem; /* Increase font size for the heading */
+    color: var(--text-color);
+}
+
+.form-group {
+    margin-bottom: 15px;
+    text-align: left;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    color: var(--text-color);
+}
+
+.form-group input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    background-color: var(--chat-bg);
+    color: var(--text-color);
+}
+
+.form-group button {
+    width: 48%;
+    padding: 10px;
+    margin: 5px 1%;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    background-color: var(--sent-bg);
+    color: var(--text-color-2);
+    transition: background-color 0.3s ease;
+    margin-left: -1px; /* Move the buttons slightly to the left */
+}
+
+.form-group button:hover {
+    opacity: 0.8; /* Make the button slightly transparent on hover */
+    transition: opacity 0.2s ease;
+}
