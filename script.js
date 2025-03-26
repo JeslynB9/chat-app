@@ -242,6 +242,7 @@ document.addEventListener('DOMContentLoaded', () => {
         taskItem.innerHTML = `
             <input type="checkbox" id="${taskId}">
             <span class="task-name" data-task-id="${taskId}">New Task</span>
+            <button class="delete-task-button">&times;</button> <!-- Display "X" -->
         `;
         taskItems.appendChild(taskItem);
 
@@ -258,6 +259,8 @@ document.addEventListener('DOMContentLoaded', () => {
             taskName.replaceWith(taskInput);
             taskInput.focus();
 
+            taskItem.classList.add('editing'); // Add the editing class
+
             function finalizeTaskInput(event) {
                 if (event.type === 'blur' || (event.type === 'keypress' && event.key === 'Enter')) {
                     const taskText = taskInput.value.trim();
@@ -270,6 +273,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         tasks = tasks.filter(t => t.id !== taskId);
                         taskItem.remove();
                     }
+                    taskItem.classList.remove('editing'); // Remove the editing class
                     updateProgress();
                 }
             }
@@ -283,6 +287,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Allow editing on double-click
         taskName.addEventListener('dblclick', enableEditing);
+
+        // Add delete functionality
+        const deleteButton = taskItem.querySelector('.delete-task-button');
+        deleteButton.addEventListener('click', () => {
+            const taskIndex = tasks.findIndex(t => t.id === taskId);
+            if (taskIndex !== -1) {
+                if (tasks[taskIndex].completed) {
+                    completedTasks--; // Deduct completed tasks if the task was marked as completed
+                }
+                tasks.splice(taskIndex, 1); // Remove the task from the array
+            }
+            taskItem.remove(); // Remove the task from the DOM
+            updateProgress(); // Update the progress percentage
+        });
     });
 
     taskItems.addEventListener('change', (event) => {

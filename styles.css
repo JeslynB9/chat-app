@@ -435,7 +435,9 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    border: none;
+    background: none; /* Remove the background */
+    box-shadow: none; /* Remove any shadow if present */
+    border: none; /* Remove any border if present */
     padding: 10px;
     z-index: 10; /* Ensure it appears above other elements */
     flex-shrink: 0; /* Prevent shrinking */
@@ -486,7 +488,7 @@ body {
     margin-top: 10px;
     width: 150%; /* Keep the task list wider */
     height: 200px; /* Set a fixed height for the task list */
-    background-color: var(--chat-bg);
+    background-color: var(--received-bg);
     border: 1px solid var(--border-color);
     border-radius: 8px;
     display: flex;
@@ -533,8 +535,8 @@ body {
 }
 
 #add-task-button {
-    background-color: var(--received-bg);
-    color: var(--text-color);
+    background-color: var(--sent-bg);
+    color: var(--text-color-2);
     border: none;
     padding: 5px 10px;
     border-radius: 5px;
@@ -548,6 +550,25 @@ body {
 #add-task-button:hover {
     transform: scale(1.1); /* Enlarge the button on hover */
     transition: transform 0.2s;
+}
+
+.task-list li .delete-task-button {
+    background: none; /* Remove default button background */
+    border: none; /* Remove border */
+    color: var(--text-color); /* Use text color for the "X" */
+    font-size: 1.2rem; /* Make the "X" slightly larger */
+    cursor: pointer; /* Show pointer cursor on hover */
+    margin-left: auto; /* Push the "X" to the far right */
+    transition: transform 0.2s ease; /* Add a smooth hover effect */
+}
+
+.task-list li .delete-task-button:hover {
+    transform: scale(1.2); /* Slightly enlarge the "X" on hover */
+    color: var(--border-color); /* Change color on hover */
+}
+
+.task-list li.editing .delete-task-button {
+    display: none; /* Hide the delete button while editing */
 }
 
 .auth-container {
