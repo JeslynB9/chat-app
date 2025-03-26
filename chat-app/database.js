@@ -45,6 +45,7 @@ function authenticateUser(username, callback) {
         if (err) {
             callback(err);
         } else {
+            if (!row) return callback(null, null);
             callback(null, row);
         }
     });
