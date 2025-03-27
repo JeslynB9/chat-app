@@ -17,7 +17,7 @@ const io = new Server(server, {
 });
 
 const calendarRoutes = require('./routes/calendar');
-app.use('/api/calendar', calendarRoutes);
+app.use('/calendar', calendarRoutes);
 
 app.use(cors());
 app.use(express.json());

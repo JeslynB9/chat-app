@@ -38,9 +38,10 @@ function openCalendar() {
         initialView: 'dayGridMonth',
         selectable: true,
         events: function(fetchInfo, successCallback, failureCallback) {
-          fetch(`/calendar/events?username=${localStorage.getItem('username')}`)
+            fetch(`http://localhost:3000/calendar`)
             .then(res => res.json())
             .then(data => {
+                console.log('📦 Events fetched from server:', data); 
               if (data.success) {
                 successCallback(data.events);
               } else {
@@ -280,23 +281,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    plusButton.addEventListener('click', () => {
-        // Show the calendar modal
-        document.getElementById('calendar-modal').style.display = 'block';
+    plusButton.addEventListener('click', openCalendar);
+
     
-        // Load events only once
-        if (!calendarInitialized) {
-            fetch(`http://localhost:3000/calendar/events?username=${username}`)
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        data.events.forEach(event => calendar.addEvent(event));
-                    }
-                });
-    
-            calendarInitialized = true; // prevent re-fetching every time
-        }
-    });
 
     // ==========================
     // 📌 PINS (HEADER)
