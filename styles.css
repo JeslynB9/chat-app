@@ -832,4 +832,32 @@ body {
 
 #upload-profile-picture {
     cursor: pointer;
+    background-color: var(--sent-bg);
+    color: var(--text-color-2);
+    border: none;
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 0.9rem;
+    transition: transform 0.2s ease;
+}
+
+#upload-profile-picture:hover {
+    transform: scale(1.1); /* Slightly enlarge the button on hover */
+}
+
+.button-style {
+    background-color: var(--sent-bg);
+    color: var(--text-color-2);
+    border: none;
+    padding: 5px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    text-align: center;
+    display: inline-block;
+    transition: transform 0.2s ease;
+}
+
+.button-style:hover {
+    transform: scale(1.1); /* Slightly enlarge the button on hover */
 }
