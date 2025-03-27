@@ -253,30 +253,49 @@ body {
 .input-area {
     display: flex;
     align-items: center;
-    padding: 0 10px;
-    gap: 8px;
-    height: 45px;
-    background-color: var(--chat-bg);
-    border-radius: 25px;
+    padding: 6px 10px;
+    gap: 10px;
+    background-color: white;
     border: 1px solid var(--border-color);
+    border-radius: 999px;
+    height: 45px;
+    width: calc(100% - 360px); /* Expand to full width minus sidebar & margins */
+    box-sizing: border-box;
+    transition: width 0.3s ease;
 }
+
+.sidebar.collapsed ~ .main-chat .main-chat-footer .input-area {
+    width: calc(100% - 60px); /* Expand more when sidebar collapsed */
+}
+
 .input-area input {
     flex-grow: 1;
-    padding: 10px;
-    border: 1px solid var(--border-color);
-    border-radius: 20px;
-    margin-right: 10px;
+    border: none;
+    outline: none;
+    padding: 8px 12px;
+    border-radius: 999px;
     background-color: var(--chat-bg);
+    font-size: 1rem;
     min-width: 0;
 }
+
 .input-area button {
     background: none;
     border: none;
     cursor: pointer;
-    padding: 6px;
+    padding: 4px;
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 36px;
+    height: 36px;
+}
+
+.input-area button img {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    display: block;
 }
 
 .messages {
