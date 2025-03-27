@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let typingTimeout;
     const toggleBtn = document.getElementById('toggle-sidebar');
     const sidebar = document.querySelector('.sidebar');
+    let activeReceiver = null; // Ensure this is properly initialized
 
     toggleBtn.addEventListener('click', () => {
         sidebar.classList.toggle('collapsed');
@@ -39,8 +40,39 @@ document.addEventListener('DOMContentLoaded', () => {
                 sender: username,
                 receiver: activeReceiver
             };
+
+            // Emit the message via Socket.IO
             socket.emit('sendMessage', messageData);
-            inputField.value = '';
+
+            // Save the message to the database
+            fetch('http://localhost:3000/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(messageData)
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log('Message saved:', data);
+                        // Add the message to the UI
+                        const messageElement = document.createElement('div');
+                        messageElement.classList.add('message', 'sent');
+                        const messageBubble = document.createElement('div');
+                        messageBubble.classList.add('message-bubble');
+                        messageBubble.textContent = messageText;
+                        messageElement.appendChild(messageBubble);
+                        messagesContainer.appendChild(messageElement);
+                        messagesContainer.scrollTop = messagesContainer.scrollHeight; // Scroll to the bottom
+
+                        // Dynamically update the last message in the sidebar
+                        updateLastMessageInSidebar(activeReceiver, messageText, "You");
+                    } else {
+                        console.error('Error saving message:', data.message);
+                    }
+                })
+                .catch(error => console.error('Error sending message:', error));
+
+            inputField.value = ''; // Clear the input field
         } else if (!activeReceiver) {
             alert('Please select a user to chat with.');
         }
@@ -61,31 +93,29 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('receiveMessage', (data) => {
-        const messageElement = document.createElement('div');
-        messageElement.classList.add('message');
-
+        // Ignore messages sent by the sender
         if (data.sender === username) {
-            messageElement.classList.add('sent');
-            const messageBubble = document.createElement('div');
-            messageBubble.classList.add('message-bubble');
-            messageBubble.textContent = data.message;
-            messageElement.appendChild(messageBubble);
-        } else {
-            messageElement.classList.add('received');
-            const usernameElement = document.createElement('div');
-            usernameElement.classList.add('username');
-            usernameElement.textContent = data.sender;
-
-            const messageBubble = document.createElement('div');
-            messageBubble.classList.add('message-bubble');
-            messageBubble.textContent = data.message;
-
-            messageElement.appendChild(usernameElement);
-            messageElement.appendChild(messageBubble);
+            return;
         }
+
+        const messageElement = document.createElement('div');
+        messageElement.classList.add('message', 'received');
+        const usernameElement = document.createElement('div');
+        usernameElement.classList.add('username');
+        usernameElement.textContent = data.sender;
+
+        const messageBubble = document.createElement('div');
+        messageBubble.classList.add('message-bubble');
+        messageBubble.textContent = data.message;
+
+        messageElement.appendChild(usernameElement);
+        messageElement.appendChild(messageBubble);
 
         messagesContainer.appendChild(messageElement);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+        // Dynamically update the last message in the sidebar
+        updateLastMessageInSidebar(data.sender, data.message, data.sender);
     });
 
     socket.on('typing', (user) => {
@@ -320,5 +350,238 @@ document.addEventListener('DOMContentLoaded', () => {
         progressPercentage.textContent = `${progress}%`;
         progressCircle.style.background = `conic-gradient(var(--sent-bg) 0% ${progress}%, var(--received-bg) ${progress}% 100%)`;
         progressCircle.style.transition = 'background 0.3s ease-in-out';
+    }
+
+    // ==========================
+    // ✉️ COMPOSE MESSAGE MODAL
+    // ==========================
+    const composeButton = document.getElementById('compose-button');
+    const composeModal = document.getElementById('compose-modal');
+    const closeComposeButton = composeModal.querySelector('.close-button');
+    const searchUserInput = document.getElementById('search-user');
+    const userResults = document.getElementById('user-results');
+    const startChatButton = document.getElementById('start-chat-button');
+
+    let selectedUser = null;
+
+    composeButton.addEventListener('click', () => {
+        // Reset the modal when it is reopened
+        searchUserInput.value = '';
+        userResults.innerHTML = '';
+        selectedUser = null;
+        startChatButton.disabled = true;
+
+        composeModal.style.display = 'block';
+    });
+
+    closeComposeButton.addEventListener('click', () => {
+        composeModal.style.display = 'none';
+    });
+
+    window.addEventListener('click', (event) => {
+        if (event.target === composeModal) {
+            composeModal.style.display = 'none';
+        }
+    });
+
+    searchUserInput.addEventListener('input', () => {
+        const query = searchUserInput.value.trim();
+        if (query) {
+            fetch(`http://localhost:3000/search-users?query=${encodeURIComponent(query)}`)
+                .then(response => response.json())
+                .then(data => {
+                    userResults.innerHTML = '';
+                    data.users.forEach(user => {
+                        const userItem = document.createElement('li');
+                        userItem.textContent = user.username;
+                        userItem.addEventListener('click', () => {
+                            selectedUser = user.username;
+                            startChatButton.disabled = false;
+                            Array.from(userResults.children).forEach(child => child.classList.remove('selected'));
+                            userItem.classList.add('selected');
+                            console.log(`User selected: ${selectedUser}`);
+                        });
+                        userResults.appendChild(userItem);
+                    });
+                })
+                .catch(error => console.error('Error fetching users:', error));
+        } else {
+            userResults.innerHTML = '';
+            selectedUser = null;
+            startChatButton.disabled = true;
+        }
+    });
+
+    startChatButton.addEventListener('click', () => {
+        if (selectedUser) {
+            console.log(`Starting chat with ${selectedUser}`);
+            addChatToSidebar(selectedUser); // Add the selected user to the sidebar
+            notifyNewChat(username); // Notify the server to add the chat for both users
+            activeChat = selectedUser;
+            messagesContainer.innerHTML = ''; // Clear messages for the new chat
+            composeModal.style.display = 'none';
+        } else {
+            console.error('No user selected to start a chat.');
+        }
+    });
+
+    // ==========================
+    // 🗨️ CHAT LIST & MESSAGES
+    // ==========================
+    const chatList = document.getElementById('chat-list');
+    let activeChat = null;
+    const chatHeaderName = document.querySelector('.main-chat-header div > div:first-child'); // Select the header name element
+    const chatHeaderUsername = document.getElementById('chat-header-username'); // Select the username element in the chat header
+    const noChatPlaceholder = document.getElementById('no-chat-placeholder');
+    const chatScreen = document.getElementById('chat-screen');
+    const inputArea = document.getElementById('main-chat-footer'); // Correctly select the footer containing the input area
+
+    function addChatToSidebar(username) {
+        // Check if the chat already exists in the sidebar
+        if (Array.from(chatList.children).some(chat => chat.querySelector('div > div:first-child').textContent.trim() === username)) {
+            console.log(`Chat with ${username} already exists in the sidebar.`);
+            return;
+        }
+
+        const chatItem = document.createElement('div');
+        chatItem.classList.add('chat-list-item');
+        chatItem.innerHTML = `
+            <img src="default-avatar.jpg" alt="User" width="40" height="40">
+            <div>
+                <div>${username}</div>
+                <div class="last-message">Loading...</div> <!-- Placeholder for the last message -->
+            </div>
+        `;
+        chatItem.addEventListener('click', () => {
+            highlightSelectedChat(chatItem); // Highlight the selected chat
+            activeReceiver = username; // Set the active receiver
+            chatHeaderUsername.textContent = username; // Update the chat header with the username
+            toggleChatScreen(true); // Show the chat screen
+            loadMessages(username); // Fetch and display previous messages
+        });
+        chatList.appendChild(chatItem);
+
+        // Fetch the last message for this chat
+        fetchLastMessage(username, chatItem.querySelector('.last-message'));
+    }
+
+    function fetchLastMessage(username, lastMessageElement) {
+        fetch(`http://localhost:3000/messages?sender=${encodeURIComponent(username)}&receiver=${encodeURIComponent(username)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.messages.length > 0) {
+                    const lastMessage = data.messages[data.messages.length - 1];
+                    lastMessageElement.textContent = `${lastMessage.sender}: ${lastMessage.message}`;
+                } else {
+                    lastMessageElement.textContent = 'No messages yet';
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching last message:', error);
+                lastMessageElement.textContent = 'Error loading message';
+            });
+    }
+
+    function toggleChatScreen(show) {
+        if (show) {
+            noChatPlaceholder.style.display = 'none';
+            chatScreen.classList.remove('hidden');
+            inputArea.style.display = 'flex'; // Ensure the input area is visible
+        } else {
+            noChatPlaceholder.style.display = 'flex';
+            chatScreen.classList.add('hidden');
+            inputArea.style.display = 'none'; // Hide the input area when no chat is selected
+        }
+    }
+
+    // Initially show the placeholder and hide the input area
+    toggleChatScreen(false);
+
+    // Function to highlight the selected chat
+    function highlightSelectedChat(selectedChat) {
+        // Remove the 'selected' class from all chat items
+        Array.from(chatList.children).forEach(chat => chat.classList.remove('selected'));
+        // Add the 'selected' class to the clicked chat item
+        selectedChat.classList.add('selected');
+    }
+
+    function loadMessages(username) {
+        console.log(`Loading messages for user: ${username}`);
+        fetch(`http://localhost:3000/messages?sender=${encodeURIComponent(username)}&receiver=${encodeURIComponent(username)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    messagesContainer.innerHTML = ''; // Clear existing messages
+                    data.messages.forEach(message => {
+                        const messageElement = document.createElement('div');
+                        messageElement.classList.add('message', message.sender === username ? 'received' : 'sent');
+                        const messageBubble = document.createElement('div');
+                        messageBubble.classList.add('message-bubble');
+                        messageBubble.textContent = message.message;
+                        messageElement.appendChild(messageBubble);
+                        messagesContainer.appendChild(messageElement);
+                    });
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight; // Scroll to the bottom
+                } else {
+                    console.error('Error fetching messages:', data.message);
+                }
+            })
+            .catch(error => console.error('Error loading messages:', error));
+    }
+
+    // Notify the server when a new chat is added
+    function notifyNewChat(username) {
+        fetch('http://localhost:3000/add-chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sender: username, receiver: selectedUser })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log(`Chat with ${selectedUser} added for both users.`);
+                } else {
+                    console.error('Error adding chat:', data.message);
+                }
+            })
+            .catch(error => console.error('Error notifying server:', error));
+    }
+
+    // Fetch and display the chat list for the logged-in user
+    function fetchChatList() {
+        fetch(`http://localhost:3000/user-chats?username=${encodeURIComponent(username)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    chatList.innerHTML = ''; // Clear existing chat list
+                    data.chats.forEach(chat => {
+                        addChatToSidebar(chat.username);
+                    });
+                } else {
+                    console.error('Error fetching chat list:', data.message);
+                }
+            })
+            .catch(error => console.error('Error fetching chat list:', error));
+    }
+
+    // Listen for updates to the chat list
+    socket.on('updateChatList', ({ sender, receiver }) => {
+        if (sender === username || receiver === username) {
+            fetchChatList(); // Refresh the chat list for the logged-in user
+        }
+    });
+
+    // Call fetchChatList on page load to populate the chat list
+    fetchChatList();
+
+    function updateLastMessageInSidebar(username, message, sender) {
+        const chatItem = Array.from(chatList.children).find(chat =>
+            chat.querySelector('div > div:first-child').textContent.trim() === username
+        );
+        if (chatItem) {
+            const lastMessageElement = chatItem.querySelector('.last-message');
+            const displaySender = sender === username ? "You" : sender; // Show "You" if the sender is the logged-in user
+            lastMessageElement.textContent = `${displaySender}: ${message}`;
+        }
     }
 });

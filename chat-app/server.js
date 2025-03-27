@@ -35,7 +35,7 @@ app.post('/register', async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);
         db.registerUser(username, hashedPassword, (err, userId) => {
             if (err) {
-                console.error('Registration DB Error:', err);  // <-- Add this line
+                console.error('Registration DB Error:', err);
                 if (err.message.includes('UNIQUE constraint failed')) {
                     return res.status(400).json({ success: false, message: 'Username already exists' });
                 }
@@ -90,6 +90,94 @@ app.post('/save-username', (req, res) => {
     });
 });
 
+// ========== Search Users ==========
+app.get('/search-users', (req, res) => {
+    const query = req.query.query;
+    if (!query) {
+        return res.status(400).json({ success: false, message: 'Query parameter is required' });
+    }
+
+    db.getAllUsernames((err, users) => {
+        if (err) {
+            return res.status(500).json({ success: false, message: 'Database error' });
+        }
+        const filteredUsers = users.filter(user => user.username.toLowerCase().includes(query.toLowerCase()));
+        res.json({ success: true, users: filteredUsers });
+    });
+});
+
+// ========== Fetch Messages ==========
+app.get('/messages', (req, res) => {
+    const { sender, receiver } = req.query;
+
+    if (!sender || !receiver) {
+        return res.status(400).json({ success: false, message: 'Sender and receiver are required' });
+    }
+
+    db.getMessagesBetweenUsers(sender, receiver, (err, messages) => {
+        if (err) {
+            console.error('Database error fetching messages:', err);
+            return res.status(500).json({ success: false, message: 'Database error' });
+        }
+        res.json({ success: true, messages });
+    });
+});
+
+// ========== Save a New Message ==========
+app.post('/messages', (req, res) => {
+    const { sender, receiver, message } = req.body;
+
+    if (!sender || !receiver || !message) {
+        return res.status(400).json({ success: false, message: 'Sender, receiver, and message are required' });
+    }
+
+    db.saveMessage(sender, receiver, message, (err, savedMessage) => {
+        if (err) {
+            console.error('Database error saving message:', err);
+            return res.status(500).json({ success: false, message: 'Database error' });
+        }
+        res.status(201).json({ success: true, message: 'Message saved', data: savedMessage });
+    });
+});
+
+// ========== Add a Chat for Both Users ==========
+app.post('/add-chat', (req, res) => {
+    const { sender, receiver } = req.body;
+
+    if (!sender || !receiver) {
+        return res.status(400).json({ success: false, message: 'Sender and receiver are required' });
+    }
+
+    db.addChatForBothUsers(sender, receiver, (err) => {
+        if (err) {
+            console.error('Database error adding chat:', err);
+            return res.status(500).json({ success: false, message: 'Database error' });
+        }
+
+        // Notify both users via Socket.IO
+        io.emit('updateChatList', { sender, receiver });
+
+        res.status(201).json({ success: true, message: 'Chat added for both users' });
+    });
+});
+
+// ========== Fetch the Chat List for a Specific User ==========
+app.get('/user-chats', (req, res) => {
+    const { username } = req.query;
+
+    if (!username) {
+        return res.status(400).json({ success: false, message: 'Username is required' });
+    }
+
+    db.getUserChats(username, (err, chats) => {
+        if (err) {
+            console.error('Database error fetching user chats:', err);
+            return res.status(500).json({ success: false, message: 'Database error' });
+        }
+        res.json({ success: true, chats });
+    });
+});
+
 // ========== Socket.IO ==========
 io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
@@ -117,6 +205,7 @@ io.on('connection', (socket) => {
     });
 });
 
+// Start the server
 server.listen(3000, () => {
     console.log('Server running on http://localhost:3000');
 });

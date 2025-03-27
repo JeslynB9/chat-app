@@ -4,6 +4,7 @@
     --text-color-2: white;
     --chat-bg: hsl(0, 0%, 95%);
     --sent-bg: #007bff;
+    --selected-chat: #e0e0fa;
     --received-bg: #ddd;
     --border-color: #1e1e1e;
 }
@@ -13,6 +14,7 @@
     --text-color: white;
     --chat-bg: #333;
     --sent-bg: #555;
+    --selected-chat: #454552;
     --received-bg: #666;
     --border-color: white;
 }
@@ -23,6 +25,7 @@
     --text-color-2: white;
     --chat-bg: #bbdefb;
     --sent-bg: #0288d1;
+    --selected-chat: #e0edfa;
     --received-bg: #81d4fa;
     --border-color: #011046;
 }
@@ -33,6 +36,7 @@
     --text-color-2: white;
     --chat-bg: #e5bbfb;
     --sent-bg: #9602d1;
+    --selected-chat: #f2e0fa;
     --received-bg: #d681fa;
     --border-color: #370146;
 }
@@ -77,9 +81,26 @@ body {
     flex-grow: 0;
   }
 
-.sidebar-header, .sidebar-footer {
+.sidebar-header {
+    display: flex;
+    flex-direction: column; /* Stack elements vertically */
     padding: 10px;
     border-bottom: 1px solid var(--border-color);
+}
+
+.header-top {
+    display: flex;
+    align-items: center; /* Align items vertically */
+    justify-content: space-between; /* Space between the heading and the button */
+}
+
+.search-bar {
+    margin-top: 10px; /* Add spacing between the search bar and the header */
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    background-color: var(--chat-bg);
+    width: 100%; /* Ensure the search bar spans the full width */
 }
 
 .sidebar-header h1 {
@@ -130,30 +151,75 @@ body {
     border-radius: 50%;
     margin-right: 10px;
 }
+.chat-list-item.selected {
+    background-color: var(--selected-chat); /* Highlight color */
+    border-left: 4px solid var(--sent-bg); /* Accent border */
+}
 .main-chat {
-    width: 99%;
+    width: 100%;
     flex-grow: 1;
     display: flex;
     flex-direction: column;
-    flex-grow: 0;
     overflow: hidden;
     min-width: 0;
+    padding-bottom: 60px; /* Add padding to avoid overlap with the input area */
 }
 .main-chat-header, .main-chat-footer {
     padding: 10px;
     border-bottom: 1px solid var(--border-color);
     flex-grow: 0;
 }
-.main-chat-footer {
-    border-top: 1px solid var(--border-color);
+
+.main-chat-header {
+    display: flex;
+    align-items: center; /* Align items vertically */
+    padding: 10px;
+    border-bottom: 1px solid var(--border-color);
+    flex-grow: 0;
 }
+
+.chat-header-info {
+    display: flex;
+    flex-direction: column;
+    margin-left: 10px; /* Add spacing between the profile picture and text */
+}
+
+#chat-header-username {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: var(--text-color);
+}
+
+.typing-status {
+    font-size: 0.9rem;
+    color: var(--text-color);
+}
+
+.main-chat-footer {
+    position: fixed;
+    bottom: 0;
+    left: 331px;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    border-top: 1px solid var(--border-color);
+    background-color: var(--chat-bg);
+    z-index: 10; /* Ensure it stays above other elements */
+}
+
+.main-chat-footer.hidden {
+    display: none; /* Hide the footer when no chat is selected */
+}
+
 .messages {
     position: relative; /* Ensure the task-bar can be positioned relative to this container */
     flex-grow: 1;
-    overflow-y: auto;
+    overflow-y: auto; /* Enable vertical scrolling */
     padding: 10px;
     display: flex;
     flex-direction: column;
+    max-height: calc(100vh - 200px); /* Adjust height to fit within the viewport */
 }
 .message {
     margin-bottom: 10px;
@@ -176,6 +242,7 @@ body {
     border: 1px solid var(--border-color);
     border-radius: 20px;
     margin-right: 10px;
+    width: 975px;
     background-color: var(--chat-bg);
 }
 .input-area button {
@@ -334,20 +401,29 @@ body {
     transition: transform 0.2s; /* Smooth transition */
 }
 
-.sidebar-header {
-    display: flex;
-    align-items: left;
-    flex-direction: column;
-    justify-content: space-between;
-
-    
+#compose-button {
+    background-color: var(--sent-bg);
+    color: var(--text-color-2);
+    border: none;
+    padding: 5px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: transform 0.2s ease;
 }
+
+#compose-button:hover {
+    transform: scale(1.1); /* Slightly enlarge the button on hover */
+    background-color: var(--received-bg); /* Optional: Change background color on hover */
+}
+
 .sidebar-header input {
     flex-grow: 1;
     padding: 10px;
     border: 1px solid var(--border-color);
     border-radius: 20px;
     margin-right: 10px;
+    width: 285px;
     background-color: var(--chat-bg);
 }
 
@@ -635,4 +711,18 @@ body {
 .form-group button:hover {
     opacity: 0.8; /* Make the button slightly transparent on hover */
     transition: opacity 0.2s ease;
+}
+
+.no-chat-placeholder {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    font-size: 1.5rem;
+    color: var(--text-color);
+    text-align: center;
+}
+
+.chat-screen.hidden {
+    display: none;
 }

@@ -26,6 +26,25 @@ db.serialize(() => {
     });
 });
 
+// Create the `messages` table
+db.serialize(() => {
+    db.run(`
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sender TEXT NOT NULL,
+            receiver TEXT NOT NULL,
+            message TEXT NOT NULL,
+            createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `, (err) => {
+        if (err) {
+            console.error('Error creating messages table:', err.message);
+        } else {
+            console.log('Messages table created or already exists.');
+        }
+    });
+});
+
 // Register new user
 function registerUser(username, hashedPassword, callback) {
     const query = `INSERT INTO users (username, password) VALUES (?, ?)`;
@@ -76,9 +95,83 @@ function getAllUsernames(callback) {
     });
 }
 
+// Fetch messages between two users
+function getMessagesBetweenUsers(sender, receiver, callback) {
+    const query = `
+        SELECT * FROM messages
+        WHERE sender = ? OR receiver = ?
+        ORDER BY createdAt ASC
+    `;
+    db.all(query, [sender, receiver], (err, rows) => {
+        if (err) {
+            console.error('Error fetching messages from database:', err);
+            callback(err);
+        } else {
+            callback(null, rows);
+        }
+    });
+}
+
+// Save a new message
+function saveMessage(sender, receiver, message, callback) {
+    const query = `
+        INSERT INTO messages (sender, receiver, message, createdAt)
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+    `;
+    db.run(query, [sender, receiver, message], function (err) {
+        if (err) {
+            console.error('Error saving message to database:', err);
+            callback(err);
+        } else {
+            callback(null, { id: this.lastID, sender, receiver, message });
+        }
+    });
+}
+
+// Add a chat for both users
+function addChatForBothUsers(sender, receiver, callback) {
+    const query = `
+        INSERT INTO messages (sender, receiver, message) createdAt)
+        VALUES (?, ?, ?), (?, ?, ?)MESTAMP), (?, ?, ?, CURRENT_TIMESTAMP)
+    `;
+    const initialMessage = 'Chat started';
+    db.run(query, [sender, receiver, initialMessage, receiver, sender, initialMessage], (err) => {
+        if (err) {
+            console.error('Error adding chat for both users:', err);
+            callback(err);
+        } else {
+            callback(null);
+        }
+    });
+}
+
+// Fetch the chat list for a specific user
+function getUserChats(username, callback) {
+    const query = `
+        SELECT DISTINCT CASE
+            WHEN sender = ? THEN receiver
+            WHEN receiver = ? THEN sender
+        END AS username
+        FROM messages
+        WHERE sender = ? OR receiver = ?
+    `;
+    db.all(query, [username, username, username, username], (err, rows) => {
+        if (err) {
+            console.error('Error fetching user chats from database:', err);
+            callback(err);
+        } else {
+            callback(null, rows);
+        }
+    });
+}
+
 module.exports = {
     registerUser,
     authenticateUser,
     saveUsername,
-    getAllUsernames
+    getAllUsernames,
+    getMessagesBetweenUsers,
+    saveMessage,
+    addChatForBothUsers,
+    getUserChats
 };

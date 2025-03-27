@@ -4,15 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="styles.css">
-    <!-- <link rel="script" href="script.js"> -->
+    <link rel="script" href="script.js">
     <title>Chat Platform</title>
 </head>
 <body>
     <div class="sidebar">
         <div class="sidebar-header">
-            <h1>Chats</h1>
-            <input type="text" placeholder="Search">
-
+            <div class="header-top">
+                <h1>Chats</h1>
+                <button id="compose-button" class="image-button">Compose</button>
+            </div>
+            <input type="text" placeholder="Search" class="search-bar"> <!-- Moved here -->
             <!-- Pins Section -->
             <div class="pins-container-sidebar">
                 <!-- Default pins -->
@@ -27,21 +29,8 @@
                 <button id="add-pin-button-sidebar">+</button>
             </div>
         </div>
-        <div class="chat-list">
-            <div class="chat-list-item">
-                <img src="user1.jpg" alt="User" width="40" height="40">
-                <div>
-                    <div>Username</div>
-                    <div>time</div>
-                </div>
-            </div>
-            <div class="chat-list-item">
-                <img src="user2.jpg" alt="User" width="40" height="40">
-                <div>
-                    <div>Username</div>
-                    <div>time</div>
-                </div>
-            </div>
+        <div class="chat-list" id="chat-list">
+            <!-- Chats will be dynamically added here -->
         </div>
         <div class="sidebar-footer">
             <img src="user.jpg" alt="User" width="37.5" height="37.5">
@@ -68,53 +57,71 @@
                 </div>
             </div>
 
+            <!-- Compose Message Modal -->
+            <div id="compose-modal" class="modal">
+                <div class="modal-content">
+                    <span class="close-button">&times;</span>
+                    <h2>Compose Message</h2>
+                    <input type="text" id="search-user" placeholder="Search for a user..." />
+                    <ul id="user-results">
+                        <!-- Search results will be dynamically added here -->
+                    </ul>
+                    <button id="start-chat-button" disabled>Start Chat</button>
+                </div>
+            </div>
+
         </div>
     </div>
     <div class="main-chat">
-        <div class="main-chat-header">
-            <img src="user.jpg" alt="User" width="40" height="40">
-            <div>
-                <div>Name</div>
-                <div class="typing-status"></div>
+        <div id="no-chat-placeholder" class="no-chat-placeholder">
+            <p>Select a chat to get started</p>
+        </div>
+        <div id="chat-screen" class="chat-screen hidden">
+            <div class="main-chat-header">
+                <img src="user.jpg" alt="User" width="40" height="40">
+                <div class="chat-header-info">
+                    <span id="chat-header-username">Name</span> <!-- Dynamically updated username -->
+                    <span class="typing-status"></span>
+                </div>
+            </div>
+            <!-- Pins Section -->
+            <div class="pins-task-container">
+                <div class="pins-container">
+                    <!-- Default pins -->
+                    <div class="pin">
+                        <span class="pin-text">Urgent</span>
+                        <button class="remove-pin-button">&times;</button>
+                    </div>
+                    <div class="pin">
+                        <span class="pin-text">General</span>
+                        <button class="remove-pin-button">&times;</button>
+                    </div>
+                    <button id="add-pin-button">+</button>
+                </div>
+                <div class="task-bar">
+                    <div class="progress-circle">
+                        <span class="progress-percentage">0%</span>
+                    </div>
+                    <div class="task-list hidden">
+                        <ul id="task-items">
+                            <!-- Tasks will be dynamically added here -->
+                        </ul>
+                        <button id="add-task-button">Add Task</button>
+                    </div>
+                </div>
+            </div>
+            <div class="messages">
+                <!-- Messages will appear here -->
             </div>
         </div>
-        <!-- Pins Section -->
-        <div class="pins-task-container">
-            <div class="pins-container">
-                <!-- Default pins -->
-                <div class="pin">
-                    <span class="pin-text">Urgent</span>
-                    <button class="remove-pin-button">&times;</button>
-                </div>
-                <div class="pin">
-                    <span class="pin-text">General</span>
-                    <button class="remove-pin-button">&times;</button>
-                </div>
-                <button id="add-pin-button">+</button>
-            </div>
-            <div class="task-bar">
-                <div class="progress-circle">
-                    <span class="progress-percentage">0%</span>
-                </div>
-                <div class="task-list hidden">
-                    <ul id="task-items">
-                        <!-- Tasks will be dynamically added here -->
-                    </ul>
-                    <button id="add-task-button">Add Task</button>
-                </div>
-            </div>
+    </div>
+    <div id="main-chat-footer" class="main-chat-footer">
+        <div class="input-area">
+            <button id="toggle-sidebar" class="toggle-arrow">←</button>
+            <input type="text" placeholder="Type a message">
+            <button><img src="images/camera.png" alt="Camera" width="24" height="24"></button>
+            <button><img src="images/plus.png" alt="Plus" width="24" height="24"></button>
         </div>
-        <div class="messages">
-            <!-- Messages will appear here -->
-        </div>
-        <div class="main-chat-footer">
-            <div class="input-area">
-              <button id="toggle-sidebar" class="toggle-arrow">←</button> 
-              <input type="text" placeholder="Type a message">
-              <button><img src="images/camera.png" alt="Camera" width="24" height="24"></button>
-              <button><img src="images/plus.png" alt="Plus" width="24" height="24"></button>
-            </div>
-          </div>
     </div>
     
     <!-- Include Socket.IO -->
