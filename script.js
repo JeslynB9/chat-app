@@ -1,3 +1,6 @@
+let calendar; // global calendar instance
+let calendarInitialized = false;
+
 function generateProfilePicture(username) {
     const canvas = document.createElement('canvas');
     canvas.width = 40;
@@ -23,6 +26,61 @@ function generateProfilePicture(username) {
     return canvas.toDataURL(); // Return the image as a data URL
 }
 
+function openCalendar() {
+    const modal = document.getElementById("calendar-modal");
+    modal.style.display = "block";
+  
+    const calendarEl = document.getElementById('calendar');
+  
+    // Only initialize once
+    if (!calendarInitialized) {
+      calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        selectable: true,
+        events: function(fetchInfo, successCallback, failureCallback) {
+          fetch(`/calendar/events?username=${localStorage.getItem('username')}`)
+            .then(res => res.json())
+            .then(data => {
+              if (data.success) {
+                successCallback(data.events);
+              } else {
+                failureCallback(data.message);
+              }
+            })
+            .catch(failureCallback);
+        },
+        select: function(info) {
+          const title = prompt('Event Title:');
+          if (title) {
+            fetch('/calendar/events', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                title,
+                start: info.startStr,
+                end: info.endStr,
+                username: localStorage.getItem('username')
+              })
+            })
+            .then(res => res.json())
+            .then(() => {
+              calendar.refetchEvents();
+            });
+          }
+        }
+      });
+  
+      calendar.render();
+      calendarInitialized = true;
+    } else {
+      calendar.refetchEvents(); // Refresh when reopening
+    }
+  }
+  
+  function closeCalendar() {
+    document.getElementById("calendar-modal").style.display = "none";
+  }
+
 function getOrGenerateProfilePicture(username) {
     // Check if a profile picture is already saved in localStorage
     const savedPicture = localStorage.getItem(`profilePicture_${username}`);
@@ -40,6 +98,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================
     // 👤 USERNAME SETUP
     // ==========================
+    const calendarButton = document.getElementById('calendar-button');
+    calendarButton.addEventListener('click', openCalendar);
     const username = localStorage.getItem('username');
 
     if (!username) {
@@ -221,7 +281,21 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     plusButton.addEventListener('click', () => {
-        alert('Plus button clicked! You can implement additional actions here.');
+        // Show the calendar modal
+        document.getElementById('calendar-modal').style.display = 'block';
+    
+        // Load events only once
+        if (!calendarInitialized) {
+            fetch(`http://localhost:3000/calendar/events?username=${username}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        data.events.forEach(event => calendar.addEvent(event));
+                    }
+                });
+    
+            calendarInitialized = true; // prevent re-fetching every time
+        }
     });
 
     // ==========================
@@ -856,6 +930,8 @@ document.addEventListener('DOMContentLoaded', () => {
             chatItem.style.display = 'flex'; // Show all chats
         });
     }
+
+    
 
     // Update event listeners for the "Unread" and "All" pins
     document.querySelectorAll('.pin-text-sidebar').forEach(pin => {

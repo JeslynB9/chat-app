@@ -45,6 +45,25 @@ db.serialize(() => {
     });
 });
 
+// Create the `calendar_events` table
+db.serialize(() => {
+    db.run(`
+        CREATE TABLE IF NOT EXISTS calendar_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            start TEXT NOT NULL,
+            end TEXT NOT NULL,
+            created_by TEXT
+        )
+    `, (err) => {
+        if (err) {
+            console.error('Error creating calendar_events table:', err.message);
+        } else {
+            console.log('Calendar events table created or already exists.');
+        }
+    });
+});
+
 // Register new user
 function registerUser(username, hashedPassword, callback) {
     const query = `INSERT INTO users (username, password) VALUES (?, ?)`;
@@ -165,6 +184,58 @@ function getUserChats(username, callback) {
     });
 }
 
+function getAllCalendarEvents(callback) {
+    const query = `SELECT * FROM calendar_events`;
+    db.all(query, [], (err, rows) => {
+        if (err) {
+            callback(err);
+        } else {
+            callback(null, rows);
+        }
+    });
+}
+
+function addCalendarEvent({ title, start, end, created_by }, callback) {
+    const query = `
+        INSERT INTO calendar_events (title, start, end, created_by)
+        VALUES (?, ?, ?, ?)
+    `;
+    db.run(query, [title, start, end, created_by], function (err) {
+        if (err) {
+            callback(err);
+        } else {
+            callback(null, { id: this.lastID });
+        }
+    });
+}
+
+// Create events table
+db.run(`
+    CREATE TABLE IF NOT EXISTS events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      start TEXT NOT NULL,
+      end TEXT,
+      username TEXT NOT NULL
+    )
+  `);
+  
+  // Add an event
+  exports.addEvent = (event, callback) => {
+      const { title, start, end, username } = event;
+      const query = `INSERT INTO events (title, start, end, username) VALUES (?, ?, ?, ?)`;
+      db.run(query, [title, start, end, username], function (err) {
+          if (err) return callback(err);
+          callback(null, { id: this.lastID, ...event });
+      });
+  };
+  
+  // Fetch all events for a user
+  exports.getEvents = (username, callback) => {
+      const query = `SELECT * FROM events WHERE username = ?`;
+      db.all(query, [username], callback);
+  };
+
 module.exports = {
     registerUser,
     authenticateUser,
@@ -173,5 +244,8 @@ module.exports = {
     getMessagesBetweenUsers,
     saveMessage,
     addChatForBothUsers,
-    getUserChats
+    getUserChats,
+    getAllCalendarEvents,
+    addCalendarEvent
 };
+

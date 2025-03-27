@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="styles.css">
     <title>Chat Platform</title>
+    <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css' rel='stylesheet' />
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js'></script>
 </head>
 <body>
     <div class="sidebar">
@@ -127,18 +129,35 @@
             </div>
         </div>
     </div>
-    <div id="main-chat-footer" class="main-chat-footer">
+    <div id="main-chat-footer" <div class="main-chat-footer">
         <div class="input-area">
-            <button id="toggle-sidebar" class="toggle-arrow">←</button> 
-            <input type="text" placeholder="Type a message">
-            <button><img src="images/camera.png" alt="Camera" width="22" height="22"></button>
-            <button><img src="images/plus.png" alt="Plus" width="22" height="22"></button>
-          </div>
+            <button id="toggle-sidebar"><img src="images/arrow-left.png" alt="Toggle Sidebar"></button>
+        
+            <input type="text" placeholder="Type a message" id="message-input">
+        
+            <!-- Camera Button -->
+            <button id="camera-button">
+                <img src="images/camera.png" alt="Camera" width="24" height="24">
+            </button>
+        
+            <!-- Calendar Button -->
+            <button id="calendar-button">
+                <img src="images/plus.png" alt="Calendar" width="24" height="24">
+            </button>
         </div>
-    </div>
+      </div>
     
     <!-- Include Socket.IO -->
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script src="script.js"></script>
+
+
+    <div id="calendar-modal" class="modal">
+        <div class="modal-content">
+          <span class="close-button" onclick="closeCalendar()">&times;</span>
+          <div id='calendar'></div>
+        </div>
+      </div>
+        
 </body>
 </html>

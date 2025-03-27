@@ -16,6 +16,9 @@ const io = new Server(server, {
     }
 });
 
+const calendarRoutes = require('./routes/calendar');
+app.use('/api/calendar', calendarRoutes);
+
 app.use(cors());
 app.use(express.json());
 
@@ -206,6 +209,36 @@ io.on('connection', (socket) => {
 });
 
 // Start the server
+// === CALENDAR: Add new event ===
+app.post('/calendar/events', (req, res) => {
+    const event = req.body;
+
+    if (!event.title || !event.start || !event.username) {
+        return res.status(400).json({ success: false, message: 'Missing required fields' });
+    }
+
+    db.addEvent(event, (err, savedEvent) => {
+        if (err) {
+            console.error('Failed to save event:', err);
+            return res.status(500).json({ success: false, message: 'Database error' });
+        }
+        res.status(201).json({ success: true, event: savedEvent });
+    });
+});
+
+// === CALENDAR: Fetch all events for user ===
+app.get('/calendar/events', (req, res) => {
+    const { username } = req.query;
+    if (!username) return res.status(400).json({ success: false, message: 'Username required' });
+
+    db.getEvents(username, (err, events) => {
+        if (err) {
+            console.error('Failed to fetch events:', err);
+            return res.status(500).json({ success: false, message: 'Database error' });
+        }
+        res.json({ success: true, events });
+    });
+});
 server.listen(3000, () => {
     console.log('Server running on http://localhost:3000');
 });
