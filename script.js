@@ -38,7 +38,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const messageData = {
                 message: messageText,
                 sender: username,
-                receiver: activeReceiver
+                receiver: activeReceiver,
+                timestamp: Date.now() // Use the current timestamp
             };
 
             // Emit the message via Socket.IO
@@ -65,7 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         messagesContainer.scrollTop = messagesContainer.scrollHeight; // Scroll to the bottom
 
                         // Dynamically update the last message in the sidebar
-                        updateLastMessageInSidebar(activeReceiver, messageText, "You");
+                        updateLastMessageInSidebar(activeReceiver, messageText, "You", messageData.timestamp);
                     } else {
                         console.error('Error saving message:', data.message);
                     }
@@ -115,7 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
         // Dynamically update the last message in the sidebar
-        updateLastMessageInSidebar(data.sender, data.message, data.sender);
+        updateLastMessageInSidebar(data.sender, data.message, data.sender, data.timestamp);
     });
 
     socket.on('typing', (user) => {
@@ -451,7 +452,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div>${username}</div>
                 <div class="last-message">Loading...</div> <!-- Placeholder for the last message -->
             </div>
+            <div class="last-message-time">Loading...</div> <!-- Placeholder for the last message time -->
         `;
+        chatItem.setAttribute('data-last-timestamp', 0); // Default timestamp for sorting
         chatItem.addEventListener('click', () => {
             highlightSelectedChat(chatItem); // Highlight the selected chat
             activeReceiver = username; // Set the active receiver
@@ -462,25 +465,73 @@ document.addEventListener('DOMContentLoaded', () => {
         chatList.appendChild(chatItem);
 
         // Fetch the last message for this chat
-        fetchLastMessage(username, chatItem.querySelector('.last-message'));
+        fetchLastMessage(username, chatItem);
     }
 
-    function fetchLastMessage(username, lastMessageElement) {
+    function fetchLastMessage(username, chatItem) {
         fetch(`http://localhost:3000/messages?sender=${encodeURIComponent(username)}&receiver=${encodeURIComponent(username)}`)
             .then(response => response.json())
             .then(data => {
                 if (data.success && data.messages.length > 0) {
                     const lastMessage = data.messages[data.messages.length - 1];
-                    lastMessageElement.textContent = `${lastMessage.sender}: ${lastMessage.message}`;
+                    const lastMessageElement = chatItem.querySelector('.last-message');
+                    const lastMessageTimeElement = chatItem.querySelector('.last-message-time');
+                    lastMessageElement.textContent = `${lastMessage.sender === username ? "You" : lastMessage.sender}: ${lastMessage.message}`;
+                    lastMessageTimeElement.textContent = formatTimestamp(new Date(lastMessage.createdAt).getTime()); // Ensure consistent formatting
+                    chatItem.setAttribute('data-last-timestamp', new Date(lastMessage.createdAt).getTime());
+                    reorderChatList(); // Reorder the chat list after updating the timestamp
                 } else {
-                    lastMessageElement.textContent = 'No messages yet';
+                    chatItem.querySelector('.last-message').textContent = 'No messages yet';
+                    chatItem.querySelector('.last-message-time').textContent = '';
                 }
             })
             .catch(error => {
                 console.error('Error fetching last message:', error);
-                lastMessageElement.textContent = 'Error loading message';
+                chatItem.querySelector('.last-message').textContent = 'Error loading message';
+                chatItem.querySelector('.last-message-time').textContent = '';
             });
     }
+
+    function reorderChatList() {
+        const chatItems = Array.from(chatList.children);
+        chatItems.sort((a, b) => {
+            const timestampA = parseInt(a.getAttribute('data-last-timestamp'), 10) || 0;
+            const timestampB = parseInt(b.getAttribute('data-last-timestamp'), 10) || 0;
+            return timestampB - timestampA; // Sort in descending order (most recent first)
+        });
+
+        // Append the sorted items back to the chat list
+        chatItems.forEach(chatItem => chatList.appendChild(chatItem));
+    }
+
+    function formatTimestamp(timestamp) {
+        const date = new Date(timestamp); // Use the timestamp directly
+        const hours = date.getHours();
+        const minutes = date.getMinutes().toString().padStart(2, '0');
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        const formattedHours = hours % 12 || 12; // Convert to 12-hour format
+        return `${formattedHours}:${minutes} ${ampm}`;
+    }
+
+    // Fetch and display the chat list for the logged-in user
+    function fetchChatList() {
+        fetch(`http://localhost:3000/user-chats?username=${encodeURIComponent(username)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    chatList.innerHTML = ''; // Clear existing chat list
+                    data.chats.forEach(chat => {
+                        addChatToSidebar(chat.username);
+                    });
+                } else {
+                    console.error('Error fetching chat list:', data.message);
+                }
+            })
+            .catch(error => console.error('Error fetching chat list:', error));
+    }
+
+    // Call fetchChatList on page load to populate the chat list
+    fetchChatList();
 
     function toggleChatScreen(show) {
         if (show) {
@@ -547,23 +598,6 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(error => console.error('Error notifying server:', error));
     }
 
-    // Fetch and display the chat list for the logged-in user
-    function fetchChatList() {
-        fetch(`http://localhost:3000/user-chats?username=${encodeURIComponent(username)}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    chatList.innerHTML = ''; // Clear existing chat list
-                    data.chats.forEach(chat => {
-                        addChatToSidebar(chat.username);
-                    });
-                } else {
-                    console.error('Error fetching chat list:', data.message);
-                }
-            })
-            .catch(error => console.error('Error fetching chat list:', error));
-    }
-
     // Listen for updates to the chat list
     socket.on('updateChatList', ({ sender, receiver }) => {
         if (sender === username || receiver === username) {
@@ -571,17 +605,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Call fetchChatList on page load to populate the chat list
-    fetchChatList();
-
-    function updateLastMessageInSidebar(username, message, sender) {
+    function updateLastMessageInSidebar(username, message, sender, timestamp) {
         const chatItem = Array.from(chatList.children).find(chat =>
             chat.querySelector('div > div:first-child').textContent.trim() === username
         );
+
         if (chatItem) {
             const lastMessageElement = chatItem.querySelector('.last-message');
-            const displaySender = sender === username ? "You" : sender; // Show "You" if the sender is the logged-in user
+            const lastMessageTimeElement = chatItem.querySelector('.last-message-time');
+            const displaySender = sender === username ? "You" : sender;
             lastMessageElement.textContent = `${displaySender}: ${message}`;
+            lastMessageTimeElement.textContent = formatTimestamp(timestamp); // Correctly format timestamp
+            chatItem.setAttribute('data-last-timestamp', timestamp); // Update the timestamp attribute
+            reorderChatList(); // Reorder the chat list after updating the timestamp
         }
     }
 });

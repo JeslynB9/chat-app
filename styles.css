@@ -142,11 +142,21 @@ body {
     overflow-y: auto;
 }
 .chat-list-item {
+    position: relative; /* Enable positioning for child elements */
     padding: 10px;
     border-bottom: 1px solid var(--border-color);
     display: flex;
     align-items: center;
 }
+
+.chat-list-item .last-message-time {
+    position: absolute;
+    bottom: 10px; /* Align with the bottom of the chat item */
+    right: 10px; /* Align with the right edge */
+    font-size: 0.8rem;
+    color: var(--text-color);
+}
+
 .chat-list-item img {
     border-radius: 50%;
     margin-right: 10px;
