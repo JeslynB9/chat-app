@@ -441,19 +441,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         const userItem = document.createElement('li');
                         userItem.textContent = user.username;
                         userItem.addEventListener('click', () => {
-                            if (userItem.classList.contains('selected')) {
-                                // Deselect the user if already selected
-                                userItem.classList.remove('selected');
-                                selectedUser = null;
-                                startChatButton.disabled = true;
-                            } else {
-                                // Select the user
-                                selectedUser = user.username;
-                                startChatButton.disabled = false;
-                                Array.from(userResults.children).forEach(child => child.classList.remove('selected'));
-                                userItem.classList.add('selected');
-                            }
-                            console.log(`User selected: ${selectedUser || 'None'}`);
+                            selectedUser = user.username;
+                            startChatButton.disabled = false;
+                            Array.from(userResults.children).forEach(child => child.classList.remove('selected'));
+                            userItem.classList.add('selected');
+                            console.log(`User selected: ${selectedUser}`);
                         });
                         userResults.appendChild(userItem);
                     });
@@ -529,13 +521,19 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(response => response.json())
             .then(data => {
                 if (data.success && data.messages.length > 0) {
-                    const lastMessage = data.messages[data.messages.length - 1];
-                    const lastMessageElement = chatItem.querySelector('.last-message');
-                    const lastMessageTimeElement = chatItem.querySelector('.last-message-time');
-                    lastMessageElement.textContent = `${lastMessage.sender === username ? "You" : lastMessage.sender}: ${lastMessage.message}`;
-                    lastMessageTimeElement.textContent = formatTimestamp(new Date(lastMessage.createdAt).getTime()); // Ensure consistent formatting
-                    chatItem.setAttribute('data-last-timestamp', new Date(lastMessage.createdAt).getTime());
-                    reorderChatList(); // Reorder the chat list after updating the timestamp
+                    // Filter out "Chat started" messages
+                    const lastMessage = data.messages.reverse().find(message => !message.message.startsWith('Chat started:'));
+                    if (lastMessage) {
+                        const lastMessageElement = chatItem.querySelector('.last-message');
+                        const lastMessageTimeElement = chatItem.querySelector('.last-message-time');
+                        lastMessageElement.textContent = `${lastMessage.sender === username ? "You" : lastMessage.sender}: ${lastMessage.message}`;
+                        lastMessageTimeElement.textContent = formatTimestamp(new Date(lastMessage.createdAt).getTime()); // Ensure consistent formatting
+                        chatItem.setAttribute('data-last-timestamp', new Date(lastMessage.createdAt).getTime());
+                        reorderChatList(); // Reorder the chat list after updating the timestamp
+                    } else {
+                        chatItem.querySelector('.last-message').textContent = 'No messages yet';
+                        chatItem.querySelector('.last-message-time').textContent = '';
+                    }
                 } else {
                     chatItem.querySelector('.last-message').textContent = 'No messages yet';
                     chatItem.querySelector('.last-message-time').textContent = '';
@@ -620,22 +618,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.success) {
                     messagesContainer.innerHTML = ''; // Clear existing messages
 
-                    // Add "Chat started" text at the top
-                    const chatStartedElement = document.createElement('div');
-                    chatStartedElement.classList.add('chat-started');
-                    const chatStartedTime = new Date(); // Use the current time for now
-                    chatStartedElement.textContent = `Chat started: ${chatStartedTime.toLocaleString()}`;
-                    messagesContainer.appendChild(chatStartedElement);
+                    // Use the `createdAt` timestamp of the first message for the chat start time
+                    const chatStartedTime = data.messages.length > 0 
+                        ? new Date(data.messages[0].createdAt) 
+                        : null;
 
-                    // Add messages
+                    // Add "Chat started: date, time" message at the top if a start time exists
+                    if (chatStartedTime) {
+                        const chatStartedElement = document.createElement('div');
+                        chatStartedElement.classList.add('chat-started');
+                        chatStartedElement.textContent = `Chat started: ${chatStartedTime.toLocaleString()}`;
+                        messagesContainer.appendChild(chatStartedElement);
+                    }
+
+                    // Add only actual messages, skipping the initial "Chat started" message
                     data.messages.forEach(message => {
-                        const messageElement = document.createElement('div');
-                        messageElement.classList.add('message', message.sender === username ? 'received' : 'sent');
-                        const messageBubble = document.createElement('div');
-                        messageBubble.classList.add('message-bubble');
-                        messageBubble.textContent = message.message;
-                        messageElement.appendChild(messageBubble);
-                        messagesContainer.appendChild(messageElement);
+                        if (!message.message.startsWith('Chat started:')) { // Skip initial message
+                            const messageElement = document.createElement('div');
+                            messageElement.classList.add('message', message.sender === username ? 'received' : 'sent');
+                            const messageBubble = document.createElement('div');
+                            messageBubble.classList.add('message-bubble');
+                            messageBubble.textContent = message.message;
+                            messageElement.appendChild(messageBubble);
+                            messagesContainer.appendChild(messageElement);
+                        }
                     });
                     messagesContainer.scrollTop = messagesContainer.scrollHeight; // Scroll to the bottom
                 } else {
