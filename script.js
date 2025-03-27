@@ -484,14 +484,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function addChatToSidebar(username) {
         // Check if the chat already exists in the sidebar
-        if (Array.from(chatList.children).some(chat => chat.querySelector('div > div:first-child').textContent.trim() === username)) {
-            console.log(`Chat with ${username} already exists in the sidebar.`);
+        const existingChatItem = Array.from(chatList.children).find(chat =>
+            chat.querySelector('div > div:first-child').textContent.trim() === username
+        );
+
+        if (existingChatItem) {
+            // Update the profile picture if the chat already exists
+            const profilePicture = getOrGenerateProfilePictureForUser(username);
+            const profileImage = existingChatItem.querySelector('img');
+            if (profileImage) {
+                profileImage.src = profilePicture;
+            }
             return;
         }
 
         const chatItem = document.createElement('div');
         chatItem.classList.add('chat-list-item');
-        const profilePicture = getOrGenerateProfilePicture(username); // Get or generate the profile picture
+        const profilePicture = getOrGenerateProfilePictureForUser(username); // Get or generate the profile picture
         chatItem.innerHTML = `
             <img src="${profilePicture}" alt="User" width="40" height="40">
             <div>
@@ -505,8 +514,8 @@ document.addEventListener('DOMContentLoaded', () => {
             highlightSelectedChat(chatItem); // Highlight the selected chat
             activeReceiver = username; // Set the active receiver
             chatHeaderUsername.textContent = username; // Update the chat header with the username
-            const profilePicture = getOrGenerateProfilePicture(username); // Get or generate the profile picture
-            document.getElementById('chat-header-profile-picture').src = profilePicture; // Update the chat header profile picture
+            const profilePicture = getOrGenerateProfilePictureForUser(username); // Get or generate the profile picture
+            chatHeaderProfilePicture.src = profilePicture; // Update the chat header profile picture
             toggleChatScreen(true); // Show the chat screen
             loadMessages(username); // Fetch and display previous messages
         });
@@ -690,5 +699,109 @@ document.addEventListener('DOMContentLoaded', () => {
             chatItem.setAttribute('data-last-timestamp', timestamp); // Update the timestamp attribute
             reorderChatList(); // Reorder the chat list after updating the timestamp
         }
+    }
+
+    const uploadProfilePictureInput = document.getElementById('upload-profile-picture');
+    const uploadedProfilePicture = document.getElementById('uploaded-profile-picture');
+    const chatHeaderProfilePicture = document.getElementById('chat-header-profile-picture');
+
+    // Load the saved profile picture for the logged-in user
+    const savedProfilePicture = localStorage.getItem(`profilePicture_${username}`);
+    if (savedProfilePicture) {
+        uploadedProfilePicture.src = savedProfilePicture;
+        sidebarFooterImage.src = savedProfilePicture;
+    }
+
+    uploadProfilePictureInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const imageUrl = e.target.result;
+
+                // Update the profile picture in the settings modal
+                uploadedProfilePicture.src = imageUrl;
+
+                // Update the profile picture in the sidebar
+                sidebarFooterImage.src = imageUrl;
+
+                // Save the uploaded image URL to localStorage for the logged-in user
+                localStorage.setItem(`profilePicture_${username}`, imageUrl);
+
+                // Update the profile picture in the sidebar chat list if the user is present
+                updateSidebarProfilePicture(username, imageUrl);
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    function updateSidebarProfilePicture(user, imageUrl) {
+        // Find the chat item for the user in the sidebar
+        const chatItem = Array.from(chatList.children).find(chat =>
+            chat.querySelector('div > div:first-child').textContent.trim() === user
+        );
+
+        if (chatItem) {
+            const profileImage = chatItem.querySelector('img');
+            if (profileImage) {
+                profileImage.src = imageUrl; // Update the profile picture
+            }
+        }
+    }
+
+    function getOrGenerateProfilePictureForUser(user) {
+        // Check if a profile picture is saved for the user
+        const savedPicture = localStorage.getItem(`profilePicture_${user}`);
+        if (savedPicture) {
+            return savedPicture; // Return the saved profile picture
+        }
+
+        // Generate a new profile picture and save it
+        const newPicture = generateProfilePicture(user);
+        localStorage.setItem(`profilePicture_${user}`, newPicture);
+        return newPicture;
+    }
+
+    function addChatToSidebar(username) {
+        // Check if the chat already exists in the sidebar
+        const existingChatItem = Array.from(chatList.children).find(chat =>
+            chat.querySelector('div > div:first-child').textContent.trim() === username
+        );
+
+        if (existingChatItem) {
+            // Update the profile picture if the chat already exists
+            const profilePicture = getOrGenerateProfilePictureForUser(username);
+            const profileImage = existingChatItem.querySelector('img');
+            if (profileImage) {
+                profileImage.src = profilePicture;
+            }
+            return;
+        }
+
+        const chatItem = document.createElement('div');
+        chatItem.classList.add('chat-list-item');
+        const profilePicture = getOrGenerateProfilePictureForUser(username); // Get or generate the profile picture
+        chatItem.innerHTML = `
+            <img src="${profilePicture}" alt="User" width="40" height="40">
+            <div>
+                <div>${username}</div>
+                <div class="last-message">Loading...</div> <!-- Placeholder for the last message -->
+            </div>
+            <div class="last-message-time">Loading...</div> <!-- Placeholder for the last message time -->
+        `;
+        chatItem.setAttribute('data-last-timestamp', 0); // Default timestamp for sorting
+        chatItem.addEventListener('click', () => {
+            highlightSelectedChat(chatItem); // Highlight the selected chat
+            activeReceiver = username; // Set the active receiver
+            chatHeaderUsername.textContent = username; // Update the chat header with the username
+            const profilePicture = getOrGenerateProfilePictureForUser(username); // Get or generate the profile picture
+            chatHeaderProfilePicture.src = profilePicture; // Update the chat header profile picture
+            toggleChatScreen(true); // Show the chat screen
+            loadMessages(username); // Fetch and display previous messages
+        });
+        chatList.appendChild(chatItem);
+
+        // Fetch the last message for this chat
+        fetchLastMessage(username, chatItem);
     }
 });
