@@ -51,23 +51,25 @@ function openCalendar() {
             .catch(failureCallback);
         },
         select: function(info) {
-          const title = prompt('Event Title:');
-          if (title) {
-            fetch('/calendar/events', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                title,
-                start: info.startStr,
-                end: info.endStr,
-                username: localStorage.getItem('username')
-              })
-            })
-            .then(res => res.json())
-            .then(() => {
-              calendar.refetchEvents();
-            });
-          }
+            const title = prompt('Event Title:');
+            if (title) {
+                fetch('/calendar/events', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title,
+                        start: info.startStr,
+                        end: info.endStr,
+                        username: localStorage.getItem('username')
+                    })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    console.log('Event added response:', data); // Log the server response
+                    calendar.refetchEvents(); // Reload events
+                })
+                .catch(error => console.error('Error adding event:', error));
+            }
         }
       });
   

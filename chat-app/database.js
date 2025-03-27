@@ -1,13 +1,15 @@
 const sqlite3 = require('sqlite3').verbose();
 
-// Create or open the database
 const db = new sqlite3.Database('./chat-app.db', (err) => {
-    if (err) {
-        console.error('Error opening database:', err.message);
-    } else {
-        console.log('Connected to the SQLite database.');
-    }
+  if (err) {
+    console.error('Database connection error:', err.message);
+  } else {
+    console.log('Connected to the SQLite database.');
+  }
 });
+
+module.exports = db;
+
 
 // Create the `users` table with password field
 db.serialize(() => {
@@ -237,6 +239,7 @@ db.run(`
   };
 
 module.exports = {
+    db,
     registerUser,
     authenticateUser,
     saveUsername,
