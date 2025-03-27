@@ -1,3 +1,41 @@
+function generateProfilePicture(username) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 40;
+    canvas.height = 40;
+    const ctx = canvas.getContext('2d');
+
+    // Generate a random background color
+    const colors = ['#FF5733', '#33FF57', '#3357FF', '#FF33A1', '#A133FF', '#33FFF5'];
+    const backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+
+    // Draw the background
+    ctx.fillStyle = backgroundColor;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw the initial
+    ctx.fillStyle = '#FFFFFF'; // White text
+    ctx.font = '20px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const initial = username.charAt(0).toUpperCase();
+    ctx.fillText(initial, canvas.width / 2, canvas.height / 2);
+
+    return canvas.toDataURL(); // Return the image as a data URL
+}
+
+function getOrGenerateProfilePicture(username) {
+    // Check if a profile picture is already saved in localStorage
+    const savedPicture = localStorage.getItem(`profilePicture_${username}`);
+    if (savedPicture) {
+        return savedPicture; // Return the saved profile picture
+    }
+
+    // Generate a new profile picture and save it
+    const newPicture = generateProfilePicture(username);
+    localStorage.setItem(`profilePicture_${username}`, newPicture);
+    return newPicture;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     // ==========================
     // 👤 USERNAME SETUP
@@ -13,6 +51,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const sidebarUsername = document.getElementById('sidebar-username');
     if (sidebarUsername) {
         sidebarUsername.textContent = username;
+    }
+
+    // Set the profile picture for the logged-in user
+    const sidebarFooterImage = document.querySelector('.sidebar-footer img');
+    if (sidebarFooterImage) {
+        const profilePicture = getOrGenerateProfilePicture(username);
+        sidebarFooterImage.src = profilePicture;
     }
 
     // ==========================
@@ -396,11 +441,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         const userItem = document.createElement('li');
                         userItem.textContent = user.username;
                         userItem.addEventListener('click', () => {
-                            selectedUser = user.username;
-                            startChatButton.disabled = false;
-                            Array.from(userResults.children).forEach(child => child.classList.remove('selected'));
-                            userItem.classList.add('selected');
-                            console.log(`User selected: ${selectedUser}`);
+                            if (userItem.classList.contains('selected')) {
+                                // Deselect the user if already selected
+                                userItem.classList.remove('selected');
+                                selectedUser = null;
+                                startChatButton.disabled = true;
+                            } else {
+                                // Select the user
+                                selectedUser = user.username;
+                                startChatButton.disabled = false;
+                                Array.from(userResults.children).forEach(child => child.classList.remove('selected'));
+                                userItem.classList.add('selected');
+                            }
+                            console.log(`User selected: ${selectedUser || 'None'}`);
                         });
                         userResults.appendChild(userItem);
                     });
@@ -446,8 +499,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const chatItem = document.createElement('div');
         chatItem.classList.add('chat-list-item');
+        const profilePicture = getOrGenerateProfilePicture(username); // Get or generate the profile picture
         chatItem.innerHTML = `
-            <img src="default-avatar.jpg" alt="User" width="40" height="40">
+            <img src="${profilePicture}" alt="User" width="40" height="40">
             <div>
                 <div>${username}</div>
                 <div class="last-message">Loading...</div> <!-- Placeholder for the last message -->
@@ -459,6 +513,8 @@ document.addEventListener('DOMContentLoaded', () => {
             highlightSelectedChat(chatItem); // Highlight the selected chat
             activeReceiver = username; // Set the active receiver
             chatHeaderUsername.textContent = username; // Update the chat header with the username
+            const profilePicture = getOrGenerateProfilePicture(username); // Get or generate the profile picture
+            document.getElementById('chat-header-profile-picture').src = profilePicture; // Update the chat header profile picture
             toggleChatScreen(true); // Show the chat screen
             loadMessages(username); // Fetch and display previous messages
         });
@@ -563,6 +619,15 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(data => {
                 if (data.success) {
                     messagesContainer.innerHTML = ''; // Clear existing messages
+
+                    // Add "Chat started" text at the top
+                    const chatStartedElement = document.createElement('div');
+                    chatStartedElement.classList.add('chat-started');
+                    const chatStartedTime = new Date(); // Use the current time for now
+                    chatStartedElement.textContent = `Chat started: ${chatStartedTime.toLocaleString()}`;
+                    messagesContainer.appendChild(chatStartedElement);
+
+                    // Add messages
                     data.messages.forEach(message => {
                         const messageElement = document.createElement('div');
                         messageElement.classList.add('message', message.sender === username ? 'received' : 'sent');
