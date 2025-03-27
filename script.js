@@ -138,6 +138,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 1000);
     });
 
+    function updateUnreadCount(username, count) {
+        const chatItem = Array.from(chatList.children).find(chat =>
+            chat.querySelector('div > div:first-child').textContent.trim() === username
+        );
+
+        if (chatItem) {
+            let unreadBadge = chatItem.querySelector('.unread-count');
+            if (!unreadBadge) {
+                unreadBadge = document.createElement('div');
+                unreadBadge.classList.add('unread-count');
+                chatItem.appendChild(unreadBadge);
+            }
+            unreadBadge.textContent = count > 0 ? count : '';
+            unreadBadge.style.display = count > 0 ? 'block' : 'none';
+        }
+    }
+
     socket.on('receiveMessage', (data) => {
         // Ignore messages sent by the sender
         if (data.sender === username) {
@@ -162,6 +179,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Dynamically update the last message in the sidebar
         updateLastMessageInSidebar(data.sender, data.message, data.sender, data.timestamp);
+
+        // Increment unread count for the sender
+        if (activeReceiver !== data.sender) {
+            const unreadCount = parseInt(localStorage.getItem(`unread_${data.sender}`) || '0', 10) + 1;
+            localStorage.setItem(`unread_${data.sender}`, unreadCount);
+            updateUnreadCount(data.sender, unreadCount);
+        }
     });
 
     socket.on('typing', (user) => {
@@ -578,7 +602,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Fetch and display the chat list for the logged-in user
     function fetchChatList() {
-        fetch(`http://localhost:3000/user-chats?username=${encodeURIComponent(username)}`)
+        return fetch(`http://localhost:3000/user-chats?username=${encodeURIComponent(username)}`)
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
@@ -594,7 +618,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Call fetchChatList on page load to populate the chat list
-    fetchChatList();
+    fetchChatList().then(() => {
+        initializeUnreadCounts();
+    });
 
     function toggleChatScreen(show) {
         if (show) {
@@ -653,6 +679,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                     messagesContainer.scrollTop = messagesContainer.scrollHeight; // Scroll to the bottom
+
+                    // Reset unread count for the active chat
+                    localStorage.setItem(`unread_${username}`, '0');
+                    updateUnreadCount(username, 0);
                 } else {
                     console.error('Error fetching messages:', data.message);
                 }
@@ -803,5 +833,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Fetch the last message for this chat
         fetchLastMessage(username, chatItem);
+    }
+
+    function initializeUnreadCounts() {
+        Array.from(chatList.children).forEach(chatItem => {
+            const username = chatItem.querySelector('div > div:first-child').textContent.trim();
+            const unreadCount = parseInt(localStorage.getItem(`unread_${username}`) || '0', 10);
+            updateUnreadCount(username, unreadCount);
+        });
     }
 });

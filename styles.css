@@ -861,3 +861,23 @@ body {
 .button-style:hover {
     transform: scale(1.1); /* Slightly enlarge the button on hover */
 }
+
+.unread-count {
+    position: absolute;
+    top: 25%; /* Center vertically */
+    right: 30px;
+    transform: translateY(-50%); /* Adjust for perfect vertical centering */
+    background-color: var(--sent-bg);
+    color: var(--text-color-2);
+    font-size: 0.9rem; /* Adjust the font size for the number */
+    font-weight: bold;
+    border-radius: 50%;
+    width: 23px;
+    height: 23px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    line-height: 1.7; /* Adjust the line height for the number */
+    text-align: center; /* Center the text horizontally */
+    display: none; /* Hidden by default */
+}
