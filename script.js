@@ -842,4 +842,29 @@ document.addEventListener('DOMContentLoaded', () => {
             updateUnreadCount(username, unreadCount);
         });
     }
+
+    function filterChatsByUnread() {
+        Array.from(chatList.children).forEach(chatItem => {
+            const username = chatItem.querySelector('div > div:first-child').textContent.trim();
+            const unreadCount = parseInt(localStorage.getItem(`unread_${username}`) || '0', 10);
+            chatItem.style.display = unreadCount > 0 ? 'flex' : 'none'; // Show only chats with unread messages
+        });
+    }
+
+    function showAllChats() {
+        Array.from(chatList.children).forEach(chatItem => {
+            chatItem.style.display = 'flex'; // Show all chats
+        });
+    }
+
+    // Update event listeners for the "Unread" and "All" pins
+    document.querySelectorAll('.pin-text-sidebar').forEach(pin => {
+        pin.addEventListener('click', (event) => {
+            if (event.target.textContent === 'Unread') {
+                filterChatsByUnread();
+            } else if (event.target.textContent === 'All') {
+                showAllChats();
+            }
+        });
+    });
 });
