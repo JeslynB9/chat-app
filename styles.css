@@ -233,8 +233,12 @@ body {
 .input-area {
     display: flex;
     align-items: center;
-    flex-shrink: 0;
-    height: 37.5px;
+    padding: 0 10px;
+    gap: 8px;
+    height: 45px;
+    background-color: var(--chat-bg);
+    border-radius: 25px;
+    border: 1px solid var(--border-color);
 }
 .input-area input {
     flex-grow: 1;
@@ -242,13 +246,17 @@ body {
     border: 1px solid var(--border-color);
     border-radius: 20px;
     margin-right: 10px;
-    width: 975px;
     background-color: var(--chat-bg);
+    min-width: 0;
 }
 .input-area button {
     background: none;
     border: none;
     cursor: pointer;
+    padding: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .messages {
