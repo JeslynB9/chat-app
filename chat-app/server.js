@@ -200,8 +200,8 @@ io.on('connection', (socket) => {
         socket.broadcast.emit('stopTyping', username);
     });
 
-    socket.on('disconnect', () => {
-        console.log('User disconnected:', socket.id);
+    // Handle profile picture updates
+    socket.on('updateProfilePicture', ({ username, imageUrl }) => {
     });
 });
 

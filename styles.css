@@ -109,12 +109,17 @@ body {
 }
 
 .sidebar-footer {
-    border-top: 1px solid var(--border-color);
-    margin-top: auto;
     display: flex;
     align-items: center;
-    flex-shrink: 0;
-    height: 37.5px;
+    justify-content: space-between; /* Space out elements */
+    border-top: 1px solid var(--border-color);
+    padding: 0 10px; /* Add padding for spacing */
+    height: 58.5px;
+}
+
+.footer-profile-picture {
+    margin-right: 10px; /* Add spacing between the profile picture and the username */
+    border-radius: 50%; /* Make it circular */
 }
 
 /* Settings Button Styles */
@@ -142,11 +147,21 @@ body {
     overflow-y: auto;
 }
 .chat-list-item {
+    position: relative; /* Enable positioning for child elements */
     padding: 10px;
     border-bottom: 1px solid var(--border-color);
     display: flex;
     align-items: center;
 }
+
+.chat-list-item .last-message-time {
+    position: absolute;
+    bottom: 10px; /* Align with the bottom of the chat item */
+    right: 10px; /* Align with the right edge */
+    font-size: 0.8rem;
+    color: var(--text-color);
+}
+
 .chat-list-item img {
     border-radius: 50%;
     margin-right: 10px;
@@ -176,6 +191,11 @@ body {
     padding: 10px;
     border-bottom: 1px solid var(--border-color);
     flex-grow: 0;
+}
+
+#chat-header-profile-picture {
+    border-radius: 50%; /* Make the profile picture circular */
+    object-fit: cover; /* Ensure the image fits within the circle */
 }
 
 .chat-header-info {
@@ -410,6 +430,7 @@ body {
 }
 
 #compose-button {
+    margin-top: 20px;
     background-color: var(--sent-bg);
     color: var(--text-color-2);
     border: none;
@@ -422,7 +443,7 @@ body {
 
 #compose-button:hover {
     transform: scale(1.1); /* Slightly enlarge the button on hover */
-    background-color: var(--received-bg); /* Optional: Change background color on hover */
+    /* Remove background color change */
 }
 
 .sidebar-header input {
@@ -733,4 +754,138 @@ body {
 
 .chat-screen.hidden {
     display: none;
+}
+
+.chat-started {
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--text-color);
+    margin: 10px 0; /* Add spacing around the text */
+}
+
+#user-results {
+    list-style: none; /* Remove bullet points */
+    padding: 0; /* Remove default padding */
+    margin: 0; /* Remove default margin */
+}
+
+#user-results li {
+    margin-top: 10px; /* Add spacing between each user */
+    margin-bottom: 10px;
+    padding: 8px 15px; /* Adjust padding to make the rectangle slightly larger than the username */
+    border-radius: 20px; /* Make the rectangle rounded */
+    background-color: var(--chat-bg); /* Add background color */
+    cursor: pointer; /* Change cursor to pointer for better UX */
+    display: inline-block; /* Ensure the rectangle wraps tightly around the username */
+    width: auto; /* Adjust width to fit content */
+    transition: background-color 0.2s ease, transform 0.2s ease; /* Smooth transition */
+}
+
+#user-results li:hover {
+    background-color: var(--selected-chat); /* Highlight on hover */
+    transform: scale(1.1); /* Slightly enlarge on hover */
+}
+
+#user-results li.selected {
+    background-color: var(--selected-chat); /* Keep the hover effect for selected users */
+    transform: scale(1.1); /* Retain the hover scale effect */
+}
+
+#search-user {
+    flex-grow: 1;
+    padding: 8px; /* Reduce padding */
+    border: 1px solid var(--border-color);
+    border-radius: 15px; /* Slightly smaller border radius */
+    margin-bottom: 8px;
+    width: 50%; /* Ensure it spans the full width */
+    background-color: var(--chat-bg);
+    font-size: 0.9rem; /* Reduce font size */
+}
+
+#start-chat-button {
+    background: var(--sent-bg); /* Match the pin button color */
+    color: var(--text-color-2);
+    border: none;
+    padding: 5px 8px; /* Reduce padding */
+    border-radius: 15px; /* Match the smaller border radius */
+    cursor: pointer;
+    font-size: 0.9rem; /* Reduce font size */
+    margin-top: 8px; /* Adjust spacing above the search bar */
+    transition: transform 0.2s ease; /* Smooth transition */
+    display: block; /* Ensure it spans the full width */
+    width: 16%; /* Match the width of the search bar */
+    text-align: center; /* Center the button text */
+    height: 30px;
+    margin-left: auto; /* Center horizontally */
+    margin-right: auto; /* Center horizontally */
+}
+
+#start-chat-button:hover {
+    transform: scale(1.05); /* Slightly smaller hover effect */
+    /* Remove background color change */
+}
+
+.profile-picture-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+#uploaded-profile-picture {
+    border-radius: 50%;
+    object-fit: cover;
+    margin-bottom: 10px;
+}
+
+#upload-profile-picture {
+    cursor: pointer;
+    background-color: var(--sent-bg);
+    color: var(--text-color-2);
+    border: none;
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 0.9rem;
+    transition: transform 0.2s ease;
+}
+
+#upload-profile-picture:hover {
+    transform: scale(1.1); /* Slightly enlarge the button on hover */
+}
+
+.button-style {
+    background-color: var(--sent-bg);
+    color: var(--text-color-2);
+    border: none;
+    padding: 5px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    text-align: center;
+    display: inline-block;
+    transition: transform 0.2s ease;
+}
+
+.button-style:hover {
+    transform: scale(1.1); /* Slightly enlarge the button on hover */
+}
+
+.unread-count {
+    position: absolute;
+    top: 25%; /* Center vertically */
+    right: 30px;
+    transform: translateY(-50%); /* Adjust for perfect vertical centering */
+    background-color: var(--sent-bg);
+    color: var(--text-color-2);
+    font-size: 0.9rem; /* Adjust the font size for the number */
+    font-weight: bold;
+    border-radius: 50%;
+    width: 23px;
+    height: 23px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    line-height: 1.7; /* Adjust the line height for the number */
+    text-align: center; /* Center the text horizontally */
+    display: none; /* Hidden by default */
 }

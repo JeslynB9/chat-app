@@ -1,3 +1,41 @@
+function generateProfilePicture(username) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 40;
+    canvas.height = 40;
+    const ctx = canvas.getContext('2d');
+
+    // Generate a random background color
+    const colors = ['#FF5733', '#33FF57', '#3357FF', '#FF33A1', '#A133FF', '#33FFF5'];
+    const backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+
+    // Draw the background
+    ctx.fillStyle = backgroundColor;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw the initial
+    ctx.fillStyle = '#FFFFFF'; // White text
+    ctx.font = '20px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const initial = username.charAt(0).toUpperCase();
+    ctx.fillText(initial, canvas.width / 2, canvas.height / 2);
+
+    return canvas.toDataURL(); // Return the image as a data URL
+}
+
+function getOrGenerateProfilePicture(username) {
+    // Check if a profile picture is already saved in localStorage
+    const savedPicture = localStorage.getItem(`profilePicture_${username}`);
+    if (savedPicture) {
+        return savedPicture; // Return the saved profile picture
+    }
+
+    // Generate a new profile picture and save it
+    const newPicture = generateProfilePicture(username);
+    localStorage.setItem(`profilePicture_${username}`, newPicture);
+    return newPicture;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     // ==========================
     // 👤 USERNAME SETUP
@@ -13,6 +51,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const sidebarUsername = document.getElementById('sidebar-username');
     if (sidebarUsername) {
         sidebarUsername.textContent = username;
+    }
+
+    // Set the profile picture for the logged-in user
+    const sidebarFooterImage = document.querySelector('.sidebar-footer img');
+    if (sidebarFooterImage) {
+        const profilePicture = getOrGenerateProfilePicture(username);
+        sidebarFooterImage.src = profilePicture;
     }
 
     // ==========================
@@ -38,7 +83,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const messageData = {
                 message: messageText,
                 sender: username,
-                receiver: activeReceiver
+                receiver: activeReceiver,
+                timestamp: Date.now() // Use the current timestamp
             };
 
             // Emit the message via Socket.IO
@@ -65,7 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         messagesContainer.scrollTop = messagesContainer.scrollHeight; // Scroll to the bottom
 
                         // Dynamically update the last message in the sidebar
-                        updateLastMessageInSidebar(activeReceiver, messageText, "You");
+                        updateLastMessageInSidebar(activeReceiver, messageText, "You", messageData.timestamp);
                     } else {
                         console.error('Error saving message:', data.message);
                     }
@@ -92,6 +138,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 1000);
     });
 
+    function updateUnreadCount(username, count) {
+        const chatItem = Array.from(chatList.children).find(chat =>
+            chat.querySelector('div > div:first-child').textContent.trim() === username
+        );
+
+        if (chatItem) {
+            let unreadBadge = chatItem.querySelector('.unread-count');
+            if (!unreadBadge) {
+                unreadBadge = document.createElement('div');
+                unreadBadge.classList.add('unread-count');
+                chatItem.appendChild(unreadBadge);
+            }
+            unreadBadge.textContent = count > 0 ? count : '';
+            unreadBadge.style.display = count > 0 ? 'block' : 'none';
+        }
+    }
+
     socket.on('receiveMessage', (data) => {
         // Ignore messages sent by the sender
         if (data.sender === username) {
@@ -115,7 +178,14 @@ document.addEventListener('DOMContentLoaded', () => {
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
         // Dynamically update the last message in the sidebar
-        updateLastMessageInSidebar(data.sender, data.message, data.sender);
+        updateLastMessageInSidebar(data.sender, data.message, data.sender, data.timestamp);
+
+        // Increment unread count for the sender
+        if (activeReceiver !== data.sender) {
+            const unreadCount = parseInt(localStorage.getItem(`unread_${data.sender}`) || '0', 10) + 1;
+            localStorage.setItem(`unread_${data.sender}`, unreadCount);
+            updateUnreadCount(data.sender, unreadCount);
+        }
     });
 
     socket.on('typing', (user) => {
@@ -438,49 +508,119 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function addChatToSidebar(username) {
         // Check if the chat already exists in the sidebar
-        if (Array.from(chatList.children).some(chat => chat.querySelector('div > div:first-child').textContent.trim() === username)) {
-            console.log(`Chat with ${username} already exists in the sidebar.`);
+        const existingChatItem = Array.from(chatList.children).find(chat =>
+            chat.querySelector('div > div:first-child').textContent.trim() === username
+        );
+
+        if (existingChatItem) {
+            // Update the profile picture if the chat already exists
+            const profilePicture = getOrGenerateProfilePictureForUser(username);
+            const profileImage = existingChatItem.querySelector('img');
+            if (profileImage) {
+                profileImage.src = profilePicture;
+            }
             return;
         }
 
         const chatItem = document.createElement('div');
         chatItem.classList.add('chat-list-item');
+        const profilePicture = getOrGenerateProfilePictureForUser(username); // Get or generate the profile picture
         chatItem.innerHTML = `
-            <img src="default-avatar.jpg" alt="User" width="40" height="40">
+            <img src="${profilePicture}" alt="User" width="40" height="40">
             <div>
                 <div>${username}</div>
                 <div class="last-message">Loading...</div> <!-- Placeholder for the last message -->
             </div>
+            <div class="last-message-time">Loading...</div> <!-- Placeholder for the last message time -->
         `;
+        chatItem.setAttribute('data-last-timestamp', 0); // Default timestamp for sorting
         chatItem.addEventListener('click', () => {
             highlightSelectedChat(chatItem); // Highlight the selected chat
             activeReceiver = username; // Set the active receiver
             chatHeaderUsername.textContent = username; // Update the chat header with the username
+            const profilePicture = getOrGenerateProfilePictureForUser(username); // Get or generate the profile picture
+            chatHeaderProfilePicture.src = profilePicture; // Update the chat header profile picture
             toggleChatScreen(true); // Show the chat screen
             loadMessages(username); // Fetch and display previous messages
         });
         chatList.appendChild(chatItem);
 
         // Fetch the last message for this chat
-        fetchLastMessage(username, chatItem.querySelector('.last-message'));
+        fetchLastMessage(username, chatItem);
     }
 
-    function fetchLastMessage(username, lastMessageElement) {
+    function fetchLastMessage(username, chatItem) {
         fetch(`http://localhost:3000/messages?sender=${encodeURIComponent(username)}&receiver=${encodeURIComponent(username)}`)
             .then(response => response.json())
             .then(data => {
                 if (data.success && data.messages.length > 0) {
-                    const lastMessage = data.messages[data.messages.length - 1];
-                    lastMessageElement.textContent = `${lastMessage.sender}: ${lastMessage.message}`;
+                    // Filter out "Chat started" messages
+                    const lastMessage = data.messages.reverse().find(message => !message.message.startsWith('Chat started:'));
+                    if (lastMessage) {
+                        const lastMessageElement = chatItem.querySelector('.last-message');
+                        const lastMessageTimeElement = chatItem.querySelector('.last-message-time');
+                        lastMessageElement.textContent = `${lastMessage.sender === username ? "You" : lastMessage.sender}: ${lastMessage.message}`;
+                        lastMessageTimeElement.textContent = formatTimestamp(new Date(lastMessage.createdAt).getTime()); // Ensure consistent formatting
+                        chatItem.setAttribute('data-last-timestamp', new Date(lastMessage.createdAt).getTime());
+                        reorderChatList(); // Reorder the chat list after updating the timestamp
+                    } else {
+                        chatItem.querySelector('.last-message').textContent = 'No messages yet';
+                        chatItem.querySelector('.last-message-time').textContent = '';
+                    }
                 } else {
-                    lastMessageElement.textContent = 'No messages yet';
+                    chatItem.querySelector('.last-message').textContent = 'No messages yet';
+                    chatItem.querySelector('.last-message-time').textContent = '';
                 }
             })
             .catch(error => {
                 console.error('Error fetching last message:', error);
-                lastMessageElement.textContent = 'Error loading message';
+                chatItem.querySelector('.last-message').textContent = 'Error loading message';
+                chatItem.querySelector('.last-message-time').textContent = '';
             });
     }
+
+    function reorderChatList() {
+        const chatItems = Array.from(chatList.children);
+        chatItems.sort((a, b) => {
+            const timestampA = parseInt(a.getAttribute('data-last-timestamp'), 10) || 0;
+            const timestampB = parseInt(b.getAttribute('data-last-timestamp'), 10) || 0;
+            return timestampB - timestampA; // Sort in descending order (most recent first)
+        });
+
+        // Append the sorted items back to the chat list
+        chatItems.forEach(chatItem => chatList.appendChild(chatItem));
+    }
+
+    function formatTimestamp(timestamp) {
+        const date = new Date(timestamp); // Use the timestamp directly
+        const hours = date.getHours();
+        const minutes = date.getMinutes().toString().padStart(2, '0');
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        const formattedHours = hours % 12 || 12; // Convert to 12-hour format
+        return `${formattedHours}:${minutes} ${ampm}`;
+    }
+
+    // Fetch and display the chat list for the logged-in user
+    function fetchChatList() {
+        return fetch(`http://localhost:3000/user-chats?username=${encodeURIComponent(username)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    chatList.innerHTML = ''; // Clear existing chat list
+                    data.chats.forEach(chat => {
+                        addChatToSidebar(chat.username);
+                    });
+                } else {
+                    console.error('Error fetching chat list:', data.message);
+                }
+            })
+            .catch(error => console.error('Error fetching chat list:', error));
+    }
+
+    // Call fetchChatList on page load to populate the chat list
+    fetchChatList().then(() => {
+        initializeUnreadCounts();
+    });
 
     function toggleChatScreen(show) {
         if (show) {
@@ -512,16 +652,37 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(data => {
                 if (data.success) {
                     messagesContainer.innerHTML = ''; // Clear existing messages
+
+                    // Use the `createdAt` timestamp of the first message for the chat start time
+                    const chatStartedTime = data.messages.length > 0 
+                        ? new Date(data.messages[0].createdAt) 
+                        : null;
+
+                    // Add "Chat started: date, time" message at the top if a start time exists
+                    if (chatStartedTime) {
+                        const chatStartedElement = document.createElement('div');
+                        chatStartedElement.classList.add('chat-started');
+                        chatStartedElement.textContent = `Chat started: ${chatStartedTime.toLocaleString()}`;
+                        messagesContainer.appendChild(chatStartedElement);
+                    }
+
+                    // Add only actual messages, skipping the initial "Chat started" message
                     data.messages.forEach(message => {
-                        const messageElement = document.createElement('div');
-                        messageElement.classList.add('message', message.sender === username ? 'received' : 'sent');
-                        const messageBubble = document.createElement('div');
-                        messageBubble.classList.add('message-bubble');
-                        messageBubble.textContent = message.message;
-                        messageElement.appendChild(messageBubble);
-                        messagesContainer.appendChild(messageElement);
+                        if (!message.message.startsWith('Chat started:')) { // Skip initial message
+                            const messageElement = document.createElement('div');
+                            messageElement.classList.add('message', message.sender === username ? 'received' : 'sent');
+                            const messageBubble = document.createElement('div');
+                            messageBubble.classList.add('message-bubble');
+                            messageBubble.textContent = message.message;
+                            messageElement.appendChild(messageBubble);
+                            messagesContainer.appendChild(messageElement);
+                        }
                     });
                     messagesContainer.scrollTop = messagesContainer.scrollHeight; // Scroll to the bottom
+
+                    // Reset unread count for the active chat
+                    localStorage.setItem(`unread_${username}`, '0');
+                    updateUnreadCount(username, 0);
                 } else {
                     console.error('Error fetching messages:', data.message);
                 }
@@ -547,23 +708,6 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(error => console.error('Error notifying server:', error));
     }
 
-    // Fetch and display the chat list for the logged-in user
-    function fetchChatList() {
-        fetch(`http://localhost:3000/user-chats?username=${encodeURIComponent(username)}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    chatList.innerHTML = ''; // Clear existing chat list
-                    data.chats.forEach(chat => {
-                        addChatToSidebar(chat.username);
-                    });
-                } else {
-                    console.error('Error fetching chat list:', data.message);
-                }
-            })
-            .catch(error => console.error('Error fetching chat list:', error));
-    }
-
     // Listen for updates to the chat list
     socket.on('updateChatList', ({ sender, receiver }) => {
         if (sender === username || receiver === username) {
@@ -571,17 +715,156 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Call fetchChatList on page load to populate the chat list
-    fetchChatList();
-
-    function updateLastMessageInSidebar(username, message, sender) {
+    function updateLastMessageInSidebar(username, message, sender, timestamp) {
         const chatItem = Array.from(chatList.children).find(chat =>
             chat.querySelector('div > div:first-child').textContent.trim() === username
         );
+
         if (chatItem) {
             const lastMessageElement = chatItem.querySelector('.last-message');
-            const displaySender = sender === username ? "You" : sender; // Show "You" if the sender is the logged-in user
+            const lastMessageTimeElement = chatItem.querySelector('.last-message-time');
+            const displaySender = sender === username ? "You" : sender;
             lastMessageElement.textContent = `${displaySender}: ${message}`;
+            lastMessageTimeElement.textContent = formatTimestamp(timestamp); // Correctly format timestamp
+            chatItem.setAttribute('data-last-timestamp', timestamp); // Update the timestamp attribute
+            reorderChatList(); // Reorder the chat list after updating the timestamp
         }
     }
+
+    const uploadProfilePictureInput = document.getElementById('upload-profile-picture');
+    const uploadedProfilePicture = document.getElementById('uploaded-profile-picture');
+    const chatHeaderProfilePicture = document.getElementById('chat-header-profile-picture');
+
+    // Load the saved profile picture for the logged-in user
+    const savedProfilePicture = localStorage.getItem(`profilePicture_${username}`);
+    if (savedProfilePicture) {
+        uploadedProfilePicture.src = savedProfilePicture;
+        sidebarFooterImage.src = savedProfilePicture;
+    }
+
+    uploadProfilePictureInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const imageUrl = e.target.result;
+
+                // Update the profile picture in the settings modal
+                uploadedProfilePicture.src = imageUrl;
+
+                // Update the profile picture in the sidebar
+                sidebarFooterImage.src = imageUrl;
+
+                // Save the uploaded image URL to localStorage for the logged-in user
+                localStorage.setItem(`profilePicture_${username}`, imageUrl);
+
+                // Update the profile picture in the sidebar chat list if the user is present
+                updateSidebarProfilePicture(username, imageUrl);
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    function updateSidebarProfilePicture(user, imageUrl) {
+        // Find the chat item for the user in the sidebar
+        const chatItem = Array.from(chatList.children).find(chat =>
+            chat.querySelector('div > div:first-child').textContent.trim() === user
+        );
+
+        if (chatItem) {
+            const profileImage = chatItem.querySelector('img');
+            if (profileImage) {
+                profileImage.src = imageUrl; // Update the profile picture
+            }
+        }
+    }
+
+    function getOrGenerateProfilePictureForUser(user) {
+        // Check if a profile picture is saved for the user
+        const savedPicture = localStorage.getItem(`profilePicture_${user}`);
+        if (savedPicture) {
+            return savedPicture; // Return the saved profile picture
+        }
+
+        // Generate a new profile picture and save it
+        const newPicture = generateProfilePicture(user);
+        localStorage.setItem(`profilePicture_${user}`, newPicture);
+        return newPicture;
+    }
+
+    function addChatToSidebar(username) {
+        // Check if the chat already exists in the sidebar
+        const existingChatItem = Array.from(chatList.children).find(chat =>
+            chat.querySelector('div > div:first-child').textContent.trim() === username
+        );
+
+        if (existingChatItem) {
+            // Update the profile picture if the chat already exists
+            const profilePicture = getOrGenerateProfilePictureForUser(username);
+            const profileImage = existingChatItem.querySelector('img');
+            if (profileImage) {
+                profileImage.src = profilePicture;
+            }
+            return;
+        }
+
+        const chatItem = document.createElement('div');
+        chatItem.classList.add('chat-list-item');
+        const profilePicture = getOrGenerateProfilePictureForUser(username); // Get or generate the profile picture
+        chatItem.innerHTML = `
+            <img src="${profilePicture}" alt="User" width="40" height="40">
+            <div>
+                <div>${username}</div>
+                <div class="last-message">Loading...</div> <!-- Placeholder for the last message -->
+            </div>
+            <div class="last-message-time">Loading...</div> <!-- Placeholder for the last message time -->
+        `;
+        chatItem.setAttribute('data-last-timestamp', 0); // Default timestamp for sorting
+        chatItem.addEventListener('click', () => {
+            highlightSelectedChat(chatItem); // Highlight the selected chat
+            activeReceiver = username; // Set the active receiver
+            chatHeaderUsername.textContent = username; // Update the chat header with the username
+            const profilePicture = getOrGenerateProfilePictureForUser(username); // Get or generate the profile picture
+            chatHeaderProfilePicture.src = profilePicture; // Update the chat header profile picture
+            toggleChatScreen(true); // Show the chat screen
+            loadMessages(username); // Fetch and display previous messages
+        });
+        chatList.appendChild(chatItem);
+
+        // Fetch the last message for this chat
+        fetchLastMessage(username, chatItem);
+    }
+
+    function initializeUnreadCounts() {
+        Array.from(chatList.children).forEach(chatItem => {
+            const username = chatItem.querySelector('div > div:first-child').textContent.trim();
+            const unreadCount = parseInt(localStorage.getItem(`unread_${username}`) || '0', 10);
+            updateUnreadCount(username, unreadCount);
+        });
+    }
+
+    function filterChatsByUnread() {
+        Array.from(chatList.children).forEach(chatItem => {
+            const username = chatItem.querySelector('div > div:first-child').textContent.trim();
+            const unreadCount = parseInt(localStorage.getItem(`unread_${username}`) || '0', 10);
+            chatItem.style.display = unreadCount > 0 ? 'flex' : 'none'; // Show only chats with unread messages
+        });
+    }
+
+    function showAllChats() {
+        Array.from(chatList.children).forEach(chatItem => {
+            chatItem.style.display = 'flex'; // Show all chats
+        });
+    }
+
+    // Update event listeners for the "Unread" and "All" pins
+    document.querySelectorAll('.pin-text-sidebar').forEach(pin => {
+        pin.addEventListener('click', (event) => {
+            if (event.target.textContent === 'Unread') {
+                filterChatsByUnread();
+            } else if (event.target.textContent === 'All') {
+                showAllChats();
+            }
+        });
+    });
 });

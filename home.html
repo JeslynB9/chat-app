@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="styles.css">
-    <link rel="script" href="script.js">
     <title>Chat Platform</title>
 </head>
 <body>
@@ -30,14 +29,20 @@
             </div>
         </div>
         <div class="chat-list" id="chat-list">
+            <!-- Example chat item structure -->
+            <div class="chat-list-item">
+                <img src="default-avatar.jpg" alt="User" width="40" height="40">
+                <div>
+                    <div>Username</div>
+                    <div class="last-message">Last message text</div>
+                </div>
+                <div class="last-message-time">12:34 PM</div> <!-- Placeholder for the timestamp -->
+            </div>
             <!-- Chats will be dynamically added here -->
         </div>
         <div class="sidebar-footer">
-            <img src="user.jpg" alt="User" width="37.5" height="37.5">
-            <div>
-                <div id="sidebar-username">Username</div> <!-- 🔥 Add this ID -->
-            </div>
-        
+            <img src="user.jpg" alt="User" width="37.5" height="37.5" class="footer-profile-picture"> <!-- Add class for styling -->
+            <div id="sidebar-username">Username</div> <!-- 🔥 Keep the username text -->
             <button id="settings-button" class="image-button">
                 <img src="images/setting.png" alt="Settings" width="40" height="32">
             </button>
@@ -48,6 +53,13 @@
                 <div class="modal-content">
                     <span class="close-button">&times;</span>
                     <h2>Settings</h2>
+                    
+                    <h3>Profile Picture</h3>
+                    <div class="profile-picture-container">
+                        <img id="uploaded-profile-picture" src="default-avatar.jpg" alt="Profile Picture" width="100" height="100">
+                        <label for="upload-profile-picture" class="button-style">Choose File</label>
+                        <input type="file" id="upload-profile-picture" accept="image/*" style="display: none;">
+                    </div>
                     
                     <h3>Theme Selection</h3>
                     <button class="theme-button" data-theme="light" style="width: 40px; height: 40px; background-color: white; border: 1px solid black;"></button>
@@ -78,7 +90,7 @@
         </div>
         <div id="chat-screen" class="chat-screen hidden">
             <div class="main-chat-header">
-                <img src="user.jpg" alt="User" width="40" height="40">
+                <img id="chat-header-profile-picture" src="default-avatar.jpg" alt="User" width="40" height="40"> <!-- Add ID for dynamic updates -->
                 <div class="chat-header-info">
                     <span id="chat-header-username">Name</span> <!-- Dynamically updated username -->
                     <span class="typing-status"></span>

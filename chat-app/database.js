@@ -131,10 +131,10 @@ function saveMessage(sender, receiver, message, callback) {
 // Add a chat for both users
 function addChatForBothUsers(sender, receiver, callback) {
     const query = `
-        INSERT INTO messages (sender, receiver, message) createdAt)
-        VALUES (?, ?, ?), (?, ?, ?)MESTAMP), (?, ?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO messages (sender, receiver, message, createdAt)
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP), (?, ?, ?, CURRENT_TIMESTAMP)
     `;
-    const initialMessage = 'Chat started';
+    const initialMessage = `Chat started: ${new Date().toLocaleString()}`;
     db.run(query, [sender, receiver, initialMessage, receiver, sender, initialMessage], (err) => {
         if (err) {
             console.error('Error adding chat for both users:', err);
