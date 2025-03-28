@@ -217,12 +217,16 @@ body {
 }
 
 .chat-header-info {
+    position: absolute;
     display: flex;
-    flex-direction: column;
-    margin-left: 10px; /* Add spacing between the profile picture and text */
+    flex-direction: row; /* Align username and profile picture horizontally */
+    align-items: center; /* Vertically center the username with the profile picture */
+    gap: 10px; /* Add spacing between the profile picture and username */
+    margin-left: 50px; /* Remove unnecessary left margin */
 }
 
 #chat-header-username {
+    margin: 0; /* Remove any additional margins */
     font-size: 1.2rem;
     font-weight: bold;
     color: var(--text-color);
@@ -864,7 +868,7 @@ body {
 }
 
 #start-chat-button {
-    background: var (--sent-bg); /* Match the pin button color */
+    background: var(--sent-bg); /* Match the pin button color */
     color: var(--text-color-2);
     border: none;
     padding: 5px 8px; /* Reduce padding */

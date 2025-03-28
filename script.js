@@ -229,6 +229,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function sendMessage() {
         const messageText = inputField.value.trim();
         if (messageText && activeReceiver) {
+            if (username === activeReceiver) {
+                alert("You cannot message yourself.");
+                return; // Prevent sending the message
+            }
+
             const messageData = {
                 message: messageText,
                 sender: username,
@@ -611,6 +616,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(data => {
                     userResults.innerHTML = '';
                     data.users.forEach(user => {
+                        if (user.username === username) return; // Skip adding the current user
                         const userItem = document.createElement('li');
                         userItem.textContent = user.username;
                         userItem.addEventListener('click', () => {
