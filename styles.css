@@ -1088,4 +1088,32 @@ body {
     height: 24px;
 }
 
+.fc-event {
+    color: var(--text-color); /* Set the text color of events */
+    border: none; /* Remove the border */
+    border-radius: 5px; /* Add rounded corners */
+    padding: 5px; /* Add padding for better spacing */
+}
+
+.fc-event:hover {
+    background-color: var(--received-bg); /* Change background color on hover */
+    color: var(--text-color-2); /* Change text color on hover */
+    transition: background-color 0.3s ease, color 0.3s ease; /* Smooth transition */
+}
+
+.fc-timegrid-event {
+    background-color: var(--sent-bg); /* Set the background color for events in week/day view */
+    color: var(--text-color-2); /* Set the text color */
+    border: none; /* Remove the border */
+    border-radius: 5px; /* Add rounded corners */
+    padding: 5px; /* Add padding for better spacing */
+}
+
+.fc-timegrid-event:hover {
+    background-color: var(--received-bg); /* Change background color on hover */
+    color: var(--text-color); /* Change text color on hover */
+    transition: background-color 0.3s ease, color 0.3s ease; /* Smooth transition */
+}
+
+
 
