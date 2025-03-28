@@ -1,64 +1,6 @@
 let calendar; // global calendar instance
 let calendarInitialized = false;
 
-const contextMenu = document.getElementById('chat-context-menu');
-let currentChatElement = null;
-
-document.addEventListener('click', () => {
-  contextMenu.classList.add('hidden');
-});
-
-function setupRightClick(chatItem, username) {
-  chatItem.addEventListener('contextmenu', (e) => {
-    e.preventDefault();
-    currentChatElement = chatItem;
-    contextMenu.style.top = `${e.pageY}px`;
-    contextMenu.style.left = `${e.pageX}px`;
-    contextMenu.classList.remove('hidden');
-    contextMenu.dataset.username = username;
-  });
-}
-
-document.addEventListener("click", () => {
-    document.getElementById("chat-context-menu").classList.add("hidden");
-  });
-  
-  document.querySelectorAll(".context-menu-option").forEach(option => {
-    option.addEventListener("click", () => {
-      const action = option.getAttribute("data-action");
-      const username = document.getElementById("chat-context-menu").getAttribute("data-username");
-  
-      if (action === "pin") {
-        pinChat(username);
-      } else if (action === "archive") {
-        archiveChat(username);
-      } else if (action === "delete") {
-        deleteChat(username);
-      }
-  
-      document.getElementById("chat-context-menu").classList.add("hidden");
-    });
-  });
-
-
-function pinChat(username) {
-    console.log(`📌 Pinned ${username}`);
-    localStorage.setItem(`pinned_${username}`, 'true'); // Save pinned state
-    reorderChatList(); // Reorder to move pinned chat to top
-  }
-
-function archiveChat(username) {
-  alert(`${username} archived (feature pending implementation)`);
-}
-
-function deleteChat(username) {
-  const index = chatUsers.findIndex(c => c.username === username);
-  if (index !== -1) {
-    chatUsers.splice(index, 1);
-    renderChatList();
-  }
-}
-
 function generateProfilePicture(username) {
     const canvas = document.createElement('canvas');
     canvas.width = 40;
@@ -112,6 +54,7 @@ function openCalendar() {
                         console.log('Fetched events:', data); // Debugging log
                         if (data.success) {
                             const formattedEvents = data.events.map(event => ({
+                                id: event.id, // Include the event ID for deletion
                                 title: event.title,
                                 start: event.start,
                                 end: event.end
@@ -154,6 +97,51 @@ function openCalendar() {
                         })
                         .catch(error => console.error('Error adding event:', error));
                 }
+            },
+            eventContent: function(arg) {
+                // Create a container for the event
+                const container = document.createElement('div');
+                container.style.display = 'flex';
+                container.style.justifyContent = 'space-between';
+                container.style.alignItems = 'center';
+
+                // Add the event title
+                const title = document.createElement('span');
+                title.textContent = arg.event.title;
+                container.appendChild(title);
+
+                // Add the delete button
+                const deleteButton = document.createElement('button');
+                deleteButton.textContent = 'x';
+                deleteButton.style.marginLeft = '10px';
+                deleteButton.style.background = 'red';
+                deleteButton.style.color = 'white';
+                deleteButton.style.border = 'none';
+                deleteButton.style.borderRadius = '50%';
+                deleteButton.style.cursor = 'pointer';
+                deleteButton.addEventListener('click', (event) => {
+                    event.stopPropagation(); // Prevent triggering the event click
+                    const eventId = arg.event.id;
+                    if (confirm('Are you sure you want to delete this event?')) {
+                        fetch(`http://localhost:3000/calendar/events/${eventId}`, {
+                            method: 'DELETE'
+                        })
+                            .then(res => res.json())
+                            .then(data => {
+                                console.log('Server response for deleting event:', data); // Debugging log
+                                if (data.success) {
+                                    calendar.refetchEvents(); // Refresh the calendar
+                                    alert('Event deleted successfully.');
+                                } else {
+                                    alert('Failed to delete event.');
+                                }
+                            })
+                            .catch(error => console.error('Error deleting event:', error));
+                    }
+                });
+                container.appendChild(deleteButton);
+
+                return { domNodes: [container] };
             }
         });
 
@@ -248,7 +236,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const calendarButton = document.getElementById('calendar-button');
     calendarButton.addEventListener('click', openCalendar);
     const username = localStorage.getItem('username');
- 
 
     if (!username) {
         alert('You are not logged in. Redirecting to login page...');
@@ -369,50 +356,6 @@ document.addEventListener('DOMContentLoaded', () => {
             unreadBadge.style.display = count > 0 ? 'block' : 'none';
         }
     }
-
-    // === 🔍 CHAT SEARCH ===
-    const chatSearchModal = document.getElementById('chat-search-modal');
-    const chatSearchInput = document.getElementById('chat-search-input');
-    const chatSearchResults = document.getElementById('chat-search-results');
-    const closeChatSearch = document.getElementById('close-chat-search');
-    const searchButton = document.getElementById('search-button'); // 🔍 icon
-
-    searchButton.addEventListener('click', () => {
-    console.log("🔍 Search button clicked!");
-    chatSearchModal.classList.remove('hidden');
-    chatSearchInput.focus();
-    });
-
-    closeChatSearch.addEventListener('click', () => {
-    chatSearchModal.classList.add('hidden');
-    chatSearchInput.value = '';
-    chatSearchResults.innerHTML = '';
-    });
-
-    chatSearchInput.addEventListener('input', () => {
-    const searchTerm = chatSearchInput.value.toLowerCase();
-    chatSearchResults.innerHTML = '';
-
-    if (!searchTerm || !activeReceiver) return;
-
-    const messageBubbles = messagesContainer.querySelectorAll('.message-bubble');
-
-    messageBubbles.forEach((bubble) => {
-        if (bubble.textContent.toLowerCase().includes(searchTerm)) {
-        const resultItem = document.createElement('li');
-        resultItem.textContent = bubble.textContent;
-        resultItem.addEventListener('click', () => {
-            bubble.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            bubble.classList.add('highlight');
-            setTimeout(() => bubble.classList.remove('highlight'), 2000);
-            chatSearchModal.classList.add('hidden');
-            chatSearchInput.value = '';
-            chatSearchResults.innerHTML = '';
-        });
-        chatSearchResults.appendChild(resultItem);
-        }
-    });
-    });
 
     // === CONTEXT MENU HANDLER ===
     document.addEventListener("contextmenu", (event) => {
@@ -871,15 +814,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatScreen = document.getElementById('chat-screen');
     const inputArea = document.getElementById('main-chat-footer'); // Correctly select the footer containing the input area
 
-    
     function addChatToSidebar(username) {
-        // Check if chat already exists
+        // Check if the chat already exists in the sidebar
         const existingChatItem = Array.from(chatList.children).find(chat =>
             chat.querySelector('div > div:first-child').textContent.trim() === username
         );
-    
+
         if (existingChatItem) {
-            // Update profile picture if it already exists
+            // Update the profile picture if the chat already exists
             const profilePicture = getOrGenerateProfilePictureForUser(username);
             const profileImage = existingChatItem.querySelector('img');
             if (profileImage) {
@@ -887,40 +829,32 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             return;
         }
-    
-        // Now create the new chat item
+
         const chatItem = document.createElement('div');
         chatItem.classList.add('chat-list-item');
-        chatItem.setAttribute('data-username', username); // for context menu
-    
-        const profilePicture = getOrGenerateProfilePictureForUser(username);
-    
+        const profilePicture = getOrGenerateProfilePictureForUser(username); // Get or generate the profile picture
         chatItem.innerHTML = `
             <img src="${profilePicture}" alt="User" width="40" height="40">
             <div>
                 <div>${username}</div>
-                <div class="last-message">Loading...</div>
+                <div class="last-message">Loading...</div> <!-- Placeholder for the last message -->
             </div>
-            <div class="last-message-time">Loading...</div>
+            <div class="last-message-time">Loading...</div> <!-- Placeholder for the last message time -->
         `;
-        chatItem.setAttribute('data-last-timestamp', 0);
-    
-        // ✅ NOW that chatItem exists, set up the right-click
-        setupRightClick(chatItem, username);
-    
-        // ✅ Set up click to load chat
+        chatItem.setAttribute('data-last-timestamp', 0); // Default timestamp for sorting
         chatItem.addEventListener('click', () => {
-            highlightSelectedChat(chatItem);
-            activeReceiver = username;
-            chatHeaderUsername.textContent = username;
-            const profilePicture = getOrGenerateProfilePictureForUser(username);
-            chatHeaderProfilePicture.src = profilePicture;
-            toggleChatScreen(true);
-            loadMessages(username);
+            highlightSelectedChat(chatItem); // Highlight the selected chat
+            activeReceiver = username; // Set the active receiver
+            chatHeaderUsername.textContent = username; // Update the chat header with the username
+            const profilePicture = getOrGenerateProfilePictureForUser(username); // Get or generate the profile picture
+            chatHeaderProfilePicture.src = profilePicture; // Update the chat header profile picture
+            toggleChatScreen(true); // Show the chat screen
+            loadMessages(username); // Fetch and display previous messages
         });
-    
         chatList.appendChild(chatItem);
-        fetchLastMessage(username, chatItem); // Update with the last message
+
+        // Fetch the last message for this chat
+        fetchLastMessage(username, chatItem);
     }
 
     function fetchLastMessage(username, chatItem) {
@@ -955,25 +889,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function reorderChatList() {
         const chatItems = Array.from(chatList.children);
-      
         chatItems.sort((a, b) => {
-          const userA = a.querySelector('div > div:first-child').textContent.trim();
-          const userB = b.querySelector('div > div:first-child').textContent.trim();
-      
-          const pinnedA = localStorage.getItem(`pinned_${userA}`) === 'true' ? 1 : 0;
-          const pinnedB = localStorage.getItem(`pinned_${userB}`) === 'true' ? 1 : 0;
-      
-          // Pinned items come first
-          if (pinnedA !== pinnedB) return pinnedB - pinnedA;
-      
-          const timestampA = parseInt(a.getAttribute('data-last-timestamp'), 10) || 0;
-          const timestampB = parseInt(b.getAttribute('data-last-timestamp'), 10) || 0;
-      
-          return timestampB - timestampA; // Otherwise sort by recency
+            const timestampA = parseInt(a.getAttribute('data-last-timestamp'), 10) || 0;
+            const timestampB = parseInt(b.getAttribute('data-last-timestamp'), 10) || 0;
+            return timestampB - timestampA; // Sort in descending order (most recent first)
         });
-      
+
+        // Append the sorted items back to the chat list
         chatItems.forEach(chatItem => chatList.appendChild(chatItem));
-      }
+    }
 
     function formatTimestamp(timestamp) {
         const date = new Date(timestamp); // Use the timestamp directly
@@ -1176,6 +1100,48 @@ document.addEventListener('DOMContentLoaded', () => {
         return newPicture;
     }
 
+    function addChatToSidebar(username) {
+        // Check if the chat already exists in the sidebar
+        const existingChatItem = Array.from(chatList.children).find(chat =>
+            chat.querySelector('div > div:first-child').textContent.trim() === username
+        );
+
+        if (existingChatItem) {
+            // Update the profile picture if the chat already exists
+            const profilePicture = getOrGenerateProfilePictureForUser(username);
+            const profileImage = existingChatItem.querySelector('img');
+            if (profileImage) {
+                profileImage.src = profilePicture;
+            }
+            return;
+        }
+
+        const chatItem = document.createElement('div');
+        chatItem.classList.add('chat-list-item');
+        const profilePicture = getOrGenerateProfilePictureForUser(username); // Get or generate the profile picture
+        chatItem.innerHTML = `
+            <img src="${profilePicture}" alt="User" width="40" height="40">
+            <div>
+                <div>${username}</div>
+                <div class="last-message">Loading...</div> <!-- Placeholder for the last message -->
+            </div>
+            <div class="last-message-time">Loading...</div> <!-- Placeholder for the last message time -->
+        `;
+        chatItem.setAttribute('data-last-timestamp', 0); // Default timestamp for sorting
+        chatItem.addEventListener('click', () => {
+            highlightSelectedChat(chatItem); // Highlight the selected chat
+            activeReceiver = username; // Set the active receiver
+            chatHeaderUsername.textContent = username; // Update the chat header with the username
+            const profilePicture = getOrGenerateProfilePictureForUser(username); // Get or generate the profile picture
+            chatHeaderProfilePicture.src = profilePicture; // Update the chat header profile picture
+            toggleChatScreen(true); // Show the chat screen
+            loadMessages(username); // Fetch and display previous messages
+        });
+        chatList.appendChild(chatItem);
+
+        // Fetch the last message for this chat
+        fetchLastMessage(username, chatItem);
+    }
 
     function initializeUnreadCounts() {
         Array.from(chatList.children).forEach(chatItem => {

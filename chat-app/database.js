@@ -245,7 +245,7 @@ function getEvents(chat_id, callback) {
 // Create events table
 db.run(`
     CREATE TABLE IF NOT EXISTS events (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+    INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
       start TEXT NOT NULL,
       end TEXT,
@@ -325,6 +325,20 @@ function getEventsForUsers(usernames, callback) {
     });
 }
 
+// Delete an event by ID
+function deleteEvent(eventId, callback) {
+    const query = `DELETE FROM events WHERE id = ?`;
+    db.run(query, [eventId], function (err) {
+        if (err) {
+            console.error('Error deleting event from database:', err); // Debugging log
+            callback(err);
+        } else {
+            console.log('Event deleted from database with ID:', eventId); // Debugging log
+            callback(null, { id: eventId });
+        }
+    });
+}
+
 module.exports = {
     db,
     registerUser,
@@ -340,6 +354,7 @@ module.exports = {
     getEvents,
     addCalendarEventForUsers,
     getEventsForUsers,
-    addEvent
+    addEvent,
+    deleteEvent
 };
 

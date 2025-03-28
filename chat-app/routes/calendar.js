@@ -40,4 +40,19 @@ router.post('/events', (req, res) => {
     });
 });
 
+// DELETE an event by ID
+router.delete('/events/:id', (req, res) => {
+    const { id } = req.params;
+    console.log('Deleting event with ID:', id); // Debugging log
+
+    db.deleteEvent(id, (err) => {
+        if (err) {
+            console.error('Error deleting event:', err);
+            return res.status(500).json({ success: false, message: 'Database error' });
+        }
+        console.log('Event deleted successfully with ID:', id); // Debugging log
+        res.json({ success: true });
+    });
+});
+
 module.exports = router;
