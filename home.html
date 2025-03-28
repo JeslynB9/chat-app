@@ -46,7 +46,7 @@
             <img src="user.jpg" alt="User" width="37.5" height="37.5" class="footer-profile-picture"> <!-- Add class for styling -->
             <div id="sidebar-username">Username</div> <!-- 🔥 Keep the username text -->
             <button id="settings-button" class="image-button">
-                <img src="images/setting.png" alt="Settings" width="40" height="32">
+                <img src="images/settings-light.png" alt="Settings" width="36" height="32">
             </button>
         </div>
 
@@ -97,9 +97,14 @@
                     <span id="chat-header-username">Name</span> <!-- Dynamically updated username -->
                     <span class="typing-status"></span>
                 </div>
-                <button class="info-button" id="info-button">
-                    <img src="images/info-icon.png" alt="Info">
-                </button>
+                <div class="header-buttons"> <!-- Wrap buttons in a container -->
+                    <button class="search-button" id="search-button">
+                        <img src="images/search-light.png" alt="Search">
+                    </button>
+                    <button class="info-button" id="info-button">
+                        <img src="images/info-light.png" alt="Info">
+                    </button>
+                </div>
             </div>
             <!-- Pins Section -->
             <div class="pins-task-container">
@@ -134,18 +139,18 @@
     </div>
     <div id="main-chat-footer" class="main-chat-footer">
         <div class="input-area">
-            <button id="toggle-sidebar"><img src="images/arrow-left.png" alt="Toggle Sidebar"></button>
+            <button id="toggle-sidebar"><img src="images/arrowleft-light.png" alt="Toggle Sidebar"></button>
         
             <input type="text" placeholder="Type a message" id="message-input">
         
             <!-- Camera Button -->
             <button id="camera-button">
-                <img src="images/camera.png" alt="Camera" width="24" height="24">
+                <img src="images/camera-light.png" alt="Camera" width="200" height="200">
             </button>
         
             <!-- Calendar Button -->
             <button id="calendar-button">
-                <img src="images/plus.png" alt="Calendar" width="24" height="24">
+                <img src="images/plus-light.png" alt="Calendar" width="100" height="100">
             </button>
         </div>
       </div>

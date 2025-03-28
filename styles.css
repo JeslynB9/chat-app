@@ -188,10 +188,46 @@ body {
 .main-chat-header {
     display: flex;
     align-items: center;
-    justify-content: space-between; /* Add space between chat header and info panel */
+    justify-content: space-between; /* Space out elements */
     padding: 10px;
     border-bottom: 1px solid var(--border-color);
     flex-grow: 0;
+}
+
+.header-buttons {
+    display: flex;
+    align-items: center;
+    gap: 10px; /* Add spacing between the buttons */
+    margin-left: auto; /* Ensure buttons are aligned to the right */
+}
+
+.search-button, .info-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.search-button img, .info-button img {
+    width: 24px;
+    height: 24px;
+}
+
+.search-button, .info-button {
+    margin-left: 10px; /* Add spacing between buttons */
+}
+
+.search-button {
+    position: absolute;
+    padding-right: 20%;
+    margin-right: 100px;
+}
+
+.info-button {
+    margin-left: auto; /* Push the info button to the far right */
 }
 
 .info-panel {
@@ -1088,6 +1124,22 @@ body {
 }
 
 .info-button img {
+    width: 24px;
+    height: 24px;
+}
+
+.search-button {
+    position: absolute;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.search-button img {
     width: 24px;
     height: 24px;
 }

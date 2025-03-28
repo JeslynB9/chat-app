@@ -223,7 +223,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     toggleBtn.addEventListener('click', () => {
         sidebar.classList.toggle('collapsed');
-        toggleBtn.textContent = sidebar.classList.contains('collapsed') ? '→' : '←';
+        const isCollapsed = sidebar.classList.contains('collapsed');
+        toggleBtn.querySelector('img').src = isCollapsed ? 'images/arrowright-light.png' : 'images/arrowleft-light.png';
     });
 
     function sendMessage() {
@@ -458,9 +459,43 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    function updateImagesForTheme(theme) {
+        const settingsButtonImg = document.getElementById('settings-button').querySelector('img');
+        const cameraButtonImg = document.getElementById('camera-button').querySelector('img');
+        const calendarButtonImg = document.getElementById('calendar-button').querySelector('img');
+        const infoButtonImg = document.getElementById('info-button').querySelector('img');
+        const searchButtonImg = document.getElementById('search-button').querySelector('img');
+    
+        if (theme === 'dark') {
+            settingsButtonImg.src = 'images/settings-dark.png';
+            cameraButtonImg.src = 'images/camera-dark.png';
+            calendarButtonImg.src = 'images/plus-dark.png';
+            infoButtonImg.src = 'images/info-dark.png';
+            searchButtonImg.src = 'images/search-dark.png';
+        } else {
+            settingsButtonImg.src = 'images/settings-light.png';
+            cameraButtonImg.src = 'images/camera-light.png';
+            calendarButtonImg.src = 'images/plus-light.png';
+            searchButtonImg.src = 'images/search-light.png';
+        }
+    
+        // Log errors if images fail to load
+        [settingsButtonImg, cameraButtonImg, calendarButtonImg].forEach(img => {
+            img.onerror = () => console.error(`Failed to load image: ${img.src}`);
+        });
+    }
+
+    // Extend the applyTheme function to update images
     function applyTheme(theme) {
         document.body.setAttribute('data-theme', theme);
+        updateImagesForTheme(theme);
     }
+
+    // Call updateImagesForTheme when the page loads to set the initial images
+    document.addEventListener('DOMContentLoaded', () => {
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        applyTheme(savedTheme);
+    });
 
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme) {
