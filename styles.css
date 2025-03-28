@@ -948,6 +948,34 @@ body {
     max-width: 900px;
   }
 
+#calendar-modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+}
+
+#calendar-modal .modal-content {
+    width: 90%;
+    max-width: 900px;
+    height: 80%; /* Ensure the calendar takes up most of the modal */
+    margin: 5% auto;
+    padding: 20px;
+    border-radius: 12px;
+    background-color: var(--bg-color);
+    display: flex;
+    flex-direction: column;
+}
+
+#calendar {
+    flex-grow: 1; /* Allow the calendar to expand and fill available space */
+    overflow: hidden; /* Prevent scrollbars inside the calendar */
+}
+
 .info-popup {
     display: none; /* Hidden by default */
     position: fixed;
