@@ -377,11 +377,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const chatItem = event.target.closest('.chat-list-item');
             const username = chatItem.getAttribute("data-username");
 
+
             const contextMenu = document.getElementById("chat-context-menu");
             contextMenu.style.top = `${event.pageY}px`;
             contextMenu.style.left = `${event.pageX}px`;
             contextMenu.classList.remove("hidden");
             contextMenu.setAttribute("data-username", username);
+
+            const pinned = localStorage.getItem(`pinned_${username}`) === 'true';
+            const pinOption = document.querySelector('[data-action="pin"]');
+            pinOption.textContent = pinned ? '📌 Unpin' : '📌 Pin';
         } else {
             document.getElementById("chat-context-menu").classList.add("hidden");
         }
@@ -406,10 +411,19 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function pinChat(username) {
-        console.log(`📌 Pinned ${username}`);
-        localStorage.setItem(`pinned_${username}`, 'true'); // Save pinned state
-        reorderChatList(); // Sort with pinned on top
-    }
+        const pinnedKey = `pinned_${username}`;
+        const isPinned = localStorage.getItem(pinnedKey) === 'true';
+      
+        if (isPinned) {
+          console.log(`📌 Unpinned ${username}`);
+          localStorage.removeItem(pinnedKey);
+        } else {
+          console.log(`📌 Pinned ${username}`);
+          localStorage.setItem(pinnedKey, 'true');
+        }
+      
+        reorderChatList();
+      }
     
     function archiveChat(username) {
         console.log(`📁 Archived ${username}`);
