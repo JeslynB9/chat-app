@@ -97,6 +97,9 @@
                     <span id="chat-header-username">Name</span> <!-- Dynamically updated username -->
                     <span class="typing-status"></span>
                 </div>
+                <button class="info-button" id="info-button">
+                    <img src="images/info-icon.png" alt="Info">
+                </button>
             </div>
             <!-- Pins Section -->
             <div class="pins-task-container">
@@ -158,6 +161,21 @@
           <div id="calendar"></div>
         </div>
       </div>
+
+    <div class="popup-overlay" id="popup-overlay"></div>
+    <div id="info-popup" class="info-popup">
+        <button class="close-button" onclick="closeInfoPopup()">&times;</button>
+        <img id="popup-profile-picture" src="default-avatar.jpg" alt="Profile Picture">
+        <div class="info-item">
+            <span>Username:</span> <span id="popup-username">N/A</span>
+        </div>
+        <div class="info-item">
+            <span>Files Sent:</span>
+            <ul id="popup-files">
+                <!-- Files will be dynamically added here -->
+            </ul>
+        </div>
+    </div>
         
 </body>
 </html>

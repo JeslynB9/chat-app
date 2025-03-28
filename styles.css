@@ -187,10 +187,28 @@ body {
 
 .main-chat-header {
     display: flex;
-    align-items: center; /* Align items vertically */
+    align-items: center;
+    justify-content: space-between; /* Add space between chat header and info panel */
     padding: 10px;
     border-bottom: 1px solid var(--border-color);
     flex-grow: 0;
+}
+
+.info-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    text-align: right;
+    font-size: 0.9rem;
+    color: var(--text-color);
+}
+
+.info-panel .info-item {
+    margin-bottom: 5px;
+}
+
+.info-panel .info-item span {
+    font-weight: bold;
 }
 
 #chat-header-profile-picture {
@@ -929,5 +947,76 @@ body {
     width: 90%;
     max-width: 900px;
   }
+
+.info-popup {
+    display: none; /* Hidden by default */
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 300px;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    z-index: 1001; /* Ensure it appears above the overlay */
+    padding: 20px;
+    text-align: left;
+}
+
+.info-popup .close-button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    color: var(--text-color);
+}
+
+.info-popup .info-item {
+    margin-bottom: 10px;
+}
+
+.info-popup .info-item span {
+    font-weight: bold;
+}
+
+.info-popup img {
+    display: block;
+    margin: 0 auto 10px;
+    border-radius: 50%;
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+}
+
+.popup-overlay {
+    display: none; /* Hidden by default */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6); /* Darken the background */
+    z-index: 1000; /* Ensure it appears below the popup */
+}
+
+.info-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.info-button img {
+    width: 24px;
+    height: 24px;
+}
 
 

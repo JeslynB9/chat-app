@@ -123,6 +123,66 @@ function getOrGenerateProfilePicture(username) {
     return newPicture;
 }
 
+function updateInfoPanel(user, file) {
+    const infoUser = document.getElementById('info-user');
+    const infoFile = document.getElementById('info-file');
+
+    infoUser.textContent = user || 'N/A';
+    infoFile.textContent = file || 'N/A';
+}
+
+function openInfoPopup(user, file) {
+    const popup = document.getElementById('info-popup');
+    const popupUser = document.getElementById('popup-info-user');
+    const popupFile = document.getElementById('popup-info-file');
+
+    popupUser.textContent = user || 'N/A';
+    popupFile.textContent = file || 'N/A';
+
+    popup.style.display = 'block';
+}
+
+function closeInfoPopup() {
+    const popup = document.getElementById('info-popup');
+    popup.style.display = 'none';
+}
+
+function openInfoPopup(username, profilePicture, files) {
+    const popup = document.getElementById('info-popup');
+    const overlay = document.getElementById('popup-overlay');
+    const popupUsername = document.getElementById('popup-username');
+    const popupProfilePicture = document.getElementById('popup-profile-picture');
+    const popupFiles = document.getElementById('popup-files');
+
+    popupUsername.textContent = username || 'N/A';
+    popupProfilePicture.src = profilePicture || 'default-avatar.jpg';
+
+    // Clear and populate the files list
+    popupFiles.innerHTML = '';
+    if (files && files.length > 0) {
+        files.forEach(file => {
+            const fileItem = document.createElement('li');
+            fileItem.textContent = file;
+            popupFiles.appendChild(fileItem);
+        });
+    } else {
+        const noFilesItem = document.createElement('li');
+        noFilesItem.textContent = 'No files sent.';
+        popupFiles.appendChild(noFilesItem);
+    }
+
+    popup.style.display = 'block';
+    overlay.style.display = 'block'; // Show the overlay
+}
+
+function closeInfoPopup() {
+    const popup = document.getElementById('info-popup');
+    const overlay = document.getElementById('popup-overlay');
+
+    popup.style.display = 'none';
+    overlay.style.display = 'none'; // Hide the overlay
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     // ==========================
     // 👤 USERNAME SETUP
@@ -305,6 +365,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const file = event.target.files[0];
             if (file) {
                 alert(`Selected file: ${file.name}`);
+                openInfoPopup(localStorage.getItem('username'), file.name); // Show popup with file info
             }
         });
     });
@@ -389,7 +450,6 @@ document.addEventListener('DOMContentLoaded', () => {
         button.addEventListener('click', () => {
             const theme = button.getAttribute('data-theme');
             applyTheme(theme);
-            localStorage.setItem('theme', theme);
         });
     });
 
@@ -946,7 +1006,34 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const infoButton = document.getElementById('info-button');
+    infoButton.addEventListener('click', () => {
+        if (activeReceiver) {
+            const profilePicture = getOrGenerateProfilePictureForUser(activeReceiver);
+            const filesSent = JSON.parse(localStorage.getItem(`files_${activeReceiver}`) || '[]');
+            openInfoPopup(activeReceiver, profilePicture, filesSent);
+        } else {
+            alert('No active chat selected.');
+        }
+    });
+
+    // Reuse the existing cameraButton variable
+        cameraButton.addEventListener('click', () => {
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = 'image/*';
+            fileInput.click();
     
+            fileInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    alert(`Selected file: ${file.name}`);
+                    const files = JSON.parse(localStorage.getItem(`files_${activeReceiver}`) || '[]');
+                    files.push(file.name);
+                    localStorage.setItem(`files_${activeReceiver}`, JSON.stringify(files));
+                }
+            });
+        });
 
     // Update event listeners for the "Unread" and "All" pins
     document.querySelectorAll('.pin-text-sidebar').forEach(pin => {
