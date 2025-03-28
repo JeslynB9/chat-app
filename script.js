@@ -32,6 +32,7 @@ function openCalendar() {
 
     const calendarEl = document.getElementById('calendar');
     const username = localStorage.getItem('username'); // Fetch the logged-in user's username
+    console.log('Opening calendar for username:', username); // Debugging log
 
     if (!calendarInitialized) {
         calendar = new FullCalendar.Calendar(calendarEl, {
