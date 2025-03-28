@@ -197,8 +197,8 @@ body {
 .header-buttons {
     display: flex;
     align-items: center;
-    gap: 10px; /* Add spacing between the buttons */
-    margin-left: auto; /* Ensure buttons are aligned to the right */
+    gap: 100px; /* Ensure a 20px gap between the search and info buttons */
+    position: relative; /* Ensure proper positioning of child elements */
 }
 
 .search-button, .info-button {
@@ -221,13 +221,13 @@ body {
 }
 
 .search-button {
-    position: absolute;
-    padding-right: 20%;
-    margin-right: 100px;
+    position: relative; /* Ensure it aligns properly within the container */
+    margin-left: 0; /* Reset any unnecessary left margin */
+    transform: translateX(-20px); /* Move the search button 20px to the left of the info button */
 }
 
 .info-button {
-    margin-left: auto; /* Push the info button to the far right */
+    position: relative; /* Ensure it aligns properly within the container */
 }
 
 .info-panel {
