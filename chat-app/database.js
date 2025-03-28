@@ -47,7 +47,7 @@ db.serialize(() => {
     });
 });
 
-// Create the `calendar_events` table
+// Update the `calendar_events` table to include the `chat_id` column
 db.serialize(() => {
     db.run(`
         CREATE TABLE IF NOT EXISTS calendar_events (
@@ -55,13 +55,26 @@ db.serialize(() => {
             title TEXT NOT NULL,
             start TEXT NOT NULL,
             end TEXT NOT NULL,
-            created_by TEXT
+            chat_id TEXT NOT NULL
         )
     `, (err) => {
         if (err) {
-            console.error('Error creating calendar_events table:', err.message);
+            console.error('Error creating/updating calendar_events table:', err.message);
         } else {
-            console.log('Calendar events table created or already exists.');
+            console.log('Calendar events table created or updated successfully.');
+        }
+    });
+});
+
+// Ensure the `username` column exists in the `calendar_events` table
+db.serialize(() => {
+    db.run(`
+        ALTER TABLE calendar_events ADD COLUMN username TEXT
+    `, (err) => {
+        if (err && !err.message.includes('duplicate column name')) {
+            console.error('Error adding username column to calendar_events table:', err.message);
+        } else if (!err) {
+            console.log('Username column added to calendar_events table.');
         }
     });
 });
@@ -197,16 +210,34 @@ function getAllCalendarEvents(callback) {
     });
 }
 
-function addCalendarEvent({ title, start, end, created_by }, callback) {
+// Add a calendar event for a chat
+function addCalendarEvent({ title, start, end, chat_id }, callback) {
+    console.log('Attempting to add event to database:', { title, start, end, chat_id }); // Log the event details
+
     const query = `
-        INSERT INTO calendar_events (title, start, end, created_by)
+        INSERT INTO calendar_events (title, start, end, chat_id)
         VALUES (?, ?, ?, ?)
     `;
-    db.run(query, [title, start, end, created_by], function (err) {
+    db.run(query, [title, start, end, chat_id], function (err) {
         if (err) {
+            console.error('Error adding event to database:', err); // Log the detailed error
             callback(err);
         } else {
-            callback(null, { id: this.lastID });
+            console.log('Event added to database with ID:', this.lastID); // Log the inserted event ID
+            callback(null, { id: this.lastID, title, start, end, chat_id });
+        }
+    });
+}
+
+// Fetch all events for a chat
+function getEvents(chat_id, callback) {
+    const query = `SELECT * FROM calendar_events WHERE chat_id = ?`;
+    db.all(query, [chat_id], (err, rows) => {
+        if (err) {
+            console.error('Error fetching calendar events:', err);
+            callback(err);
+        } else {
+            callback(null, rows);
         }
     });
 }
@@ -220,23 +251,79 @@ db.run(`
       end TEXT,
       username TEXT NOT NULL
     )
-  `);
-  
-  // Add an event
-  exports.addEvent = (event, callback) => {
-      const { title, start, end, username } = event;
-      const query = `INSERT INTO events (title, start, end, username) VALUES (?, ?, ?, ?)`;
-      db.run(query, [title, start, end, username], function (err) {
-          if (err) return callback(err);
-          callback(null, { id: this.lastID, ...event });
-      });
-  };
-  
-  // Fetch all events for a user
-  exports.getEvents = (username, callback) => {
-      const query = `SELECT * FROM events WHERE username = ?`;
-      db.all(query, [username], callback);
-  };
+`);
+
+// Add an event
+function addEvent(event, callback) {
+    const { title, start, end, username } = event;
+    const query = `INSERT INTO events (title, start, end, username) VALUES (?, ?, ?, ?)`;
+    db.run(query, [title, start, end, username], function (err) {
+        if (err) {
+            console.error('Error adding event to database:', err); // Debugging log
+            return callback(err);
+        }
+        console.log('Event added to database with ID:', this.lastID); // Debugging log
+        callback(null, { id: this.lastID, ...event });
+    });
+}
+
+exports.addEvent = (event, callback) => {
+    const { title, start, end, username } = event;
+    const query = `INSERT INTO events (title, start, end, username) VALUES (?, ?, ?, ?)`;
+    db.run(query, [title, start, end, username], function (err) {
+        if (err) return callback(err);
+        callback(null, { id: this.lastID, ...event });
+    });
+};
+
+// Fetch all events for a user
+function getEvents(username, callback) {
+    console.log('Fetching events for username from database:', username); // Debugging log
+    const query = `SELECT * FROM events WHERE username = ?`;
+    db.all(query, [username], (err, rows) => {
+        if (err) {
+            console.error('Error fetching events from database:', err); // Debugging log
+            return callback(err);
+        }
+        console.log('Fetched events from database for username:', username, rows); // Debugging log
+        callback(null, rows);
+    });
+}
+
+function addCalendarEventForUsers({ title, start, end, usernames }, callback) {
+    console.log('Adding event for users:', { title, start, end, usernames }); // Debugging log
+
+    const query = `
+        INSERT INTO calendar_events (title, start, end, username)
+        VALUES ${usernames.map(() => '(?, ?, ?, ?)').join(', ')}
+    `;
+    const params = usernames.flatMap(username => [title, start, end, username]);
+
+    db.run(query, params, function (err) {
+        if (err) {
+            console.error('Error adding event to database:', err); // Debugging log
+            callback(err);
+        } else {
+            console.log('Event added to database with ID:', this.lastID); // Debugging log
+            callback(null, { id: this.lastID, title, start, end, usernames });
+        }
+    });
+}
+
+function getEventsForUsers(usernames, callback) {
+    const query = `
+        SELECT * FROM calendar_events
+        WHERE username IN (${usernames.map(() => '?').join(', ')})
+    `;
+    db.all(query, usernames, (err, rows) => {
+        if (err) {
+            console.error('Error fetching events from database:', err); // Debugging log
+            callback(err);
+        } else {
+            callback(null, rows);
+        }
+    });
+}
 
 module.exports = {
     db,
@@ -249,6 +336,10 @@ module.exports = {
     addChatForBothUsers,
     getUserChats,
     getAllCalendarEvents,
-    addCalendarEvent
+    addCalendarEvent,
+    getEvents,
+    addCalendarEventForUsers,
+    getEventsForUsers,
+    addEvent
 };
 

@@ -8,6 +8,8 @@ const bcrypt = require('bcrypt');
 const db = require('./database'); // SQLite DB module
 
 const app = express();
+app.use(express.json());
+app.use(cors());
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
@@ -19,8 +21,18 @@ const io = new Server(server, {
 const calendarRoutes = require('./routes/calendar');
 app.use('/calendar', calendarRoutes);
 
-app.use(cors());
-app.use(express.json());
+// Properly configure and apply CORS middleware
+app.use((req, res, next) => {
+    console.log('CORS middleware applied'); // Debugging log
+    res.header('Access-Control-Allow-Origin', '*'); // Allow all origins
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS'); // Allow specific HTTP methods
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization'); // Allow specific headers
+    if (req.method === 'OPTIONS') {
+        console.log('Handling preflight request'); // Debugging log
+        return res.sendStatus(200); // Handle preflight requests
+    }
+    next();
+});
 
 // File uploads
 const upload = multer({ dest: 'uploads/' });
@@ -211,17 +223,21 @@ io.on('connection', (socket) => {
 // Start the server
 // === CALENDAR: Add new event ===
 app.post('/calendar/events', (req, res) => {
-    const event = req.body;
+    const { title, start, end, username } = req.body;
 
-    if (!event.title || !event.start || !event.username) {
+    console.log('Received request to add event:', req.body); // Log the incoming request body
+
+    if (!title || !start || !username) {
+        console.error('Missing required fields:', { title, start, username });
         return res.status(400).json({ success: false, message: 'Missing required fields' });
     }
 
-    db.addEvent(event, (err, savedEvent) => {
+    db.addCalendarEvent({ title, start, end, username }, (err, savedEvent) => {
         if (err) {
-            console.error('Failed to save event:', err);
-            return res.status(500).json({ success: false, message: 'Database error' });
+            console.error('Failed to save event to database:', err); // Log the detailed error
+            return res.status(500).json({ success: false, message: 'Database error', error: err.message });
         }
+        console.log('Event successfully saved to database:', savedEvent); // Log the saved event
         res.status(201).json({ success: true, event: savedEvent });
     });
 });
@@ -229,13 +245,19 @@ app.post('/calendar/events', (req, res) => {
 // === CALENDAR: Fetch all events for user ===
 app.get('/calendar/events', (req, res) => {
     const { username } = req.query;
-    if (!username) return res.status(400).json({ success: false, message: 'Username required' });
+    console.log('Fetching events for user:', username); // Log the username for which events are being fetched
+
+    if (!username) {
+        console.error('Username is required to fetch events');
+        return res.status(400).json({ success: false, message: 'Username required' });
+    }
 
     db.getEvents(username, (err, events) => {
         if (err) {
-            console.error('Failed to fetch events:', err);
+            console.error('Failed to fetch events from database:', err);
             return res.status(500).json({ success: false, message: 'Database error' });
         }
+        console.log('Fetched events for user:', username, events); // Log the fetched events
         res.json({ success: true, events });
     });
 });

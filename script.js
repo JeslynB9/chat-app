@@ -29,60 +29,85 @@ function generateProfilePicture(username) {
 function openCalendar() {
     const modal = document.getElementById("calendar-modal");
     modal.style.display = "block";
-  
+
     const calendarEl = document.getElementById('calendar');
-  
-    // Only initialize once
+    const username = localStorage.getItem('username'); // Fetch the logged-in user's username
+
     if (!calendarInitialized) {
-      calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'dayGridMonth',
-        selectable: true,
-        events: function(fetchInfo, successCallback, failureCallback) {
-            fetch(`http://localhost:3000/calendar`)
-            .then(res => res.json())
-            .then(data => {
-                console.log('📦 Events fetched from server:', data); 
-              if (data.success) {
-                successCallback(data.events);
-              } else {
-                failureCallback(data.message);
-              }
-            })
-            .catch(failureCallback);
-        },
-        select: function(info) {
-            const title = prompt('Event Title:');
-            if (title) {
-                fetch('/calendar/events', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
+        calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            height: '100%', // Ensure the calendar fills its container
+            contentHeight: '100%', // Ensure the content height is properly set
+            selectable: true,
+            editable: true,
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,timeGridDay'
+            },
+            events: function(fetchInfo, successCallback, failureCallback) {
+                console.log('Fetching events for user:', username); // Debugging log
+                fetch(`http://localhost:3000/calendar/events?username=${encodeURIComponent(username)}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        console.log('Fetched events:', data); // Debugging log
+                        if (data.success) {
+                            const formattedEvents = data.events.map(event => ({
+                                title: event.title,
+                                start: event.start,
+                                end: event.end
+                            }));
+                            console.log('Formatted events for FullCalendar:', formattedEvents); // Debugging log
+                            successCallback(formattedEvents);
+                        } else {
+                            console.error('Error fetching events:', data.message); // Debugging log
+                            failureCallback(data.message);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching events:', error); // Debugging log
+                        failureCallback('Failed to fetch events');
+                    });
+            },
+            select: function(info) {
+                const title = prompt('Event Title:');
+                if (title) {
+                    const eventData = {
                         title,
                         start: info.startStr,
-                        end: info.endStr,
-                        username: localStorage.getItem('username')
+                        end: info.endStr || info.startStr,
+                        username // Use the logged-in user's username
+                    };
+                    console.log('Sending event data to server:', eventData); // Debugging log
+                    fetch('http://localhost:3000/calendar/events', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(eventData)
                     })
-                })
-                .then(res => res.json())
-                .then(data => {
-                    console.log('Event added response:', data); // Log the server response
-                    calendar.refetchEvents(); // Reload events
-                })
-                .catch(error => console.error('Error adding event:', error));
+                        .then(res => res.json())
+                        .then(data => {
+                            console.log('Server response for adding event:', data); // Debugging log
+                            if (data.success) {
+                                calendar.refetchEvents();
+                            } else {
+                                alert('Failed to add event.');
+                            }
+                        })
+                        .catch(error => console.error('Error adding event:', error));
+                }
             }
-        }
-      });
-  
-      calendar.render();
-      calendarInitialized = true;
+        });
+
+        calendar.render(); // Render the calendar
+        calendarInitialized = true;
     } else {
-      calendar.refetchEvents(); // Refresh when reopening
+        calendar.refetchEvents(); // Refetch events if the calendar is already initialized
     }
-  }
-  
-  function closeCalendar() {
+}
+
+function closeCalendar() {
     document.getElementById("calendar-modal").style.display = "none";
-  }
+}
 
 function getOrGenerateProfilePicture(username) {
     // Check if a profile picture is already saved in localStorage
