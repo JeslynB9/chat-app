@@ -6,6 +6,7 @@ const multer = require('multer');
 const path = require('path');
 const bcrypt = require('bcrypt');
 const db = require('./database'); // SQLite DB module
+const { getChatDB } = require('./utils/chatDB');
 
 const app = express();
 app.use(express.json());
@@ -84,10 +85,46 @@ app.post('/login', (req, res) => {
 
 // ========== Image Upload ==========
 app.post('/upload', upload.single('image'), (req, res) => {
-    if (!req.file) return res.status(400).send('No file uploaded.');
-    const imageUrl = `/uploads/${req.file.filename}`;
-    res.json({ imageUrl });
-});
+    const uploader = req.body.username;
+    const receiver = req.body.receiver;
+    const timestamp = Date.now();
+    const filepath = `/uploads/${req.file.filename}`;
+  
+    if (!uploader || !receiver || !req.file) {
+      return res.status(400).json({ error: 'Missing file or user info' });
+    }
+  
+    // Save to chat-specific DB
+    const db = getChatDB(uploader, receiver);
+    db.run(
+      `INSERT INTO uploads (filename, filepath, uploader, timestamp) VALUES (?, ?, ?, ?)`,
+      [req.file.originalname, filepath, uploader, timestamp],
+      (err) => {
+        if (err) {
+          console.error('❌ Upload save error:', err.message);
+          return res.status(500).json({ error: 'Failed to save upload' });
+        }
+        console.log(`📎 Upload saved to chat DB: ${filepath}`);
+        res.json({ imageUrl: filepath });
+      }
+    );
+  });
+
+app.get('/chat/history', (req, res) => {
+    const { user1, user2 } = req.query;
+    if (!user1 || !user2) {
+      return res.status(400).json({ error: 'Missing users' });
+    }
+  
+    const db = getChatDB(user1, user2);
+    db.all(`SELECT * FROM messages ORDER BY timestamp ASC`, [], (err, rows) => {
+      if (err) {
+        console.error('❌ Failed to fetch messages:', err.message);
+        return res.status(500).json({ error: 'Failed to load messages' });
+      }
+      res.json({ messages: rows });
+    });
+  });
 
 // ========== Username (if still needed) ==========
 app.post('/save-username', (req, res) => {
@@ -198,9 +235,25 @@ io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
 
     socket.on('sendMessage', (data) => {
-        console.log('Message received:', data);
+        const { message, sender, receiver, timestamp } = data;
+      
+        // Save to chat-specific DB
+        const db = getChatDB(sender, receiver);
+        db.run(
+          `INSERT INTO messages (sender, message, timestamp) VALUES (?, ?, ?)`,
+          [sender, message, timestamp],
+          (err) => {
+            if (err) {
+              console.error('❌ Failed to save message:', err.message);
+            } else {
+              console.log(`💾 Message saved to chat_${[sender, receiver].sort().join('_')}.db`);
+            }
+          }
+        );
+      
+        // Broadcast message to all clients
         io.emit('receiveMessage', data);
-    });
+      });
 
     socket.on('sendImage', (data) => {
         console.log('Image received:', data);
