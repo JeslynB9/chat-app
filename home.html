@@ -152,6 +152,10 @@
             <button id="calendar-button">
                 <img src="images/plus-light.png" alt="Calendar" width="100" height="100">
             </button>
+            
+            <button id="search-button">
+                <img src="images/search-light.png" alt="Search" width="24" height="24">
+              </button>
         </div>
       </div>
     
@@ -185,6 +189,14 @@
         <div class="context-menu-option" data-action="pin">📌 Pin Chat</div>
         <div class="context-menu-option" data-action="archive">📁 Archive Chat</div>
         <div class="context-menu-option" data-action="delete">🗑️ Delete Chat</div>
+      </div>
+
+      <div id="chat-search-modal" class="modal hidden">
+        <div class="modal-content">
+          <span class="close-button" id="close-chat-search">&times;</span>
+          <input type="text" id="chat-search-input" placeholder="Search messages..." />
+          <ul id="chat-search-results"></ul>
+        </div>
       </div>
         
 </body>

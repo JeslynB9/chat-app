@@ -274,6 +274,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const socket = io('http://localhost:3000');
     const inputField = document.querySelector('.input-area input');
     const messagesContainer = document.querySelector('.messages');
+    
     const typingStatus = document.querySelector('.typing-status');
     let typingTimeout;
     const toggleBtn = document.getElementById('toggle-sidebar');
@@ -368,6 +369,50 @@ document.addEventListener('DOMContentLoaded', () => {
             unreadBadge.style.display = count > 0 ? 'block' : 'none';
         }
     }
+
+    // === 🔍 CHAT SEARCH ===
+    const chatSearchModal = document.getElementById('chat-search-modal');
+    const chatSearchInput = document.getElementById('chat-search-input');
+    const chatSearchResults = document.getElementById('chat-search-results');
+    const closeChatSearch = document.getElementById('close-chat-search');
+    const searchButton = document.getElementById('search-button'); // 🔍 icon
+
+    searchButton.addEventListener('click', () => {
+    console.log("🔍 Search button clicked!");
+    chatSearchModal.classList.remove('hidden');
+    chatSearchInput.focus();
+    });
+
+    closeChatSearch.addEventListener('click', () => {
+    chatSearchModal.classList.add('hidden');
+    chatSearchInput.value = '';
+    chatSearchResults.innerHTML = '';
+    });
+
+    chatSearchInput.addEventListener('input', () => {
+    const searchTerm = chatSearchInput.value.toLowerCase();
+    chatSearchResults.innerHTML = '';
+
+    if (!searchTerm || !activeReceiver) return;
+
+    const messageBubbles = messagesContainer.querySelectorAll('.message-bubble');
+
+    messageBubbles.forEach((bubble) => {
+        if (bubble.textContent.toLowerCase().includes(searchTerm)) {
+        const resultItem = document.createElement('li');
+        resultItem.textContent = bubble.textContent;
+        resultItem.addEventListener('click', () => {
+            bubble.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            bubble.classList.add('highlight');
+            setTimeout(() => bubble.classList.remove('highlight'), 2000);
+            chatSearchModal.classList.add('hidden');
+            chatSearchInput.value = '';
+            chatSearchResults.innerHTML = '';
+        });
+        chatSearchResults.appendChild(resultItem);
+        }
+    });
+    });
 
     // === CONTEXT MENU HANDLER ===
     document.addEventListener("contextmenu", (event) => {
