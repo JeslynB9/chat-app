@@ -720,15 +720,17 @@ body {
 
 .task-list li {
     display: flex;
-    align-items: flex-start; /* Align checkbox and text at the top */
+    align-items: center; /* Align items vertically */
+    position: relative; /* Enable absolute positioning for child elements */
     gap: 10px;
     word-wrap: break-word; /* Allow text to wrap */
     word-break: break-word; /* Break long words if necessary */
     line-height: 1.5; /* Add spacing between lines */
-    position: relative; /* Enable positioning for the text indent */
 }
 
 .task-list li input[type="checkbox"] {
+    position: absolute;
+    right: 40px; /* Position the checkbox to the right of the task name */
     flex-shrink: 0; /* Prevent the checkbox from shrinking */
     margin-top: 3px; /* Align the checkbox with the text */
 }
@@ -738,6 +740,32 @@ body {
     white-space: normal; /* Allow text to wrap */
     padding-left: 0; /* Remove extra padding */
     text-indent: 0; /* Align wrapped lines with the text after the checkbox */
+}
+
+.task-list li .delete-task-button {
+    background-color: red;
+    color: white;
+    border: none;
+    border-radius: 50%; /* Make it circular */
+    width: 20px; /* Smaller width */
+    height: 20px; /* Smaller height */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px; /* Smaller font size */
+    cursor: pointer;
+    position: absolute; /* Position it absolutely */
+    right: 10px; /* Align it to the right */
+    transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.task-list li .delete-task-button:hover {
+    background-color: darkred;
+    transform: scale(1.1); /* Slightly enlarge on hover */
+}
+
+.task-list li.editing .delete-task-button {
+    display: none; /* Hide the delete button while editing */
 }
 
 #add-task-button {
@@ -756,25 +784,6 @@ body {
 #add-task-button:hover {
     transform: scale(1.1); /* Enlarge the button on hover */
     transition: transform 0.2s;
-}
-
-.task-list li .delete-task-button {
-    background: none; /* Remove default button background */
-    border: none; /* Remove border */
-    color: var(--text-color); /* Use text color for the "X" */
-    font-size: 1.2rem; /* Make the "X" slightly larger */
-    cursor: pointer; /* Show pointer cursor on hover */
-    margin-left: auto; /* Push the "X" to the far right */
-    transition: transform 0.2s ease; /* Add a smooth hover effect */
-}
-
-.task-list li .delete-task-button:hover {
-    transform: scale(1.2); /* Slightly enlarge the "X" on hover */
-    color: var(--border-color); /* Change color on hover */
-}
-
-.task-list li.editing .delete-task-button {
-    display: none; /* Hide the delete button while editing */
 }
 
 .auth-container {
@@ -1057,6 +1066,11 @@ body {
     z-index: 1002; /* Ensure it appears above all modal content */
 }
 
+#calendar-modal .close-button:hover {
+    background-color: darkred;; /* Change color on hover */
+    transform: scale(1.1); /* Slightly enlarge on hover */
+}
+
 .info-popup {
     display: none; /* Hidden by default */
     position: fixed;
@@ -1289,6 +1303,6 @@ body {
   /* When modal is not hidden */
   /* .modal:not(.hidden) {
     display: block;
-  } */ 
+  } */
 
 

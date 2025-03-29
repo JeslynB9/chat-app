@@ -702,9 +702,49 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log('Task added successfully:', data); // Debugging log
                     const taskList = document.getElementById('task-items');
                     const taskItem = document.createElement('li');
+                    taskItem.classList.add('task-item'); // Add a class for styling
                     taskItem.textContent = taskText;
+
+                    // Add checkbox
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.checked = false;
+                    checkbox.style.position = 'absolute';
+                    checkbox.style.right = '40px'; // Position the checkbox to the right of the task name
+                    checkbox.addEventListener('change', () => {
+                        const isCompleted = checkbox.checked;
+                        const taskIndex = tasks.findIndex(t => t.id === data.task.id);
+                        if (taskIndex !== -1) {
+                            tasks[taskIndex].status = isCompleted ? 'completed' : 'not complete';
+                        }
+                        completedTasks = tasks.filter(t => t.status === 'completed').length;
+                        updateProgress();
+                    });
+
+                    // Add delete button
+                    const deleteButton = document.createElement('button');
+                    deleteButton.innerHTML = '&times;'; // "x" symbol
+                    deleteButton.classList.add('delete-task-button');
+                    deleteButton.style.width = '20px'; // Smaller width
+                    deleteButton.style.height = '20px'; // Smaller height
+                    deleteButton.style.fontSize = '12px'; // Smaller font size
+                    deleteButton.addEventListener('click', () => deleteTask(userA, userB, data.task.id, taskItem));
+
+                    taskItem.appendChild(checkbox);
+                    taskItem.appendChild(deleteButton);
+                    taskItem.style.position = 'relative'; // Ensure proper positioning
                     taskList.appendChild(taskItem);
-                    taskInput.value = '';
+
+                    // Add the new task to the global tasks array
+                    tasks.push({ id: data.task.id, task: taskText, status: 'not complete' });
+
+                    // If the checkbox is checked immediately, update the completed tasks count
+                    if (checkbox.checked) {
+                        completedTasks++;
+                    }
+
+                    updateProgress(); // Update progress dynamically
+                    taskInput.value = ''; // Clear the input field
                 } else {
                     console.error('Failed to add task:', data.message); // Debugging log
                     alert('Failed to add task.');
@@ -735,13 +775,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    function updateProgress() {
-        const progress = tasks.length ? Math.round((completedTasks / tasks.length) * 100) : 0;
-        progressPercentage.textContent = `${progress}%`;
-        progressCircle.style.background = `conic-gradient(var(--sent-bg) 0% ${progress}%, var(--received-bg) ${progress}% 100%)`;
-        progressCircle.style.transition = 'background 0.3s ease-in-out';
-    }
-
     function fetchTasks(userA, userB) {
         fetch(`http://localhost:3000/chatDB/tasks?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`)
             .then(res => res.json())
@@ -750,10 +783,55 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log('Tasks fetched successfully:', data.tasks); // Debugging log
                     const taskList = document.getElementById('task-items');
                     taskList.innerHTML = ''; // Clear the existing task list
+                    tasks = data.tasks; // Update the global tasks array
+                    completedTasks = tasks.filter(task => task.status === 'completed').length; // Count completed tasks
+                    updateProgress(); // Update the progress percentage
+
                     data.tasks.forEach(task => {
                         const taskItem = document.createElement('li');
                         taskItem.classList.add('task-item'); // Add a class for styling
                         taskItem.textContent = task.task;
+
+                        // Add checkbox
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.checked = task.status === 'completed';
+                        checkbox.style.position = 'absolute';
+                        checkbox.style.right = '40px'; // Position the checkbox to the right of the task name
+                        checkbox.addEventListener('change', () => {
+                            task.status = checkbox.checked ? 'completed' : 'not complete';
+                            completedTasks = tasks.filter(t => t.status === 'completed').length;
+                            updateProgress();
+
+                            // Update the task status in the database
+                            fetch(`http://localhost:3000/chatDB/tasks/${task.id}/status`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ status: task.status })
+                            })
+                            .then(res => res.json())
+                            .then(data => {
+                                if (data.success) {
+                                    console.log('Task status updated successfully:', data);
+                                } else {
+                                    console.error('Failed to update task status:', data.message);
+                                }
+                            })
+                            .catch(error => console.error('Error updating task status:', error));
+                        });
+
+                        // Add delete button
+                        const deleteButton = document.createElement('button');
+                        deleteButton.innerHTML = '&times;'; // "x" symbol
+                        deleteButton.classList.add('delete-task-button');
+                        deleteButton.style.width = '20px'; // Smaller width
+                        deleteButton.style.height = '20px'; // Smaller height
+                        deleteButton.style.fontSize = '12px'; // Smaller font size
+                        deleteButton.addEventListener('click', () => deleteTask(userA, userB, task.id, taskItem));
+
+                        taskItem.appendChild(checkbox);
+                        taskItem.appendChild(deleteButton);
+                        taskItem.style.position = 'relative'; // Ensure proper positioning
                         taskList.appendChild(taskItem);
                     });
                 } else {
@@ -762,6 +840,41 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             })
             .catch(error => console.error('Error fetching tasks:', error));
+    }
+
+    function updateProgress() {
+        const progress = tasks.length ? Math.round((completedTasks / tasks.length) * 100) : 0;
+        progressPercentage.textContent = `${progress}%`;
+        progressCircle.style.background = `conic-gradient(var(--sent-bg) 0% ${progress}%, var(--received-bg) ${progress}% 100%)`;
+        progressCircle.style.transition = 'background 0.3s ease-in-out';
+    }
+
+    function deleteTask(userA, userB, taskId, taskElement) {
+        if (confirm('Are you sure you want to delete this task?')) {
+            fetch(`http://localhost:3000/chatDB/tasks/${taskId}?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`, {
+                method: 'DELETE'
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log('Task deleted successfully:', data); // Debugging log
+
+                        // Check if the task was completed before deletion
+                        const checkbox = taskElement.querySelector('input[type="checkbox"]');
+                        if (checkbox && checkbox.checked) {
+                            completedTasks--; // Decrement completed tasks
+                        }
+
+                        tasks = tasks.filter(task => task.id !== taskId); // Remove the task from the global array
+                        updateProgress(); // Update the progress percentage
+                        taskElement.remove(); // Remove the task from the UI
+                    } else {
+                        console.error('Failed to delete task:', data.message); // Debugging log
+                        alert('Failed to delete task.');
+                    }
+                })
+                .catch(error => console.error('Error deleting task:', error));
+        }
     }
 
     // Listen for fetchTasks event and refresh the task list

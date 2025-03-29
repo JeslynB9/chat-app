@@ -311,6 +311,53 @@ app.get('/chatDB/tasks', (req, res) => {
     });
 });
 
+// ========== Delete Task ==========
+app.delete('/chatDB/tasks/:taskId', (req, res) => {
+    const { userA, userB } = req.query;
+    const { taskId } = req.params;
+
+    if (!userA || !userB || !taskId) {
+        return res.status(400).json({ success: false, message: 'userA, userB, and taskId are required' });
+    }
+
+    const db = getChatDB(userA, userB); // Use chat-specific database
+    const query = `DELETE FROM tasks WHERE id = ?`;
+
+    db.run(query, [taskId], function (err) {
+        if (err) {
+            console.error('❌ Failed to delete task:', err.message);
+            return res.status(500).json({ success: false, message: 'Failed to delete task' });
+        }
+
+        console.log(`Task with ID ${taskId} deleted successfully from chat_${[userA, userB].sort().join('_')}.db`);
+        res.json({ success: true, message: 'Task deleted successfully' });
+    });
+});
+
+// ========== Update Task Status ==========
+app.put('/chatDB/tasks/:taskId/status', (req, res) => {
+    const { userA, userB } = req.query;
+    const { taskId } = req.params;
+    const { status } = req.body;
+
+    if (!userA || !userB || !taskId || !status) {
+        return res.status(400).json({ success: false, message: 'userA, userB, taskId, and status are required' });
+    }
+
+    const db = getChatDB(userA, userB); // Use chat-specific database
+    const query = `UPDATE tasks SET status = ? WHERE id = ?`;
+
+    db.run(query, [status, taskId], function (err) {
+        if (err) {
+            console.error('❌ Failed to update task status:', err.message);
+            return res.status(500).json({ success: false, message: 'Failed to update task status' });
+        }
+
+        console.log(`Task with ID ${taskId} updated successfully to status: ${status}`);
+        res.json({ success: true, message: 'Task status updated successfully' });
+    });
+});
+
 // ========== Socket.IO ==========
 io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
