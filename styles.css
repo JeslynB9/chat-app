@@ -1243,6 +1243,10 @@ body {
     padding: 2px 4px;
 }
 
+.hidden {
+    display: none;
+  }
+
 /* Show modals when 'hidden' is removed
 .modal {
     display: none;

@@ -1156,4 +1156,56 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     });
+
+    // ==========================
+    // 🔍 CHAT SEARCH LOGIC
+    // ==========================
+    // Ensure these variables are defined and point to the correct elements
+    // 🔍 Setup search functionality
+    const topSearchButton = document.getElementById('top-search-button');
+    const chatSearchModal = document.getElementById('chat-search-modal');
+    const chatSearchInput = document.getElementById('chat-search-input');
+    const chatSearchResults = document.getElementById('chat-search-results');
+    const closeChatSearch = document.getElementById('close-chat-search');
+
+    topSearchButton.addEventListener('click', () => {
+        chatSearchModal.classList.remove('hidden');
+        chatSearchModal.style.display = 'block';
+        chatSearchInput.focus();
+    });
+
+    closeChatSearch.addEventListener('click', () => {
+        chatSearchModal.classList.add('hidden');
+        chatSearchModal.style.display = 'none';
+        chatSearchInput.value = '';
+        chatSearchResults.innerHTML = '';
+    });
+
+    chatSearchInput.addEventListener('input', () => {
+        const searchTerm = chatSearchInput.value.toLowerCase();
+        chatSearchResults.innerHTML = '';
+
+        if (!searchTerm || !messagesContainer) return;
+
+        const messageBubbles = messagesContainer.querySelectorAll('.message-bubble');
+
+        messageBubbles.forEach((bubble) => {
+            if (bubble.textContent.toLowerCase().includes(searchTerm)) {
+                const resultItem = document.createElement('li');
+                resultItem.textContent = bubble.textContent;
+
+                resultItem.addEventListener('click', () => {
+                    bubble.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    bubble.classList.add('highlight');
+                    setTimeout(() => bubble.classList.remove('highlight'), 2000);
+                    chatSearchModal.classList.add('hidden');
+                    chatSearchModal.style.display = 'none';
+                    chatSearchInput.value = '';
+                    chatSearchResults.innerHTML = '';
+                });
+
+                chatSearchResults.appendChild(resultItem);
+            }
+        });
+    });
 });
