@@ -1,5 +1,6 @@
 let calendar; // global calendar instance
 let calendarInitialized = false;
+let activeReceiver = null; // Ensure this is properly initialized
 
 function generateProfilePicture(username) {
     const canvas = document.createElement('canvas');
@@ -27,18 +28,26 @@ function generateProfilePicture(username) {
 }
 
 function openCalendar() {
+    const userA = localStorage.getItem('username'); // Current logged-in user
+    const userB = activeReceiver; // The user currently being chatted with
+
+    if (!userA || !userB) {
+        console.error('Cannot open calendar. Missing users:', { userA, userB });
+        alert('Cannot open calendar. Please ensure both users are selected.');
+        return;
+    }
+
     const modal = document.getElementById("calendar-modal");
     modal.style.display = "block";
 
     const calendarEl = document.getElementById('calendar');
-    const username = localStorage.getItem('username'); // Fetch the logged-in user's username
-    console.log('Opening calendar for username:', username); // Debugging log
+    console.log('Opening calendar for chat between:', userA, userB); // Debugging log
 
     if (!calendarInitialized) {
         calendar = new FullCalendar.Calendar(calendarEl, {
             initialView: 'dayGridMonth',
-            height: '100%', // Ensure the calendar fills its container
-            contentHeight: '100%', // Ensure the content height is properly set
+            height: '100%',
+            contentHeight: '100%',
             selectable: true,
             editable: true,
             headerToolbar: {
@@ -47,20 +56,17 @@ function openCalendar() {
                 right: 'dayGridMonth,timeGridWeek,timeGridDay'
             },
             events: function(fetchInfo, successCallback, failureCallback) {
-                console.log('Fetching events for user:', username); // Debugging log
-                fetch(`http://localhost:3000/calendar/events?username=${encodeURIComponent(username)}`)
+                console.log('Fetching events for chat between:', userA, userB); // Debugging log
+                fetch(`http://localhost:3000/calendar/events?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`)
                     .then(res => res.json())
                     .then(data => {
-                        console.log('Fetched events:', data); // Debugging log
                         if (data.success) {
-                            const formattedEvents = data.events.map(event => ({
-                                id: event.id, // Include the event ID for deletion
+                            successCallback(data.events.map(event => ({
+                                id: event.id,
                                 title: event.title,
                                 start: event.start,
                                 end: event.end
-                            }));
-                            console.log('Formatted events for FullCalendar:', formattedEvents); // Debugging log
-                            successCallback(formattedEvents);
+                            })));
                         } else {
                             console.error('Error fetching events:', data.message); // Debugging log
                             failureCallback(data.message);
@@ -70,33 +76,6 @@ function openCalendar() {
                         console.error('Error fetching events:', error); // Debugging log
                         failureCallback('Failed to fetch events');
                     });
-            },
-            select: function(info) {
-                const title = prompt('Event Title:');
-                if (title) {
-                    const eventData = {
-                        title,
-                        start: info.startStr,
-                        end: info.endStr || info.startStr,
-                        username // Use the logged-in user's username
-                    };
-                    console.log('Sending event data to server:', eventData); // Debugging log
-                    fetch('http://localhost:3000/calendar/events', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(eventData)
-                    })
-                        .then(res => res.json())
-                        .then(data => {
-                            console.log('Server response for adding event:', data); // Debugging log
-                            if (data.success) {
-                                calendar.refetchEvents();
-                            } else {
-                                alert('Failed to add event.');
-                            }
-                        })
-                        .catch(error => console.error('Error adding event:', error));
-                }
             },
             eventContent: function(arg) {
                 // Create a container for the event
@@ -123,7 +102,7 @@ function openCalendar() {
                     event.stopPropagation(); // Prevent triggering the event click
                     const eventId = arg.event.id;
                     if (confirm('Are you sure you want to delete this event?')) {
-                        fetch(`http://localhost:3000/calendar/events/${eventId}`, {
+                        fetch(`http://localhost:3000/calendar/events/${eventId}?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`, {
                             method: 'DELETE'
                         })
                             .then(res => res.json())
@@ -142,13 +121,58 @@ function openCalendar() {
                 container.appendChild(deleteButton);
 
                 return { domNodes: [container] };
+            },
+            select: function(info) {
+                const title = prompt('Event Title:');
+                if (title) {
+                    const eventData = { 
+                        title, 
+                        start: info.startStr, 
+                        end: info.endStr || info.startStr, 
+                        userA, 
+                        userB, 
+                        created_by: userA 
+                    };
+                    console.log('Sending event data to server:', eventData); // Debugging log
+                    fetch('http://localhost:3000/calendar/events', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(eventData)
+                    })
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.success) {
+                                calendar.refetchEvents();
+                            } else {
+                                alert('Failed to add event.');
+                            }
+                        })
+                        .catch(error => console.error('Error adding event:', error));
+                }
+            },
+            eventClick: function(info) {
+                if (confirm(`Do you want to delete the event "${info.event.title}"?`)) {
+                    fetch(`http://localhost:3000/calendar/events/${info.event.id}?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`, {
+                        method: 'DELETE'
+                    })
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.success) {
+                                info.event.remove();
+                                alert('Event deleted successfully.');
+                            } else {
+                                alert('Failed to delete event.');
+                            }
+                        })
+                        .catch(error => console.error('Error deleting event:', error));
+                }
             }
         });
 
-        calendar.render(); // Render the calendar
+        calendar.render();
         calendarInitialized = true;
     } else {
-        calendar.refetchEvents(); // Refetch events if the calendar is already initialized
+        calendar.refetchEvents();
     }
 }
 
@@ -261,12 +285,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const socket = io('http://localhost:3000');
     const inputField = document.querySelector('.input-area input');
     const messagesContainer = document.querySelector('.messages');
-    
     const typingStatus = document.querySelector('.typing-status');
     let typingTimeout;
     const toggleBtn = document.getElementById('toggle-sidebar');
     const sidebar = document.querySelector('.sidebar');
-    let activeReceiver = null; // Ensure this is properly initialized
+
 
     toggleBtn.addEventListener('click', () => {
         sidebar.classList.toggle('collapsed');
@@ -355,77 +378,6 @@ document.addEventListener('DOMContentLoaded', () => {
             unreadBadge.textContent = count > 0 ? count : '';
             unreadBadge.style.display = count > 0 ? 'block' : 'none';
         }
-    }
-
-    // === CONTEXT MENU HANDLER ===
-    document.addEventListener("contextmenu", (event) => {
-        if (event.target.closest('.chat-list-item')) {
-            event.preventDefault();
-
-            const chatItem = event.target.closest('.chat-list-item');
-            const username = chatItem.getAttribute("data-username");
-
-
-            const contextMenu = document.getElementById("chat-context-menu");
-            contextMenu.style.top = `${event.pageY}px`;
-            contextMenu.style.left = `${event.pageX}px`;
-            contextMenu.classList.remove("hidden");
-            contextMenu.setAttribute("data-username", username);
-
-            const pinned = localStorage.getItem(`pinned_${username}`) === 'true';
-            const pinOption = document.querySelector('[data-action="pin"]');
-            pinOption.textContent = pinned ? '📌 Unpin' : '📌 Pin';
-        } else {
-            document.getElementById("chat-context-menu").classList.add("hidden");
-        }
-    });
-
-    document.querySelectorAll(".context-menu-option").forEach(option => {
-        option.addEventListener("click", () => {
-            const action = option.getAttribute("data-action");
-            const contextMenu = document.getElementById("chat-context-menu");
-            const username = contextMenu.getAttribute("data-username");
-    
-            if (action === "pin") {
-                pinChat(username);
-            } else if (action === "archive") {
-                archiveChat(username);
-            } else if (action === "delete") {
-                deleteChat(username);
-            }
-    
-            contextMenu.classList.add("hidden");
-        });
-    });
-
-    function pinChat(username) {
-        const pinnedKey = `pinned_${username}`;
-        const isPinned = localStorage.getItem(pinnedKey) === 'true';
-      
-        if (isPinned) {
-          console.log(`📌 Unpinned ${username}`);
-          localStorage.removeItem(pinnedKey);
-        } else {
-          console.log(`📌 Pinned ${username}`);
-          localStorage.setItem(pinnedKey, 'true');
-        }
-      
-        reorderChatList();
-      }
-    
-    function archiveChat(username) {
-        console.log(`📁 Archived ${username}`);
-        // Future: Hide this chat from main list
-    }
-    
-    function deleteChat(username) {
-        console.log(`🗑️ Deleted ${username}`);
-        localStorage.removeItem(`pinned_${username}`);
-    
-        const chatItem = Array.from(document.querySelectorAll('.chat-list-item')).find(chat =>
-            chat.querySelector('div > div:first-child').textContent.trim() === username
-        );
-        if (chatItem) chatItem.remove();
     }
 
     socket.on('receiveMessage', (data) => {

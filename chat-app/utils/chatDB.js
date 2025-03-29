@@ -54,6 +54,42 @@ function getChatDB(userA, userB) {
   return db;
 }
 
+// Add an event to the chat-specific database
+function addEvent(userA, userB, event, callback) {
+  const db = getChatDB(userA, userB);
+  const { title, start, end, created_by } = event;
+
+  const query = `
+    INSERT INTO events (title, start, end, created_by)
+    VALUES (?, ?, ?, ?)
+  `;
+  db.run(query, [title, start, end, created_by], function (err) {
+    if (err) {
+      console.error('Error adding event to chat-specific database:', err);
+      return callback(err);
+    }
+    console.log('Event added to chat-specific database with ID:', this.lastID);
+    callback(null, { id: this.lastID, ...event });
+  });
+}
+
+// Delete an event from the chat-specific database
+function deleteEvent(userA, userB, eventId, callback) {
+  const db = getChatDB(userA, userB);
+
+  const query = `DELETE FROM events WHERE id = ?`;
+  db.run(query, [eventId], function (err) {
+    if (err) {
+      console.error('Error deleting event from chat-specific database:', err);
+      return callback(err);
+    }
+    console.log('Event deleted from chat-specific database with ID:', eventId);
+    callback(null, { id: eventId });
+  });
+}
+
 module.exports = {
-  getChatDB
+  getChatDB,
+  addEvent,
+  deleteEvent
 };

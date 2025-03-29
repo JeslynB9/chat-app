@@ -1,56 +1,66 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../database'); // Correctly import the database module
+const { addEvent, deleteEvent, getChatDB } = require('../utils/chatDB'); // Import chat-specific functions
 
-// GET events for a user
+// GET events for a chat
 router.get('/events', (req, res) => {
-    const { username } = req.query;
-    console.log('Fetching events for username:', username); // Debugging log
-    if (!username) {
-        return res.status(400).json({ success: false, message: 'Username is required' });
+    const { userA, userB } = req.query;
+    console.log('Fetching events for chat between:', userA, userB); // Debugging log
+
+    if (!userA || !userB) {
+        return res.status(400).json({ success: false, message: 'Both userA and userB are required' });
     }
 
-    db.getEvents(username, (err, events) => {
+    const db = getChatDB(userA, userB);
+    const query = `SELECT * FROM events`;
+
+    db.all(query, [], (err, rows) => {
         if (err) {
-            console.error('Error fetching events:', err);
+            console.error('Error fetching events from chat-specific database:', err);
             return res.status(500).json({ success: false, message: 'Database error' });
         }
-        console.log('Fetched events from database for username:', username, events); // Debugging log
-        res.json({ success: true, events });
+        console.log('Fetched events from chat-specific database:', rows); // Debugging log
+        res.json({ success: true, events: rows });
     });
 });
 
-// POST new event for a user
+// POST new event for a chat
 router.post('/events', (req, res) => {
-    const { title, start, end, username } = req.body;
-    console.log('Adding event for username:', username, { title, start, end }); // Debugging log
+    const { userA, userB, title, start, end, created_by } = req.body;
+    console.log('Adding event for chat between:', userA, userB, { title, start, end, created_by }); // Debugging log
 
-    if (!title || !start || !username) {
-        console.error('Missing required fields:', { title, start, username });
+    if (!userA || !userB || !title || !start || !created_by) {
+        console.error('Missing required fields:', { userA, userB, title, start, created_by });
         return res.status(400).json({ success: false, message: 'Missing required fields' });
     }
 
-    db.addEvent({ title, start, end, username }, (err, savedEvent) => {
+    addEvent(userA, userB, { title, start, end, created_by }, (err, savedEvent) => {
         if (err) {
-            console.error('Failed to save event to database:', err);
+            console.error('Failed to save event to chat-specific database:', err);
             return res.status(500).json({ success: false, message: 'Database error', error: err.message });
         }
-        console.log('Event successfully saved to database:', savedEvent); // Debugging log
+        console.log('Event successfully saved to chat-specific database:', savedEvent); // Debugging log
         res.status(201).json({ success: true, event: savedEvent });
     });
 });
 
-// DELETE an event by ID
+// DELETE an event by ID for a chat
 router.delete('/events/:id', (req, res) => {
+    const { userA, userB } = req.query;
     const { id } = req.params;
-    console.log('Deleting event with ID:', id); // Debugging log
+    console.log('Deleting event with ID:', id, 'for chat between:', userA, userB); // Debugging log
 
-    db.deleteEvent(id, (err) => {
+    if (!userA || !userB || !id) {
+        console.error('Missing required fields:', { userA, userB, id });
+        return res.status(400).json({ success: false, message: 'Missing required fields' });
+    }
+
+    deleteEvent(userA, userB, id, (err) => {
         if (err) {
-            console.error('Error deleting event:', err);
+            console.error('Error deleting event from chat-specific database:', err);
             return res.status(500).json({ success: false, message: 'Database error' });
         }
-        console.log('Event deleted successfully with ID:', id); // Debugging log
+        console.log('Event deleted successfully from chat-specific database with ID:', id); // Debugging log
         res.json({ success: true });
     });
 });
