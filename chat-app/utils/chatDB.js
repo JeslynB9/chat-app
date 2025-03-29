@@ -26,9 +26,10 @@ function getChatDB(userA, userB) {
     db.run(`
       CREATE TABLE IF NOT EXISTS messages (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        sender TEXT,
-        message TEXT,
-        timestamp INTEGER
+        sender TEXT NOT NULL,
+        receiver TEXT NOT NULL,
+        message TEXT NOT NULL,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
     db.run(`
@@ -115,9 +116,65 @@ function addTask(userA, userB, task, callback) {
   });
 }
 
+// Save a new message to the chat-specific database
+function saveMessage(userA, userB, sender, receiver, message, callback) {
+  const db = getChatDB(userA, userB); // Get the chat-specific database
+  const query = `
+    INSERT INTO messages (sender, receiver, message, createdAt)
+    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+  `;
+  db.run(query, [sender, receiver, message], function (err) {
+    if (err) {
+      console.error('Error saving message to chat-specific database:', err);
+      callback(err);
+    } else {
+      callback(null, { id: this.lastID, sender, receiver, message });
+    }
+  });
+}
+
+// Fetch messages between two users from the chat-specific database
+function getMessagesBetweenUsers(userA, userB, callback) {
+  const db = getChatDB(userA, userB); // Get the chat-specific database
+  const query = `
+    SELECT * FROM messages
+    WHERE (sender = ? AND receiver = ?) OR (sender = ? AND receiver = ?)
+    ORDER BY createdAt ASC
+  `;
+  db.all(query, [userA, userB, userB, userA], (err, rows) => {
+    if (err) {
+      console.error('Error fetching messages from chat-specific database:', err);
+      callback(err);
+    } else {
+      callback(null, rows);
+    }
+  });
+}
+
+// Add a chat for both users in the chat-specific database
+function addChatForBothUsers(userA, userB, callback) {
+  const db = getChatDB(userA, userB); // Get the chat-specific database
+  const query = `
+    INSERT INTO messages (sender, receiver, message, createdAt)
+    VALUES (?, ?, ?, CURRENT_TIMESTAMP), (?, ?, ?, CURRENT_TIMESTAMP)
+  `;
+  const initialMessage = `Chat started: ${new Date().toLocaleString()}`;
+  db.run(query, [userA, userB, initialMessage, userB, userA, initialMessage], (err) => {
+    if (err) {
+      console.error('Error adding chat for both users:', err);
+      callback(err);
+    } else {
+      callback(null);
+    }
+  });
+}
+
 module.exports = {
   getChatDB,
   addEvent,
   deleteEvent,
-  addTask
+  addTask,
+  saveMessage,
+  getMessagesBetweenUsers,
+  addChatForBothUsers
 };

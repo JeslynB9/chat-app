@@ -6,7 +6,7 @@ const multer = require('multer');
 const path = require('path');
 const bcrypt = require('bcrypt');
 const db = require('./database'); // SQLite DB module
-const { getChatDB, addTask } = require('./utils/chatDB');
+const { getChatDB, addTask, saveMessage, getMessagesBetweenUsers, addChatForBothUsers } = require('./utils/chatDB');
 
 const app = express();
 app.use(express.json());
@@ -184,10 +184,10 @@ app.get('/messages', (req, res) => {
         return res.status(400).json({ success: false, message: 'Sender and receiver are required' });
     }
 
-    db.getMessagesBetweenUsers(sender, receiver, (err, messages) => {
+    getMessagesBetweenUsers(sender, receiver, (err, messages) => {
         if (err) {
-            console.error('Database error fetching messages:', err);
-            return res.status(500).json({ success: false, message: 'Database error' });
+            console.error('Error fetching messages:', err);
+            return res.status(500).json({ success: false, message: 'Failed to fetch messages' });
         }
         res.json({ success: true, messages });
     });
@@ -201,11 +201,16 @@ app.post('/messages', (req, res) => {
         return res.status(400).json({ success: false, message: 'Sender, receiver, and message are required' });
     }
 
-    db.saveMessage(sender, receiver, message, (err, savedMessage) => {
+    saveMessage(sender, receiver, sender, receiver, message, (err, savedMessage) => {
         if (err) {
-            console.error('Database error saving message:', err);
-            return res.status(500).json({ success: false, message: 'Database error' });
+            console.error('Error saving message:', err);
+            return res.status(500).json({ success: false, message: 'Failed to save message' });
         }
+
+        // Emit a Socket.IO event to notify clients
+        const room = [sender, receiver].sort().join('_');
+        io.to(room).emit('messageSaved', { sender, receiver });
+
         res.status(201).json({ success: true, message: 'Message saved', data: savedMessage });
     });
 });
@@ -218,10 +223,11 @@ app.post('/add-chat', (req, res) => {
         return res.status(400).json({ success: false, message: 'Sender and receiver are required' });
     }
 
-    db.addChatForBothUsers(sender, receiver, (err) => {
+    const chatDB = getChatDB(sender, receiver); // Use chat-specific database
+    chatDB.addChatForBothUsers(sender, receiver, (err) => {
         if (err) {
-            console.error('Database error adding chat:', err);
-            return res.status(500).json({ success: false, message: 'Database error' });
+            console.error('Error adding chat:', err);
+            return res.status(500).json({ success: false, message: 'Failed to add chat' });
         }
 
         // Notify both users via Socket.IO
@@ -374,7 +380,7 @@ io.on('connection', (socket) => {
         // Save to chat-specific DB
         const db = getChatDB(sender, receiver);
         db.run(
-          `INSERT INTO messages (sender, message, timestamp) VALUES (?, ?, ?)`,
+          `INSERT INTO messages (sender, receiver, message, createdAt) VALUES (?, ?, ?, ?)`,
           [sender, message, timestamp],
           (err) => {
             if (err) {

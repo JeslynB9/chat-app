@@ -297,23 +297,50 @@ body {
 }
 
 .messages {
-    position: relative; /* Ensure the task-bar can be positioned relative to this container */
     flex-grow: 1;
-    overflow-y: auto; /* Enable vertical scrolling */
+    overflow-y: auto;
     padding: 10px;
     display: flex;
     flex-direction: column;
+    background-color: var(--chat-bg);
     max-height: calc(100vh - 200px); /* Adjust height to fit within the viewport */
 }
+
 .message {
     margin-bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start; /* Default alignment for received messages */
 }
+
 .message.sent {
-    text-align: right;
+    align-items: flex-end; /* Align sent messages to the right */
 }
-.message.received {
-    text-align: left;
+
+.message .message-bubble {
+    padding: 10px;
+    border-radius: 10px;
+    max-width: 80%;
+    word-wrap: break-word;
 }
+
+.message.sent .message-bubble {
+    background-color: var(--sent-bg);
+    color: var(--text-color-2);
+}
+
+.message.received .message-bubble {
+    background-color: var(--received-bg);
+    color: var(--text-color);
+}
+
+/* Highlight for search results */
+.message-bubble.highlight {
+    background-color: yellow;
+    color: black;
+    transition: background-color 0.5s ease, color 0.5s ease;
+}
+
 .input-area {
     display: flex;
     align-items: center;
@@ -378,57 +405,6 @@ body {
     height: 20px;
     object-fit: contain;
     display: block;
-}
-
-.messages {
-    flex-grow: 1;
-    overflow-y: auto;
-    padding: 10px;
-    display: flex;
-    flex-direction: column;
-}
-
-.message {
-    margin-bottom: 10px;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start; /* Default alignment for received messages */
-}
-
-.message.sent {
-    align-items: flex-end; /* Align sent messages to the right */
-}
-
-.message .username {
-    font-weight: bold;
-    font-size: 0.9rem;
-    color: #555;
-    margin-left: 7px;
-    margin-bottom: 5px; /* Space between the username and the bubble */
-    align-self: flex-start; /* Align username to the start by default */
-}
-
-.message.sent .username {
-    align-self: flex-end; /* Align username to the end for sent messages */
-}
-
-.message .message-bubble {
-    padding: 10px;
-    border-radius: 10px;
-    max-width: 80%;
-    word-wrap: break-word;
-}
-
-.sent .message-bubble {
-    background-color: var(--sent-bg);
-    color: var(--text-color-2);
-    align-self: flex-end;
-}
-
-.received .message-bubble {
-    background-color: var(--received-bg);
-    color: var(--text-color);
-    align-self: flex-start;
 }
 
 /* Modal Styling */
