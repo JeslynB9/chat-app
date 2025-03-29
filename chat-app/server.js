@@ -22,6 +22,26 @@ const io = new Server(server, {
 const calendarRoutes = require('./routes/calendar');
 app.use('/calendar', calendarRoutes);
 
+
+// Setup storage
+const storage = multer.diskStorage({
+  destination: 'uploads/',
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const name = Date.now() + ext;
+    cb(null, name);
+  }
+});
+
+const upload = multer({ storage });
+
+app.post('/upload', upload.single('image'), (req, res) => {
+  const imageUrl = `http://localhost:3000/uploads/${req.file.filename}`;
+  res.json({ success: true, imageUrl });
+});
+
+app.use('/uploads', express.static('uploads'));
+
 // Properly configure and apply CORS middleware
 app.use((req, res, next) => {
     console.log('CORS middleware applied'); // Debugging log
@@ -35,9 +55,7 @@ app.use((req, res, next) => {
     next();
 });
 
-// File uploads
-const upload = multer({ dest: 'uploads/' });
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 
 // ========== Auth: Register ==========
 app.post('/register', async (req, res) => {
