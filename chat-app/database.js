@@ -47,37 +47,6 @@ db.serialize(() => {
     });
 });
 
-// Update the `calendar_events` table to include the `chat_id` column
-db.serialize(() => {
-    db.run(`
-        CREATE TABLE IF NOT EXISTS calendar_events (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            start TEXT NOT NULL,
-            end TEXT NOT NULL,
-            chat_id TEXT NOT NULL
-        )
-    `, (err) => {
-        if (err) {
-            console.error('Error creating/updating calendar_events table:', err.message);
-        } else {
-            console.log('Calendar events table created or updated successfully.');
-        }
-    });
-});
-
-// Ensure the `username` column exists in the `calendar_events` table
-db.serialize(() => {
-    db.run(`
-        ALTER TABLE calendar_events ADD COLUMN username TEXT
-    `, (err) => {
-        if (err && !err.message.includes('duplicate column name')) {
-            console.error('Error adding username column to calendar_events table:', err.message);
-        } else if (!err) {
-            console.log('Username column added to calendar_events table.');
-        }
-    });
-});
 
 // Register new user
 function registerUser(username, hashedPassword, callback) {
