@@ -1261,4 +1261,18 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     });
+    // ========== 🔍 SIDEBAR CHAT LIST SEARCH ==========
+    const sidebarSearchInput = document.getElementById('sidebar-search');
+
+    sidebarSearchInput.addEventListener('input', () => {
+        const query = sidebarSearchInput.value.toLowerCase();
+
+        Array.from(chatList.children).forEach(chatItem => {
+            const username = chatItem.querySelector('div > div:first-child')?.textContent.toLowerCase() || '';
+            const lastMessage = chatItem.querySelector('.last-message')?.textContent.toLowerCase() || '';
+
+            const matches = username.includes(query) || lastMessage.includes(query);
+            chatItem.style.display = matches ? 'flex' : 'none';
+        });
+    });
 });
