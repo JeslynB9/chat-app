@@ -6,7 +6,7 @@ const multer = require('multer');
 const path = require('path');
 const bcrypt = require('bcrypt');
 const db = require('./database'); // SQLite DB module
-const { getChatDB } = require('./utils/chatDB');
+const { getChatDB, addTask } = require('./utils/chatDB');
 
 const app = express();
 app.use(express.json());
@@ -230,9 +230,52 @@ app.get('/user-chats', (req, res) => {
     });
 });
 
+// ========== Add Task ==========
+app.post('/chatDB/tasks', (req, res) => {
+    const { task, assigned_to, status } = req.body;
+    const userA = req.body.userA; // Assuming userA is the task creator
+    const userB = req.body.assigned_to; // Assuming userB is the task assignee
+
+    if (!task || !userA || !userB) {
+        return res.status(400).json({ success: false, message: 'Task, userA, and userB are required' });
+    }
+
+    const taskData = { task, assigned_to, status };
+
+    addTask(userA, userB, taskData, (err, result) => {
+        if (err) {
+            return res.status(500).json({ success: false, message: 'Failed to add task' });
+        }
+        res.status(201).json({ success: true, message: 'Task added successfully', task: result });
+    });
+});
+
+// ========== Fetch Tasks ==========
+app.get('/chatDB/tasks', (req, res) => {
+    const { userA, userB } = req.query;
+    if (!userA || !userB) {
+        return res.status(400).json({ success: false, message: 'userA and userB are required' });
+    }
+
+    const db = getChatDB(userA, userB);
+    db.all(`SELECT * FROM tasks`, [], (err, rows) => {
+        if (err) {
+            console.error('❌ Failed to fetch tasks:', err.message);
+            return res.status(500).json({ error: 'Failed to load tasks' });
+        }
+        res.json({ success: true, tasks: rows });
+    });
+});
+
 // ========== Socket.IO ==========
 io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
+
+    socket.on('joinChat', ({ userA, userB }) => {
+        const room = [userA, userB].sort().join('_');
+        socket.join(room);
+        console.log(`User ${socket.id} joined room: ${room}`);
+    });
 
     socket.on('sendMessage', (data) => {
         const { message, sender, receiver, timestamp } = data;
@@ -270,6 +313,41 @@ io.on('connection', (socket) => {
 
     // Handle profile picture updates
     socket.on('updateProfilePicture', ({ username, imageUrl }) => {
+    });
+
+    socket.on('addTask', (data) => {
+        const { userA, userB, task } = data;
+        const room = [userA, userB].sort().join('_');
+        addTask(userA, userB, task, (err, result) => {
+            if (!err) {
+                io.to(room).emit('taskAdded', result);
+                io.to(room).emit('fetchTasks', { userA, userB });
+            }
+        });
+    });
+
+    socket.on('editTask', (data) => {
+        const { userA, userB, taskId, newTask } = data;
+        const room = [userA, userB].sort().join('_');
+        const db = getChatDB(userA, userB);
+        const query = `UPDATE tasks SET task = ? WHERE id = ?`;
+        db.run(query, [newTask, taskId], function (err) {
+            if (!err) {
+                io.to(room).emit('taskEdited', { taskId, newTask });
+            }
+        });
+    });
+
+    socket.on('deleteTask', (data) => {
+        const { userA, userB, taskId } = data;
+        const room = [userA, userB].sort().join('_');
+        const db = getChatDB(userA, userB);
+        const query = `DELETE FROM tasks WHERE id = ?`;
+        db.run(query, [taskId], function (err) {
+            if (!err) {
+                io.to(room).emit('taskDeleted', taskId);
+            }
+        });
     });
 });
 

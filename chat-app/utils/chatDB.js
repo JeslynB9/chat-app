@@ -96,8 +96,28 @@ function deleteEvent(userA, userB, eventId, callback) {
   });
 }
 
+// Add a task to the chat-specific database
+function addTask(userA, userB, task, callback) {
+  const db = getChatDB(userA, userB);
+  const { task: taskText, assigned_to, status } = task;
+
+  const query = `
+    INSERT INTO tasks (task, assigned_to, status)
+    VALUES (?, ?, ?)
+  `;
+  db.run(query, [taskText, assigned_to, status], function (err) {
+    if (err) {
+      console.error('Error adding task to chat-specific database:', err);
+      return callback(err);
+    }
+    console.log('Task added to chat-specific database with ID:', this.lastID);
+    callback(null, { id: this.lastID, ...task });
+  });
+}
+
 module.exports = {
   getChatDB,
   addEvent,
-  deleteEvent
+  deleteEvent,
+  addTask
 };

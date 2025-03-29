@@ -585,6 +585,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const taskList = document.querySelector('.task-list');
     const taskItems = document.getElementById('task-items');
     const addTaskButton = document.getElementById('add-task-button');
+    const newTaskInput = document.getElementById('new-task-input');
 
     let tasks = [];
     let completedTasks = 0;
@@ -593,73 +594,40 @@ document.addEventListener('DOMContentLoaded', () => {
         taskList.classList.toggle('hidden');
     });
 
-    addTaskButton.addEventListener('click', () => {
-        const taskId = `task-${tasks.length}`;
-        tasks.push({ id: taskId, text: '', completed: false });
-
-        const taskItem = document.createElement('li');
-        taskItem.innerHTML = `
-            <input type="checkbox" id="${taskId}">
-            <span class="task-name" data-task-id="${taskId}">New Task</span>
-            <button class="delete-task-button">&times;</button> <!-- Display "X" -->
-        `;
-        taskItems.appendChild(taskItem);
-
-        const taskName = taskItem.querySelector('.task-name');
-
-        function enableEditing() {
-            const taskId = taskName.getAttribute('data-task-id');
-            const task = tasks.find(t => t.id === taskId);
-
-            const taskInput = document.createElement('input');
-            taskInput.type = 'text';
-            taskInput.className = 'task-input';
-            taskInput.value = task.text || taskName.textContent;
-            taskName.replaceWith(taskInput);
-            taskInput.focus();
-
-            taskItem.classList.add('editing'); // Add the editing class
-
-            function finalizeTaskInput(event) {
-                if (event.type === 'blur' || (event.type === 'keypress' && event.key === 'Enter')) {
-                    const taskText = taskInput.value.trim();
-                    if (taskText) {
-                        task.text = taskText;
-                        taskInput.replaceWith(taskName);
-                        taskName.textContent = taskText;
-                    } else {
-                        // Remove the task if no text is entered
-                        tasks = tasks.filter(t => t.id !== taskId);
-                        taskItem.remove();
-                    }
-                    taskItem.classList.remove('editing'); // Remove the editing class
-                    updateProgress();
+    document.getElementById('add-task-button').addEventListener('click', () => {
+        const taskInput = document.getElementById('new-task-input');
+        const taskText = taskInput.value.trim();
+        const userA = localStorage.getItem('username'); // Assuming the task creator is the logged-in user
+        const userB = activeReceiver; // Assuming the task is assigned to the active receiver
+        if (taskText && userA && userB) {
+            const taskData = { task: taskText, userA, assigned_to: userB, status: 'pending' };
+            fetch(`http://localhost:3000/chatDB/tasks`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(taskData)
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    const taskList = document.getElementById('task-items');
+                    const taskItem = document.createElement('li');
+                    taskItem.textContent = taskText;
+                    taskList.appendChild(taskItem);
+                    taskInput.value = '';
+                } else {
+                    alert('Failed to add task.');
                 }
-            }
-
-            taskInput.addEventListener('blur', finalizeTaskInput);
-            taskInput.addEventListener('keypress', finalizeTaskInput);
+            })
+            .catch(error => console.error('Error adding task:', error));
+        } else {
+            alert('Task text, userA, and userB are required.');
         }
+    });
 
-        // Immediately enable editing for the new task
-        enableEditing();
-
-        // Allow editing on double-click
-        taskName.addEventListener('dblclick', enableEditing);
-
-        // Add delete functionality
-        const deleteButton = taskItem.querySelector('.delete-task-button');
-        deleteButton.addEventListener('click', () => {
-            const taskIndex = tasks.findIndex(t => t.id === taskId);
-            if (taskIndex !== -1) {
-                if (tasks[taskIndex].completed) {
-                    completedTasks--; // Deduct completed tasks if the task was marked as completed
-                }
-                tasks.splice(taskIndex, 1); // Remove the task from the array
-            }
-            taskItem.remove(); // Remove the task from the DOM
-            updateProgress(); // Update the progress percentage
-        });
+    newTaskInput.addEventListener('keypress', (event) => {
+        if (event.key === 'Enter') {
+            addTaskButton.click();
+        }
     });
 
     taskItems.addEventListener('change', (event) => {
@@ -680,6 +648,90 @@ document.addEventListener('DOMContentLoaded', () => {
         progressCircle.style.background = `conic-gradient(var(--sent-bg) 0% ${progress}%, var(--received-bg) ${progress}% 100%)`;
         progressCircle.style.transition = 'background 0.3s ease-in-out';
     }
+
+    // Fetch tasks when a chat is opened
+    function fetchTasks(userA, userB) {
+        fetch(`http://localhost:3000/chatDB/tasks?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    const taskList = document.getElementById('task-items');
+                    taskList.innerHTML = '';
+                    data.tasks.forEach(task => {
+                        const taskItem = document.createElement('li');
+                        taskItem.textContent = task.task;
+                        taskList.appendChild(taskItem);
+                    });
+                } else {
+                    alert('Failed to fetch tasks.');
+                }
+            })
+            .catch(error => console.error('Error fetching tasks:', error));
+    }
+
+    // Listen for task updates
+    socket.on('taskAdded', (task) => {
+        const taskList = document.getElementById('task-items');
+        const taskItem = document.createElement('li');
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = task.status === 'completed';
+        checkbox.addEventListener('change', () => {
+            const newStatus = checkbox.checked ? 'completed' : 'pending';
+            socket.emit('updateTaskStatus', { taskId: task.id, status: newStatus });
+        });
+
+        const taskText = document.createElement('span');
+        taskText.textContent = task.task;
+
+        const deleteButton = document.createElement('button');
+        deleteButton.textContent = 'Delete';
+        deleteButton.addEventListener('click', () => {
+            socket.emit('deleteTask', { taskId: task.id });
+        });
+
+        taskItem.appendChild(checkbox);
+        taskItem.appendChild(taskText);
+        taskItem.appendChild(deleteButton);
+        taskList.appendChild(taskItem);
+    });
+
+    socket.on('taskDeleted', (taskId) => {
+        const taskList = document.getElementById('task-items');
+        const taskItems = taskList.getElementsByTagName('li');
+        for (let item of taskItems) {
+            if (item.querySelector('input').dataset.taskId == taskId) {
+                taskList.removeChild(item);
+                break;
+            }
+        }
+    });
+
+    socket.on('taskStatusUpdated', (data) => {
+        const { taskId, status } = data;
+        const taskList = document.getElementById('task-items');
+        const taskItems = taskList.getElementsByTagName('li');
+        for (let item of taskItems) {
+            if (item.querySelector('input').dataset.taskId == taskId) {
+                item.querySelector('input').checked = (status === 'completed');
+                break;
+            }
+        }
+    });
+
+    socket.on('fetchTasks', ({ userA, userB }) => {
+        fetchTasks(userA, userB);
+    });
+
+    // Call fetchTasks when a chat is opened
+    document.addEventListener('DOMContentLoaded', () => {
+        const userA = localStorage.getItem('username');
+        const userB = activeReceiver;
+        if (userA && userB) {
+            socket.emit('joinChat', { userA, userB });
+            fetchTasks(userA, userB);
+        }
+    });
 
     // ==========================
     // ✉️ COMPOSE MESSAGE MODAL
@@ -802,6 +854,7 @@ document.addEventListener('DOMContentLoaded', () => {
             chatHeaderProfilePicture.src = profilePicture; // Update the chat header profile picture
             toggleChatScreen(true); // Show the chat screen
             loadMessages(username); // Fetch and display previous messages
+            socket.emit('joinChat', { userA: username, userB: username }); // Emit joinChat event
         });
         chatList.appendChild(chatItem);
 
