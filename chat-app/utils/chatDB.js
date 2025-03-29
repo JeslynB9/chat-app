@@ -53,8 +53,7 @@ function getChatDB(userA, userB) {
       CREATE TABLE IF NOT EXISTS tasks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         task TEXT,
-        assigned_to TEXT,
-        status TEXT
+        status TEXT DEFAULT 'not complete'
       )
     `);
   });
@@ -98,20 +97,21 @@ function deleteEvent(userA, userB, eventId, callback) {
 
 // Add a task to the chat-specific database
 function addTask(userA, userB, task, callback) {
-  const db = getChatDB(userA, userB);
-  const { task: taskText, assigned_to, status } = task;
+  const db = getChatDB(userA, userB); // Ensure the correct database is used
+  const { task: taskText, status } = task;
 
   const query = `
-    INSERT INTO tasks (task, assigned_to, status)
-    VALUES (?, ?, ?)
+    INSERT INTO tasks (task, status)
+    VALUES (?, ?)
   `;
-  db.run(query, [taskText, assigned_to, status], function (err) {
+  console.log(`Adding task to chat_${[userA, userB].sort().join('_')}.db`); // Debugging log
+  db.run(query, [taskText, status], function (err) {
     if (err) {
-      console.error('Error adding task to chat-specific database:', err);
+      console.error(`Error adding task to chat_${[userA, userB].sort().join('_')}.db:`, err);
       return callback(err);
     }
-    console.log('Task added to chat-specific database with ID:', this.lastID);
-    callback(null, { id: this.lastID, ...task });
+    console.log(`Task added to chat_${[userA, userB].sort().join('_')}.db with ID:`, this.lastID); // Debugging log
+    callback(null, { id: this.lastID, task: taskText, status });
   });
 }
 
