@@ -98,9 +98,9 @@
                     <span class="typing-status"></span>
                 </div>
                 <div class="header-buttons"> <!-- Wrap buttons in a container -->
-                    <button class="search-button" id="search-button">
+                    <button class="search-button" id="top-search-button">
                         <img src="images/search-light.png" alt="Search">
-                    </button>
+                      </button>
                     <button class="info-button" id="info-button">
                         <img src="images/info-light.png" alt="Info">
                     </button>
@@ -152,10 +152,8 @@
             <button id="calendar-button">
                 <img src="images/plus-light.png" alt="Calendar" width="100" height="100">
             </button>
+
             
-            <button id="search-button">
-                <img src="images/search-light.png" alt="Search" width="24" height="24">
-              </button>
         </div>
       </div>
     
@@ -193,8 +191,9 @@
 
       <div id="chat-search-modal" class="modal hidden">
         <div class="modal-content">
-          <span class="close-button" id="close-chat-search">&times;</span>
-          <input type="text" id="chat-search-input" placeholder="Search messages..." />
+          <span id="close-chat-search" class="close-button">&times;</span>
+          <h3>Search Messages</h3>
+          <input type="text" id="chat-search-input" placeholder="Search messages...">
           <ul id="chat-search-results"></ul>
         </div>
       </div>

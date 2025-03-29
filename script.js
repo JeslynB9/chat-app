@@ -534,7 +534,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const cameraButtonImg = document.getElementById('camera-button').querySelector('img');
         const calendarButtonImg = document.getElementById('calendar-button').querySelector('img');
         const infoButtonImg = document.getElementById('info-button').querySelector('img');
-        const searchButtonImg = document.getElementById('search-button').querySelector('img');
+        const searchButtonImg = document.getElementById('top-search-button').querySelector('img');
     
         if (theme === 'dark') {
             settingsButtonImg.src = 'images/settings-dark.png';
