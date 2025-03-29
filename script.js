@@ -381,31 +381,59 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     socket.on('receiveMessage', (data) => {
-        // Ignore messages sent by the sender
-        if (data.sender === username) {
-            return;
-        }
-
+        if (data.sender === username) return;
+    
         const messageElement = document.createElement('div');
         messageElement.classList.add('message', 'received');
-        const usernameElement = document.createElement('div');
-        usernameElement.classList.add('username');
-        usernameElement.textContent = data.sender;
+    
+        if (data.image) {
+            // 👀 Handle image message
+            const image = document.createElement('img');
+            image.src = data.image;
+            image.alt = 'Received Image';
+            image.style.maxWidth = '200px';
+            image.style.borderRadius = '8px';
+            messageElement.appendChild(image);
+        } else {
+            // 💬 Handle text message
+            const usernameElement = document.createElement('div');
+            usernameElement.classList.add('username');
+            usernameElement.textContent = data.sender;
+    
+            const messageBubble = document.createElement('div');
+            messageBubble.classList.add('message-bubble');
+            messageBubble.textContent = data.message;
+    
+            messageElement.appendChild(usernameElement);
+            messageElement.appendChild(messageBubble);
+        }
 
-        const messageBubble = document.createElement('div');
-        messageBubble.classList.add('message-bubble');
-        messageBubble.textContent = data.message;
+        const image = document.createElement('img');
+        image.src = data.image;
+        image.alt = 'Received Image';
+        image.style.maxWidth = '200px';
+        image.style.borderRadius = '8px';
+        image.style.cursor = 'pointer';
+        image.addEventListener('click', () => {
+            window.open(data.image, '_blank'); // Open in full screen
+        });
 
-        messageElement.appendChild(usernameElement);
-        messageElement.appendChild(messageBubble);
+        const filename = document.createElement('div');
+        filename.textContent = data.image.split('/').pop(); // Extract filename from URL
+        filename.style.fontSize = '12px';
+        filename.style.color = '#555';
 
+        messageElement.appendChild(image);
+        messageElement.appendChild(filename);
+            
         messagesContainer.appendChild(messageElement);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
-        // Dynamically update the last message in the sidebar
-        updateLastMessageInSidebar(data.sender, data.message, data.sender, data.timestamp);
-
-        // Increment unread count for the sender
+    
+        // ✅ Update sidebar last message
+        const displayText = data.image ? '[Image]' : data.message;
+        updateLastMessageInSidebar(data.sender, displayText, data.sender, data.timestamp);
+    
+        // 🔔 Unread logic
         if (activeReceiver !== data.sender) {
             const unreadCount = parseInt(localStorage.getItem(`unread_${data.sender}`) || '0', 10) + 1;
             localStorage.setItem(`unread_${data.sender}`, unreadCount);
@@ -430,21 +458,66 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================
     const cameraButton = document.querySelector('.input-area button:nth-child(3)');
     const plusButton = document.querySelector('.input-area button:nth-child(4)');
-
+    
     cameraButton.addEventListener('click', () => {
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
         fileInput.accept = 'image/*';
-        fileInput.click();
-
+    
         fileInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
-            if (file) {
-                alert(`Selected file: ${file.name}`);
-                openInfoPopup(localStorage.getItem('username'), file.name); // Show popup with file info
+            if (!file) return;
+    
+            if (!activeReceiver) {
+                alert("Please select a chat before uploading.");
+                return;
             }
+    
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const imageUrl = e.target.result;
+    
+                // Save file name in localStorage
+                const files = JSON.parse(localStorage.getItem(`files_${activeReceiver}`) || '[]');
+                files.push(file.name);
+                localStorage.setItem(`files_${activeReceiver}`, JSON.stringify(files));
+    
+                // Show in chat
+                const messageElement = document.createElement('div');
+                messageElement.classList.add('message', 'sent');
+    
+                const image = document.createElement('img');
+                image.src = imageUrl;
+                image.alt = file.name;
+                image.style.maxWidth = '200px';
+                image.style.borderRadius = '8px';
+                image.style.marginTop = '8px';
+    
+                messageElement.appendChild(image);
+                messagesContainer.appendChild(messageElement);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+                    // 2️⃣ Send to server (or just to socket for now)
+                socket.emit('sendMessage', {
+                    sender: username,
+                    receiver: activeReceiver,
+                    message: '', // Blank message
+                    image: imageUrl,
+                    timestamp: Date.now()
+                });
+
+                // 3️⃣ Show info popup
+                const profilePicture = getOrGenerateProfilePictureForUser(activeReceiver);
+                openInfoPopup(activeReceiver, profilePicture, files);
+    
+            };
+    
+            reader.readAsDataURL(file);
         });
+    
+        fileInput.click(); // Trigger file dialog after setting up event
     });
+
 
     plusButton.addEventListener('click', openCalendar);
 
@@ -1319,23 +1392,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Reuse the existing cameraButton variable
-        cameraButton.addEventListener('click', () => {
-            const fileInput = document.createElement('input');
-            fileInput.type = 'file';
-            fileInput.accept = 'image/*';
-            fileInput.click();
-    
-            fileInput.addEventListener('change', (event) => {
-                const file = event.target.files[0];
-                if (file) {
-                    alert(`Selected file: ${file.name}`);
-                    const files = JSON.parse(localStorage.getItem(`files_${activeReceiver}`) || '[]');
-                    files.push(file.name);
-                    localStorage.setItem(`files_${activeReceiver}`, JSON.stringify(files));
-                }
-            });
-        });
+
 
     // Update event listeners for the "Unread" and "All" pins
     document.querySelectorAll('.pin-text-sidebar').forEach(pin => {
