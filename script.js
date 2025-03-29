@@ -665,6 +665,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     progressCircle.addEventListener('click', () => {
         taskList.classList.toggle('hidden');
+        if (!taskList.classList.contains('hidden')) {
+            const userA = localStorage.getItem('username'); // Current logged-in user
+            const userB = activeReceiver; // The user currently being chatted with
+
+            if (userA && userB) {
+                console.log('Refreshing tasks for:', { userA, userB }); // Debugging log
+                fetchTasks(userA, userB); // Refresh tasks from the database
+            } else {
+                console.error('Cannot refresh tasks. Missing users:', { userA, userB });
+            }
+        }
     });
 
     document.getElementById('add-task-button').addEventListener('click', () => {
@@ -672,27 +683,36 @@ document.addEventListener('DOMContentLoaded', () => {
         const taskText = taskInput.value.trim();
         const userA = localStorage.getItem('username'); // Assuming the task creator is the logged-in user
         const userB = activeReceiver; // Assuming the task is assigned to the active receiver
+
         if (taskText && userA && userB) {
-            const taskData = { task: taskText, userA, assigned_to: userB, status: 'pending' };
+            const taskData = { task: taskText, userA, userB };
+            console.log('Sending task data to server:', taskData); // Debugging log
+
             fetch(`http://localhost:3000/chatDB/tasks`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'x-logged-in-user': userA // Send the logged-in user in the headers
+                },
                 body: JSON.stringify(taskData)
             })
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
+                    console.log('Task added successfully:', data); // Debugging log
                     const taskList = document.getElementById('task-items');
                     const taskItem = document.createElement('li');
                     taskItem.textContent = taskText;
                     taskList.appendChild(taskItem);
                     taskInput.value = '';
                 } else {
+                    console.error('Failed to add task:', data.message); // Debugging log
                     alert('Failed to add task.');
                 }
             })
             .catch(error => console.error('Error adding task:', error));
         } else {
+            console.error('Task text, userA, and userB are required:', { taskText, userA, userB }); // Debugging log
             alert('Task text, userA, and userB are required.');
         }
     });
@@ -722,50 +742,44 @@ document.addEventListener('DOMContentLoaded', () => {
         progressCircle.style.transition = 'background 0.3s ease-in-out';
     }
 
-    // Fetch tasks when a chat is opened
     function fetchTasks(userA, userB) {
         fetch(`http://localhost:3000/chatDB/tasks?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`)
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
+                    console.log('Tasks fetched successfully:', data.tasks); // Debugging log
                     const taskList = document.getElementById('task-items');
-                    taskList.innerHTML = '';
+                    taskList.innerHTML = ''; // Clear the existing task list
                     data.tasks.forEach(task => {
                         const taskItem = document.createElement('li');
+                        taskItem.classList.add('task-item'); // Add a class for styling
                         taskItem.textContent = task.task;
                         taskList.appendChild(taskItem);
                     });
                 } else {
+                    console.error('Failed to fetch tasks:', data.message); // Debugging log
                     alert('Failed to fetch tasks.');
                 }
             })
             .catch(error => console.error('Error fetching tasks:', error));
     }
 
+    // Listen for fetchTasks event and refresh the task list
+    socket.on('fetchTasks', ({ userA, userB }) => {
+        const loggedInUser = localStorage.getItem('username');
+        if (loggedInUser === userA || loggedInUser === userB) {
+            console.log('fetchTasks event received. Refreshing task list for:', { userA, userB }); // Debugging log
+            fetchTasks(userA, userB);
+        }
+    });
+
     // Listen for task updates
     socket.on('taskAdded', (task) => {
+        console.log('Task added event received:', task); // Debugging log
+
         const taskList = document.getElementById('task-items');
         const taskItem = document.createElement('li');
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.checked = task.status === 'completed';
-        checkbox.addEventListener('change', () => {
-            const newStatus = checkbox.checked ? 'completed' : 'pending';
-            socket.emit('updateTaskStatus', { taskId: task.id, status: newStatus });
-        });
-
-        const taskText = document.createElement('span');
-        taskText.textContent = task.task;
-
-        const deleteButton = document.createElement('button');
-        deleteButton.textContent = 'Delete';
-        deleteButton.addEventListener('click', () => {
-            socket.emit('deleteTask', { taskId: task.id });
-        });
-
-        taskItem.appendChild(checkbox);
-        taskItem.appendChild(taskText);
-        taskItem.appendChild(deleteButton);
+        taskItem.textContent = task.task;
         taskList.appendChild(taskItem);
     });
 
@@ -794,6 +808,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('fetchTasks', ({ userA, userB }) => {
         fetchTasks(userA, userB);
+    });
+
+    // Emit joinChat event when a chat is opened
+    document.addEventListener('DOMContentLoaded', () => {
+        const userA = localStorage.getItem('username');
+        const userB = activeReceiver;
+        if (userA && userB) {
+            console.log(`Joining chat room for users: ${userA}, ${userB}`); // Debugging log
+            socket.emit('joinChat', { userA, userB });
+            fetchTasks(userA, userB);
+        }
     });
 
     // Call fetchTasks when a chat is opened

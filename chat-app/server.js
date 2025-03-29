@@ -250,36 +250,62 @@ app.get('/user-chats', (req, res) => {
 
 // ========== Add Task ==========
 app.post('/chatDB/tasks', (req, res) => {
-    const { task, assigned_to, status } = req.body;
-    const userA = req.body.userA; // Assuming userA is the task creator
-    const userB = req.body.assigned_to; // Assuming userB is the task assignee
+    console.log('Incoming request body:', req.body); // Debugging log
+
+    const { task, userA, userB } = req.body;
+    let { status } = req.body;
+
+    // Validate that userA is the one setting up the task
+    const loggedInUser = req.headers['x-logged-in-user']; // Assuming the logged-in user is sent in the headers
+    if (!loggedInUser || loggedInUser !== userA) {
+        console.error('Unauthorized task creation attempt:', { loggedInUser, userA }); // Debugging log
+        return res.status(403).json({ success: false, message: 'You are not authorized to create this task' });
+    }
 
     if (!task || !userA || !userB) {
+        console.error('Missing required fields:', { task, userA, userB }); // Debugging log
         return res.status(400).json({ success: false, message: 'Task, userA, and userB are required' });
     }
 
-    const taskData = { task, assigned_to, status };
+    // Default status to "not complete" if not provided
+    status = status || 'not complete';
 
-    addTask(userA, userB, taskData, (err, result) => {
+    // Add the task to the chat-specific database
+    addTask(userA, userB, { task, status }, (err, taskData) => {
         if (err) {
+            console.error(`❌ Failed to add task to chat_${[userA, userB].sort().join('_')}.db:`, err.message); // Debugging log
             return res.status(500).json({ success: false, message: 'Failed to add task' });
         }
-        res.status(201).json({ success: true, message: 'Task added successfully', task: result });
+
+        console.log(`Task added successfully to chat_${[userA, userB].sort().join('_')}.db with ID:`, taskData.id); // Debugging log
+
+        // Emit taskAdded event to the specific chat room
+        const room = [userA, userB].sort().join('_');
+        console.log(`Emitting taskAdded to room: ${room}`); // Debugging log
+        io.to(room).emit('taskAdded', taskData);
+
+        // Emit fetchTasks event to refresh the task list for both users
+        io.to(room).emit('fetchTasks', { userA, userB });
+
+        res.status(201).json({ success: true, message: 'Task added successfully', task: taskData });
     });
 });
 
 // ========== Fetch Tasks ==========
 app.get('/chatDB/tasks', (req, res) => {
     const { userA, userB } = req.query;
+
     if (!userA || !userB) {
         return res.status(400).json({ success: false, message: 'userA and userB are required' });
     }
 
-    const db = getChatDB(userA, userB);
-    db.all(`SELECT * FROM tasks`, [], (err, rows) => {
+    const db = getChatDB(userA, userB); // Use chat-specific database
+    const query = `SELECT * FROM tasks`;
+
+    db.all(query, [], (err, rows) => {
         if (err) {
             console.error('❌ Failed to fetch tasks:', err.message);
-            return res.status(500).json({ error: 'Failed to load tasks' });
+            return res.status(500).json({ success: false, message: 'Failed to load tasks' });
         }
         res.json({ success: true, tasks: rows });
     });
@@ -292,7 +318,7 @@ io.on('connection', (socket) => {
     socket.on('joinChat', ({ userA, userB }) => {
         const room = [userA, userB].sort().join('_');
         socket.join(room);
-        console.log(`User ${socket.id} joined room: ${room}`);
+        console.log(`User ${socket.id} joined room: ${room}`); // Debugging log
     });
 
     socket.on('sendMessage', (data) => {
