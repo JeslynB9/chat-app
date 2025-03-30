@@ -325,7 +325,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(data => {
                     if (data.success) {
                         console.log('Message saved:', data);
-                        // Add the message to the UI
+
+                        // Append the sent message to the UI immediately
                         const messageElement = document.createElement('div');
                         messageElement.classList.add('message', 'sent');
                         const messageBubble = document.createElement('div');
@@ -381,7 +382,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     socket.on('receiveMessage', (data) => {
-        if (data.sender === username) return;
+        if (data.sender === username || data.receiver === username) {
+            console.log('New message received:', data);
+            if (data.sender === activeReceiver || data.receiver === activeReceiver) {
+                // Fetch messages for the active chat
+                loadMessages(activeReceiver);
+            }
+        }
     
         const messageElement = document.createElement('div');
         messageElement.classList.add('message', 'received');
@@ -450,6 +457,16 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('stopTyping', (user) => {
         if (user !== username) {
             typingStatus.textContent = '';
+        }
+    });
+
+    socket.on('messageSaved', ({ sender, receiver }) => {
+        const username = localStorage.getItem('username');
+        if (username === sender || username === receiver) {
+            if (activeReceiver === sender || activeReceiver === receiver) {
+                // Refetch messages for the active chat
+                loadMessages(activeReceiver);
+            }
         }
     });
 
@@ -944,6 +961,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Periodically fetch messages for the active chat
+    setInterval(() => {
+        if (activeReceiver) {
+            loadMessages(activeReceiver);
+        }
+    }, 500); // Fetch messages every 0.5 seconds
+
     // ==========================
     // ✉️ COMPOSE MESSAGE MODAL
     // ==========================
@@ -1021,7 +1045,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================
     // 🗨️ CHAT LIST & MESSAGES
     // ==========================
-    const chatList = document.getElementById('chat-list');
+    // Removed duplicate declaration of chatList
     let activeChat = null;
     const chatHeaderName = document.querySelector('.main-chat-header div > div:first-child'); // Select the header name element
     const chatHeaderUsername = document.getElementById('chat-header-username'); // Select the username element in the chat header
@@ -1169,50 +1193,55 @@ document.addEventListener('DOMContentLoaded', () => {
         selectedChat.classList.add('selected');
     }
 
-    function loadMessages(username) {
-        console.log(`Loading messages for user: ${username}`);
-        fetch(`http://localhost:3000/messages?sender=${encodeURIComponent(username)}&receiver=${encodeURIComponent(username)}`)
+    function loadMessages(receiver) {
+        const sender = localStorage.getItem('username'); // Current logged-in user
+        if (!sender || !receiver) {
+            console.error('Cannot load messages. Missing sender or receiver:', { sender, receiver });
+            return;
+        }
+
+        fetch(`http://localhost:3000/messages?sender=${encodeURIComponent(sender)}&receiver=${encodeURIComponent(receiver)}`)
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
+                    const messagesContainer = document.getElementById('messages-container');
+                    const isAtBottom = messagesContainer.scrollHeight - messagesContainer.scrollTop === messagesContainer.clientHeight;
+
                     messagesContainer.innerHTML = ''; // Clear existing messages
 
-                    // Use the `createdAt` timestamp of the first message for the chat start time
-                    const chatStartedTime = data.messages.length > 0 
-                        ? new Date(data.messages[0].createdAt) 
-                        : null;
-
-                    // Add "Chat started: date, time" message at the top if a start time exists
-                    if (chatStartedTime) {
-                        const chatStartedElement = document.createElement('div');
-                        chatStartedElement.classList.add('chat-started');
-                        chatStartedElement.textContent = `Chat started: ${chatStartedTime.toLocaleString()}`;
-                        messagesContainer.appendChild(chatStartedElement);
-                    }
-
-                    // Add only actual messages, skipping the initial "Chat started" message
                     data.messages.forEach(message => {
-                        if (!message.message.startsWith('Chat started:')) { // Skip initial message
-                            const messageElement = document.createElement('div');
-                            messageElement.classList.add('message', message.sender === username ? 'received' : 'sent');
-                            const messageBubble = document.createElement('div');
-                            messageBubble.classList.add('message-bubble');
-                            messageBubble.textContent = message.message;
-                            messageElement.appendChild(messageBubble);
-                            messagesContainer.appendChild(messageElement);
-                        }
-                    });
-                    messagesContainer.scrollTop = messagesContainer.scrollHeight; // Scroll to the bottom
+                        const messageElement = document.createElement('div');
+                        messageElement.classList.add('message', message.sender === sender ? 'sent' : 'received');
 
-                    // Reset unread count for the active chat
-                    localStorage.setItem(`unread_${username}`, '0');
-                    updateUnreadCount(username, 0);
+                        const messageBubble = document.createElement('div');
+                        messageBubble.classList.add('message-bubble');
+                        messageBubble.textContent = message.message;
+
+                        messageElement.appendChild(messageBubble);
+                        messagesContainer.appendChild(messageElement);
+                    });
+
+                    // Only scroll to the bottom if the user is already at the bottom
+                    if (isAtBottom) {
+                        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                    }
                 } else {
-                    console.error('Error fetching messages:', data.message);
+                    console.error('Failed to load messages:', data.message);
                 }
             })
             .catch(error => console.error('Error loading messages:', error));
     }
+
+    // Call `loadMessages` when a chat is selected
+    const chatList = document.getElementById('chat-list');
+    chatList.addEventListener('click', (event) => {
+        const chatItem = event.target.closest('.chat-list-item');
+        if (chatItem) {
+            const receiver = chatItem.querySelector('div > div:first-child').textContent.trim();
+            activeReceiver = receiver; // Set the active receiver
+            loadMessages(receiver); // Load messages for the selected chat
+        }
+    });
 
     // Notify the server when a new chat is added
     function notifyNewChat(username) {
