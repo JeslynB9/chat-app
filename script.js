@@ -1430,13 +1430,30 @@ document.addEventListener('DOMContentLoaded', () => {
             else if (action === 'delete') {
                 const confirmDelete = confirm(`Are you sure you want to delete the chat with ${username}?`);
                 if (confirmDelete) {
-                    chatItem.remove();
-                    if (activeReceiver === username) {
-                        activeReceiver = null;
-                        chatHeaderUsername.textContent = '';
-                        chatHeaderProfilePicture.src = '';
-                        toggleChatScreen(false);
-                    }
+                    // Request server to delete the database
+                    fetch(`http://localhost:3000/delete-chat-database`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userA: localStorage.getItem('username'), userB: username })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            console.log(`Database for chat with ${username} deleted successfully.`);
+                            localStorage.setItem(`deleted_chat_${username}`, true); // Mark chat as deleted
+                            chatItem.remove();
+                            if (activeReceiver === username) {
+                                activeReceiver = null;
+                                chatHeaderUsername.textContent = '';
+                                chatHeaderProfilePicture.src = '';
+                                toggleChatScreen(false);
+                            }
+                        } else {
+                            console.error(`Failed to delete database for chat with ${username}:`, data.message);
+                            alert('Failed to delete chat.');
+                        }
+                    })
+                    .catch(error => console.error('Error deleting chat database:', error));
                 }
             }
 
@@ -1483,7 +1500,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.success) {
                     chatList.innerHTML = ''; // Clear existing chat list
                     data.chats.forEach(chat => {
-                        addChatToSidebar(chat.username);
+                        if (!localStorage.getItem(`deleted_chat_${chat.username}`)) {
+                            addChatToSidebar(chat.username); // Only add chats that haven't been deleted
+                        }
                     });
                 } else {
                     console.error('Error fetching chat list:', data.message);

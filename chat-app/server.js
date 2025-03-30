@@ -5,6 +5,7 @@ const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const bcrypt = require('bcrypt');
+const fs = require('fs');
 const db = require('./database'); // SQLite DB module
 const { getChatDB, addTask, saveMessage, getMessagesBetweenUsers, addChatForBothUsers } = require('./utils/chatDB');
 
@@ -361,6 +362,27 @@ app.put('/chatDB/tasks/:taskId/status', (req, res) => {
 
         console.log(`Task with ID ${taskId} updated successfully to status: ${status}`);
         res.json({ success: true, message: 'Task status updated successfully' });
+    });
+});
+
+// Endpoint to delete a chat database
+app.post('/delete-chat-database', (req, res) => {
+    const { userA, userB } = req.body;
+
+    if (!userA || !userB) {
+        return res.status(400).json({ success: false, message: 'Both userA and userB are required.' });
+    }
+
+    const dbName = `chat_${[userA, userB].sort().join('_')}.db`;
+    const dbPath = path.join(__dirname, 'chat_dbs', dbName); // Corrected directory path
+
+    fs.unlink(dbPath, (err) => {
+        if (err) {
+            console.error(`Failed to delete database file ${dbName}:`, err.message);
+            return res.status(500).json({ success: false, message: 'Failed to delete chat database.' });
+        }
+        console.log(`Database file ${dbName} deleted successfully.`);
+        res.json({ success: true, message: 'Chat database deleted successfully.' });
     });
 });
 
