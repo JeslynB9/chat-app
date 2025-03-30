@@ -189,9 +189,11 @@ app.post('/upload', upload.single('file'), (req, res) => {
 });
 
 // Add endpoint to toggle message pin status
-app.post('/messages/:messageId/pin', (req, res) => {
+app.post('/api/messages/:messageId/pin', (req, res) => {
     const messageId = req.params.messageId;
     const { isPinned, sender, receiver } = req.body;
+
+    console.log('Pin request received:', { messageId, isPinned, sender, receiver });
 
     if (!sender || !receiver) {
         return res.status(400).json({ success: false, message: 'Sender and receiver are required' });
@@ -199,25 +201,20 @@ app.post('/messages/:messageId/pin', (req, res) => {
 
     const dbName = `chat_${sender}_${receiver}.db`;
     const db = new sqlite3.Database(dbName);
-    
+
     db.run('UPDATE messages SET isPinned = ? WHERE id = ?', [isPinned ? 1 : 0, messageId], function(err) {
         if (err) {
             console.error('Error updating message pin status:', err);
-            res.status(500).json({ success: false, message: 'Error updating pin status' });
-            return;
+            return res.status(500).json({ success: false, message: 'Error updating pin status' });
         }
-        
+
         if (this.changes === 0) {
-            res.status(404).json({ success: false, message: 'Message not found' });
-            return;
+            return res.status(404).json({ success: false, message: 'Message not found' });
         }
-        
-        // Emit socket event to notify clients about the pinned message
-        io.emit('messagePinned', { messageId, isPinned });
-        
+
         res.json({ success: true });
     });
-    
+
     db.close();
 });
 
@@ -229,7 +226,8 @@ app.get('/messages', (req, res) => {
         return res.status(400).json({ success: false, message: 'Sender and receiver are required' });
     }
     
-    const db = new sqlite3.Database('chat.db');
+    const dbName = `chat_${sender}_${receiver}.db`;
+    const db = new sqlite3.Database(dbName);
     
     db.all(
         `SELECT * FROM messages 
@@ -262,11 +260,16 @@ app.delete('/messages/:messageId', (req, res) => {
     const messageId = req.params.messageId;
     const { sender, receiver } = req.query;
     
+    console.log('Delete request received:', { messageId, sender, receiver }); // Debug log
+    
     if (!sender || !receiver) {
+        console.error('Missing sender or receiver:', { sender, receiver });
         return res.status(400).json({ success: false, message: 'Sender and receiver are required' });
     }
     
     const dbName = `chat_${sender}_${receiver}.db`;
+    console.log('Using database:', dbName); // Debug log
+    
     const db = new sqlite3.Database(dbName);
     
     db.run('DELETE FROM messages WHERE id = ?', [messageId], function(err) {
@@ -277,9 +280,12 @@ app.delete('/messages/:messageId', (req, res) => {
         }
         
         if (this.changes === 0) {
+            console.error('Message not found:', messageId);
             res.status(404).json({ success: false, message: 'Message not found' });
             return;
         }
+        
+        console.log('Message deleted successfully:', messageId); // Debug log
         
         // Emit socket event to notify clients about the deleted message
         io.emit('messageDeleted', { messageId });

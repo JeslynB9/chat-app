@@ -652,17 +652,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function displayMessage(message, isSent = false) {
-        console.log('Displaying message:', {
-            ...message,
-            fileData: message.fileData ? {
-                ...message.fileData,
-                data: message.fileData.data.substring(0, 100) + '...' // Log truncated data
-            } : undefined
-        });
-
+        console.log('Displaying message:', { message, isSent }); // Debug log
+        
         const messageContainer = document.createElement('div');
         messageContainer.className = `message ${isSent ? 'sent' : 'received'}`;
-        messageContainer.dataset.messageId = message.id;
+        messageContainer.dataset.messageId = message.id; // Ensure message ID is set
+        
+        console.log('Message container created with ID:', message.id); // Debug log
 
         try {
             if (message.type === 'file') {
@@ -720,17 +716,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 messageContainer.appendChild(messageBubble);
             }
 
-            // Add pin button
-            const pinButton = document.createElement('button');
-            pinButton.className = 'pin-message-button';
-            pinButton.innerHTML = message.isPinned ? '📌' : '📍';
-            pinButton.title = message.isPinned ? 'Unpin message' : 'Pin message';
-            pinButton.onclick = (e) => {
-                e.stopPropagation();
-                toggleMessagePin(message.id, messageContainer, pinButton);
-            };
-            messageContainer.appendChild(pinButton);
-
             // Add timestamp
             const timestamp = document.createElement('span');
             timestamp.className = 'timestamp';
@@ -741,21 +726,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const messagesContainer = document.querySelector('.messages');
             if (messagesContainer) {
                 if (message.isPinned) {
-                    // Add pinned messages to the top
                     const pinnedSection = messagesContainer.querySelector('.pinned-messages-section') || createPinnedSection();
                     pinnedSection.appendChild(messageContainer);
                 } else {
                     messagesContainer.appendChild(messageContainer);
                 }
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
-            } else {
-                console.error('Messages container not found');
             }
 
             // Add context menu event listener
             messageContainer.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
-                e.stopPropagation(); // Prevent event bubbling
+                e.stopPropagation();
                 
                 const contextMenu = document.getElementById('message-context-menu');
                 if (!contextMenu) {
@@ -763,14 +745,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                // Position the context menu at the cursor
+                console.log('Context menu triggered for message:', message.id); // Debug log
+
                 contextMenu.style.display = 'block';
                 contextMenu.style.left = `${e.pageX}px`;
                 contextMenu.style.top = `${e.pageY}px`;
                 contextMenu.dataset.messageId = message.id;
                 contextMenu.dataset.isPinned = message.isPinned;
                 
-                // Update pin option text based on current state
                 const pinOption = contextMenu.querySelector('[data-action="pin"]');
                 if (pinOption) {
                     pinOption.innerHTML = message.isPinned ? 
@@ -804,15 +786,31 @@ document.addEventListener('DOMContentLoaded', () => {
         return pinnedContent;
     }
 
-    function toggleMessagePin(messageId, messageContainer, pinButton) {
-        const isCurrentlyPinned = messageContainer.parentElement.classList.contains('pinned-messages-content');
+    function toggleMessagePin(messageId, messageElement) {
+        console.log('Toggling pin for message:', { messageId, messageElement }); // Debug log
+        
+        const isCurrentlyPinned = messageElement.parentElement.classList.contains('pinned-messages-content');
         const sender = localStorage.getItem('username');
         const receiver = activeReceiver;
         
-        fetch(`http://localhost:3000/messages/${messageId}/pin`, {
+        console.log('Pin toggle details:', { sender, receiver, isCurrentlyPinned }); // Debug log
+        
+        if (!sender || !receiver) {
+            console.error('Missing sender or receiver:', { sender, receiver });
+            alert('Error: Missing user information');
+            return;
+        }
+        
+        console.log('[Client] Pinning message:', {
+            messageId,
+            isPinned: !isCurrentlyPinned,
+            sender,
+            receiver
+        });
+        fetch(`http://localhost:3000/api/messages/${messageId}/pin`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 isPinned: !isCurrentlyPinned,
                 sender: sender,
                 receiver: receiver
@@ -821,46 +819,13 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                const messagesContainer = document.querySelector('.messages');
-                const pinnedSection = messagesContainer.querySelector('.pinned-messages-section');
-                
-                if (!isCurrentlyPinned) {
-                    // Pin the message
-                    if (!pinnedSection) {
-                        createPinnedSection();
-                    }
-                    const pinnedContent = messagesContainer.querySelector('.pinned-messages-content');
-                    pinnedContent.appendChild(messageContainer);
-                    
-                    // Update the pin option text
-                    const pinOption = document.querySelector('[data-action="pin"]');
-                    if (pinOption) {
-                        pinOption.innerHTML = '<span class="icon">📌</span> Unpin Message';
-                    }
-                } else {
-                    // Unpin the message
-                    messagesContainer.appendChild(messageContainer);
-                    
-                    // Update the pin option text
-                    const pinOption = document.querySelector('[data-action="pin"]');
-                    if (pinOption) {
-                        pinOption.innerHTML = '<span class="icon">📌</span> Pin Message';
-                    }
-                    
-                    // Remove pinned section if no pinned messages
-                    const pinnedContent = pinnedSection.querySelector('.pinned-messages-content');
-                    if (pinnedContent && pinnedContent.children.length === 0) {
-                        pinnedSection.remove();
-                    }
-                }
+                console.log("Pin updated successfully");
             } else {
-                console.error('Failed to update pin status:', data.message);
-                alert('Failed to update pin status');
+                alert("Failed to update pin status");
             }
         })
         .catch(error => {
             console.error('Error toggling message pin:', error);
-            alert('Error updating pin status');
         });
     }
 
@@ -1743,14 +1708,14 @@ document.addEventListener('DOMContentLoaded', () => {
                                 return;
                             }
 
-                            // Position the context menu at the cursor
+                            console.log('Context menu triggered for message:', message.id); // Debug log
+
                             contextMenu.style.display = 'block';
                             contextMenu.style.left = `${e.pageX}px`;
                             contextMenu.style.top = `${e.pageY}px`;
                             contextMenu.dataset.messageId = message.id;
                             contextMenu.dataset.isPinned = message.isPinned;
                             
-                            // Update pin option text based on current state
                             const pinOption = contextMenu.querySelector('[data-action="pin"]');
                             if (pinOption) {
                                 pinOption.innerHTML = message.isPinned ? 
@@ -2096,9 +2061,19 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function toggleMessagePin(messageId, messageElement) {
+        console.log('Toggling pin for message:', { messageId, messageElement }); // Debug log
+        
         const isCurrentlyPinned = messageElement.parentElement.classList.contains('pinned-messages-content');
         const sender = localStorage.getItem('username');
         const receiver = activeReceiver;
+        
+        console.log('Pin toggle details:', { sender, receiver, isCurrentlyPinned }); // Debug log
+        
+        if (!sender || !receiver) {
+            console.error('Missing sender or receiver:', { sender, receiver });
+            alert('Error: Missing user information');
+            return;
+        }
         
         fetch(`http://localhost:3000/messages/${messageId}/pin`, {
             method: 'POST',
@@ -2111,34 +2086,30 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .then(response => response.json())
         .then(data => {
+            console.log('Pin toggle response:', data); // Debug log
             if (data.success) {
                 const messagesContainer = document.querySelector('.messages');
                 const pinnedSection = messagesContainer.querySelector('.pinned-messages-section');
                 
                 if (!isCurrentlyPinned) {
-                    // Pin the message
                     if (!pinnedSection) {
                         createPinnedSection();
                     }
                     const pinnedContent = messagesContainer.querySelector('.pinned-messages-content');
                     pinnedContent.appendChild(messageElement);
                     
-                    // Update the pin option text
                     const pinOption = document.querySelector('[data-action="pin"]');
                     if (pinOption) {
                         pinOption.innerHTML = '<span class="icon">📌</span> Unpin Message';
                     }
                 } else {
-                    // Unpin the message
                     messagesContainer.appendChild(messageElement);
                     
-                    // Update the pin option text
                     const pinOption = document.querySelector('[data-action="pin"]');
                     if (pinOption) {
                         pinOption.innerHTML = '<span class="icon">📌</span> Pin Message';
                     }
                     
-                    // Remove pinned section if no pinned messages
                     const pinnedContent = pinnedSection.querySelector('.pinned-messages-content');
                     if (pinnedContent && pinnedContent.children.length === 0) {
                         pinnedSection.remove();
@@ -2156,14 +2127,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function deleteMessage(messageId) {
+        console.log('Deleting message:', { messageId }); // Debug log
+        
         const sender = localStorage.getItem('username');
         const receiver = activeReceiver;
+        
+        console.log('Delete message details:', { sender, receiver }); // Debug log
+        
+        if (!sender || !receiver) {
+            console.error('Missing sender or receiver:', { sender, receiver });
+            alert('Error: Missing user information');
+            return;
+        }
         
         fetch(`http://localhost:3000/messages/${messageId}?sender=${encodeURIComponent(sender)}&receiver=${encodeURIComponent(receiver)}`, {
             method: 'DELETE'
         })
         .then(response => response.json())
         .then(data => {
+            console.log('Delete message response:', data); // Debug log
             if (data.success) {
                 const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
                 if (messageElement) {
