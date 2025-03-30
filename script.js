@@ -302,56 +302,49 @@ document.addEventListener('DOMContentLoaded', () => {
         if (messageText && activeReceiver) {
             if (username === activeReceiver) {
                 alert("You cannot message yourself.");
-                return;
+                return; // Prevent sending the message
             }
 
             const messageData = {
                 message: messageText,
                 sender: username,
                 receiver: activeReceiver,
-                timestamp: Date.now()
+                timestamp: Date.now() // Use the current timestamp
             };
 
-            // Save the message to the database first
+            // Emit the message via Socket.IO
+            socket.emit('sendMessage', messageData);
+
+            // Save the message to the database
             fetch('http://localhost:3000/messages', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(messageData)
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Create and display the message immediately
-                    const messageElement = document.createElement('div');
-                    messageElement.className = 'message sent';
-                    messageElement.dataset.messageId = data.message.id;
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log('Message saved:', data);
 
-                    const messageBubble = document.createElement('div');
-                    messageBubble.classList.add('message-bubble');
-                    messageBubble.textContent = messageText;
-                    messageElement.appendChild(messageBubble);
+                        // Append the sent message to the UI immediately
+                        const messageElement = document.createElement('div');
+                        messageElement.classList.add('message', 'sent');
+                        const messageBubble = document.createElement('div');
+                        messageBubble.classList.add('message-bubble');
+                        messageBubble.textContent = messageText;
+                        messageElement.appendChild(messageBubble);
+                        messagesContainer.appendChild(messageElement);
+                        messagesContainer.scrollTop = messagesContainer.scrollHeight; // Scroll to the bottom
 
-                    const timestamp = document.createElement('span');
-                    timestamp.className = 'timestamp';
-                    timestamp.textContent = new Date(messageData.timestamp).toLocaleTimeString();
-                    messageElement.appendChild(timestamp);
+                        // Dynamically update the last message in the sidebar
+                        updateLastMessageInSidebar(activeReceiver, messageText, "You", messageData.timestamp);
+                    } else {
+                        console.error('Error saving message:', data.message);
+                    }
+                })
+                .catch(error => console.error('Error sending message:', error));
 
-                    const messagesContainer = document.querySelector('.messages');
-                    messagesContainer.appendChild(messageElement);
-                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
-                    // Update the last message in the sidebar
-                    updateLastMessageInSidebar(activeReceiver, messageText, "You", messageData.timestamp);
-
-                    // Emit the message via Socket.IO after successful save
-                    socket.emit('sendMessage', messageData);
-                } else {
-                    console.error('Error saving message:', data.message);
-                }
-            })
-            .catch(error => console.error('Error sending message:', error));
-
-            inputField.value = '';
+            inputField.value = ''; // Clear the input field
         } else if (!activeReceiver) {
             alert('Please select a user to chat with.');
         }
@@ -389,84 +382,90 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     socket.on('receiveMessage', (data) => {
-        // Only display the message if it's from the active receiver and not from the current user
-        if (data.sender === activeReceiver && data.sender !== username) {
-            try {
-                const messageElement = document.createElement('div');
-                messageElement.className = 'message received';
-                messageElement.dataset.messageId = data.id;
+        if (data.sender === username || data.receiver === username) {
+            // Update the last message in the sidebar
+            const displayText = data.type === 'file' ? `[${data.fileData.name}]` : data.message;
+            const displaySender = data.sender === username ? "You" : data.sender;
+            updateLastMessageInSidebar(data.sender === username ? data.receiver : data.sender, displayText, displaySender, data.timestamp);
 
-                if (data.type === 'file') {
-                    let fileData = data.fileData;
-                    // Try to parse the message if it's a string
-                    if (typeof data.message === 'string' && data.message.startsWith('{')) {
-                        try {
-                            const parsedMessage = JSON.parse(data.message);
-                            if (parsedMessage.type === 'file') {
-                                fileData = parsedMessage.fileData;
+            // Only display the message if it's in the current chat
+            if ((data.sender === activeReceiver || data.receiver === activeReceiver) && data.sender !== username) {
+                try {
+                    const messageElement = document.createElement('div');
+                    messageElement.className = `message received`;
+
+                    if (data.type === 'file') {
+                        let fileData = data.fileData;
+                        // Try to parse the message if it's a string
+                        if (typeof data.message === 'string' && data.message.startsWith('{')) {
+                            try {
+                                const parsedMessage = JSON.parse(data.message);
+                                if (parsedMessage.type === 'file') {
+                                    fileData = parsedMessage.fileData;
+                                }
+                            } catch (e) {
+                                console.error('Error parsing file message:', e);
                             }
-                        } catch (e) {
-                            console.error('Error parsing file message:', e);
                         }
+
+                        const fileContainer = document.createElement('div');
+                        fileContainer.className = 'file-container';
+
+                        // Add file icon
+                        const icon = document.createElement('div');
+                        icon.className = 'file-icon';
+                        icon.textContent = getFileIcon(fileData.type);
+                        fileContainer.appendChild(icon);
+
+                        // Add file info
+                        const info = document.createElement('div');
+                        info.className = 'file-info';
+
+                        const name = document.createElement('div');
+                        name.className = 'file-name';
+                        name.textContent = fileData.name;
+                        info.appendChild(name);
+
+                        const size = document.createElement('div');
+                        size.className = 'file-size';
+                        size.textContent = formatFileSize(fileData.size);
+                        info.appendChild(size);
+
+                        fileContainer.appendChild(info);
+
+                        // Add download link if URL is available
+                        if (fileData.url) {
+                            const downloadLink = document.createElement('a');
+                            downloadLink.href = fileData.url;
+                            downloadLink.download = fileData.name;
+                            downloadLink.className = 'download-button';
+                            downloadLink.textContent = '⬇️';
+                            fileContainer.appendChild(downloadLink);
+                        }
+
+                        messageElement.appendChild(fileContainer);
+                    } else {
+            const messageBubble = document.createElement('div');
+            messageBubble.classList.add('message-bubble');
+                        messageBubble.textContent = data.message || '';
+            messageElement.appendChild(messageBubble);
+        }
+
+                    // Add timestamp
+                    const timestamp = document.createElement('span');
+                    timestamp.className = 'timestamp';
+                    timestamp.textContent = new Date(data.timestamp).toLocaleTimeString();
+                    messageElement.appendChild(timestamp);
+
+                    // Add to messages container
+                    const messagesContainer = document.querySelector('.messages');
+                    if (messagesContainer) {
+        messagesContainer.appendChild(messageElement);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
                     }
-
-                    const fileContainer = document.createElement('div');
-                    fileContainer.className = 'file-container';
-
-                    // Add file icon
-                    const icon = document.createElement('div');
-                    icon.className = 'file-icon';
-                    icon.textContent = getFileIcon(fileData.type);
-                    fileContainer.appendChild(icon);
-
-                    // Add file info
-                    const info = document.createElement('div');
-                    info.className = 'file-info';
-
-                    const name = document.createElement('div');
-                    name.className = 'file-name';
-                    name.textContent = fileData.name;
-                    info.appendChild(name);
-
-                    const size = document.createElement('div');
-                    size.className = 'file-size';
-                    size.textContent = formatFileSize(fileData.size);
-                    info.appendChild(size);
-
-                    fileContainer.appendChild(info);
-
-                    // Add download link if URL is available
-                    if (fileData.url) {
-                        const downloadLink = document.createElement('a');
-                        downloadLink.href = fileData.url;
-                        downloadLink.download = fileData.name;
-                        downloadLink.className = 'download-button';
-                        downloadLink.textContent = '⬇️';
-                        fileContainer.appendChild(downloadLink);
-                    }
-
-                    messageElement.appendChild(fileContainer);
-                } else {
-                    const messageBubble = document.createElement('div');
-                    messageBubble.classList.add('message-bubble');
-                    messageBubble.textContent = data.message || '';
-                    messageElement.appendChild(messageBubble);
+                } catch (error) {
+                    console.error('Error displaying message:', error);
                 }
-
-                // Add timestamp
-                const timestamp = document.createElement('span');
-                timestamp.className = 'timestamp';
-                timestamp.textContent = new Date(data.timestamp).toLocaleTimeString();
-                messageElement.appendChild(timestamp);
-
-                // Add to messages container
-                const messagesContainer = document.querySelector('.messages');
-                if (messagesContainer) {
-                    messagesContainer.appendChild(messageElement);
-                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-                }
-            } catch (error) {
-                console.error('Error displaying message:', error);
             }
         }
 
@@ -507,119 +506,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const plusButton = document.querySelector('.input-area button:nth-child(4)');
     
     cameraButton.addEventListener('click', () => {
-        if (!activeReceiver) {
-            alert('Please select a chat before uploading a file.');
-            return;
-        }
-
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
         fileInput.accept = '*/*';
-        fileInput.style.display = 'none';
-        document.body.appendChild(fileInput);
+        fileInput.click();
 
         fileInput.onchange = (e) => {
             const file = e.target.files[0];
             if (file) {
                 handleFileUpload(file);
             }
-            document.body.removeChild(fileInput);
         };
-
-        fileInput.click();
     });
-
-    function handleFileUpload(file) {
-        // Create and display the message element with upload status
-        const messageElement = document.createElement('div');
-        messageElement.className = 'message sent';
-        
-        const statusContainer = document.createElement('div');
-        statusContainer.className = 'file-container';
-        statusContainer.innerHTML = `
-            <div class="file-icon">${getFileIcon(file.type)}</div>
-            <div class="file-info">
-                <div class="file-name">${file.name}</div>
-                <div class="file-size">${formatFileSize(file.size)}</div>
-            </div>
-            <div class="upload-status">Uploading...</div>
-        `;
-        
-        messageElement.appendChild(statusContainer);
-        const messagesContainer = document.querySelector('.messages');
-        messagesContainer.appendChild(messageElement);
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
-        // Create FormData
-        const formData = new FormData();
-        formData.append('file', file);
-
-        // Send file to server
-        fetch('http://localhost:3000/upload', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                const fileData = {
-                    name: file.name,
-                    type: file.type,
-                    size: file.size,
-                    url: `http://localhost:3000${data.url}`
-                };
-
-                // Create message data
-                const messageData = {
-                    type: 'file',
-                    fileData: fileData,
-                    sender: username,
-                    receiver: activeReceiver,
-                    timestamp: Date.now()
-                };
-
-                // Emit socket message
-                socket.emit('sendMessage', messageData);
-
-                // Update the message element
-                statusContainer.innerHTML = `
-                    <div class="file-icon">${getFileIcon(fileData.type)}</div>
-                    <div class="file-info">
-                        <div class="file-name">${fileData.name}</div>
-                        <div class="file-size">${formatFileSize(fileData.size)}</div>
-                    </div>
-                    <a href="${fileData.url}" class="download-button" download="${fileData.name}" target="_blank">⬇️</a>
-                `;
-
-                // Add timestamp
-                const timestamp = document.createElement('span');
-                timestamp.className = 'timestamp';
-                timestamp.textContent = new Date(messageData.timestamp).toLocaleTimeString();
-                messageElement.appendChild(timestamp);
-
-                // Update sidebar
-                updateLastMessageInSidebar(activeReceiver, `[${file.name}]`, "You", messageData.timestamp);
-
-                // Store file info
-                const files = JSON.parse(localStorage.getItem(`files_${activeReceiver}`) || '[]');
-                files.push(file.name);
-                localStorage.setItem(`files_${activeReceiver}`, JSON.stringify(files));
-            } else {
-                throw new Error(data.error || 'Upload failed');
-            }
-        })
-        .catch(error => {
-            console.error('Upload error:', error);
-            statusContainer.innerHTML = `
-                <div class="file-icon">❌</div>
-                <div class="file-info">
-                    <div class="file-name">Upload failed</div>
-                    <div class="file-size error-message">${error.message}</div>
-                </div>
-            `;
-            messageElement.style.color = 'red';
-        });
-    }
 
     function getFileIcon(fileType) {
         if (fileType.startsWith('image/')) return '🖼️';
@@ -641,14 +539,109 @@ document.addEventListener('DOMContentLoaded', () => {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 
+    function handleFileUpload(file) {
+            if (!activeReceiver) {
+            alert('Please select a chat before uploading a file.');
+                return;
+            }
+    
+        const formData = new FormData();
+        formData.append('file', file);
+    
+        fetch('http://localhost:3000/upload', {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                const fileData = {
+                    name: file.name,
+                    type: file.type,
+                    size: file.size,
+                    url: data.url  // Use the URL from the response
+                };
+    
+                const messageData = {
+                    type: 'file',
+                    fileData: fileData,
+                    sender: username,
+                    receiver: activeReceiver,
+                    timestamp: Date.now()
+                };
+    
+                // Emit the message via Socket.IO
+                socket.emit('sendMessage', messageData);
+    
+                // Display the message in UI
+                const messageElement = document.createElement('div');
+                messageElement.className = 'message sent';
+    
+                const fileContainer = document.createElement('div');
+                fileContainer.className = 'file-container';
+    
+                const icon = document.createElement('div');
+                icon.className = 'file-icon';
+                icon.textContent = getFileIcon(fileData.type);
+                fileContainer.appendChild(icon);
+    
+                const info = document.createElement('div');
+                info.className = 'file-info';
+    
+                const name = document.createElement('div');
+                name.className = 'file-name';
+                name.textContent = fileData.name;
+                info.appendChild(name);
+    
+                const size = document.createElement('div');
+                size.className = 'file-size';
+                size.textContent = formatFileSize(fileData.size);
+                info.appendChild(size);
+    
+                fileContainer.appendChild(info);
+    
+                // Add download link
+                const downloadLink = document.createElement('a');
+                downloadLink.href = fileData.url;
+                downloadLink.download = fileData.name;
+                downloadLink.className = 'download-button';
+                downloadLink.textContent = '⬇️';
+                fileContainer.appendChild(downloadLink);
+    
+                messageElement.appendChild(fileContainer);
+    
+                const timestamp = document.createElement('span');
+                timestamp.className = 'timestamp';
+                timestamp.textContent = new Date(messageData.timestamp).toLocaleTimeString();
+                messageElement.appendChild(timestamp);
+    
+                const messagesContainer = document.querySelector('.messages');
+                messagesContainer.appendChild(messageElement);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+                updateLastMessageInSidebar(activeReceiver, `[${file.name}]`, "You", messageData.timestamp);
+            } else {
+                console.error('Upload failed:', data.error);
+                alert('Failed to upload file: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Upload error:', error);
+            alert('Upload failed. Please try again.');
+        });
+    }
+
     function displayMessage(message, isSent = false) {
-        console.log('Displaying message:', { message, isSent }); // Debug log
-        
+        console.log('Displaying message:', {
+            ...message,
+            fileData: message.fileData ? {
+                ...message.fileData,
+                data: message.fileData.data.substring(0, 100) + '...' // Log truncated data
+            } : undefined
+        });
+
         const messageContainer = document.createElement('div');
         messageContainer.className = `message ${isSent ? 'sent' : 'received'}`;
-        messageContainer.dataset.messageId = message.id; // Ensure message ID is set
-        
-        console.log('Message container created with ID:', message.id); // Debug log
 
         try {
             if (message.type === 'file') {
@@ -715,152 +708,16 @@ document.addEventListener('DOMContentLoaded', () => {
             // Add to messages container
             const messagesContainer = document.querySelector('.messages');
             if (messagesContainer) {
-                if (message.isPinned) {
-                    const pinnedSection = messagesContainer.querySelector('.pinned-messages-section') || createPinnedSection();
-                    pinnedSection.appendChild(messageContainer);
-                } else {
-                    messagesContainer.appendChild(messageContainer);
-                }
+                messagesContainer.appendChild(messageContainer);
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            } else {
+                console.error('Messages container not found');
             }
-
-            // Add context menu event listener
-            messageContainer.addEventListener('contextmenu', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                
-                const contextMenu = document.getElementById('message-context-menu');
-                if (!contextMenu) {
-                    console.error('Message context menu not found');
-                    return;
-                }
-
-                console.log('Context menu triggered for message:', message.id); // Debug log
-
-                contextMenu.style.display = 'block';
-                contextMenu.style.left = `${e.pageX}px`;
-                contextMenu.style.top = `${e.pageY}px`;
-                contextMenu.dataset.messageId = message.id;
-                contextMenu.dataset.isPinned = message.isPinned;
-                
-                const pinOption = contextMenu.querySelector('[data-action="pin"]');
-                if (pinOption) {
-                    pinOption.innerHTML = message.isPinned ? 
-                        '<span class="icon">📌</span> Unpin Message' : 
-                        '<span class="icon">📍</span> Pin Message';
-                }
-            });
-
         } catch (error) {
             console.error('Error displaying message:', error);
             alert('Error displaying message. Please try again.');
         }
     }
-
-    function createPinnedSection() {
-        const messagesContainer = document.querySelector('.messages');
-        const pinnedSection = document.createElement('div');
-        pinnedSection.className = 'pinned-messages-section';
-        
-        const pinnedHeader = document.createElement('div');
-        pinnedHeader.className = 'pinned-messages-header';
-        pinnedHeader.innerHTML = '📌 Pinned Messages';
-        
-        const pinnedContent = document.createElement('div');
-        pinnedContent.className = 'pinned-messages-content';
-        
-        pinnedSection.appendChild(pinnedHeader);
-        pinnedSection.appendChild(pinnedContent);
-        messagesContainer.insertBefore(pinnedSection, messagesContainer.firstChild);
-        
-        return pinnedContent;
-    }
-
-    function toggleMessagePin(messageId, messageElement) {
-        console.log('Toggling pin for message:', { messageId, messageElement }); // Debug log
-        
-        const isCurrentlyPinned = messageElement.parentElement.classList.contains('pinned-messages-content');
-        const sender = localStorage.getItem('username');
-        const receiver = activeReceiver;
-        
-        console.log('Pin toggle details:', { sender, receiver, isCurrentlyPinned }); // Debug log
-        
-        if (!sender || !receiver) {
-            console.error('Missing sender or receiver:', { sender, receiver });
-            alert('Error: Missing user information');
-            return;
-        }
-        
-        console.log('[Client] Pinning message:', {
-            messageId,
-            isPinned: !isCurrentlyPinned,
-            sender,
-            receiver
-        });
-        fetch(`http://localhost:3000/api/messages/${messageId}/pin`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                isPinned: !isCurrentlyPinned,
-                sender: sender,
-                receiver: receiver
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                console.log("Pin updated successfully");
-            } else {
-                alert("Failed to update pin status");
-            }
-        })
-        .catch(error => {
-            console.error('Error toggling message pin:', error);
-        });
-    }
-
-    // Add CSS styles for pinned messages
-    const style = document.createElement('style');
-    style.textContent = `
-        .pinned-messages-section {
-            background-color: var(--pinned-bg, #f5f5f5);
-            border-bottom: 1px solid var(--border-color, #ddd);
-            margin-bottom: 10px;
-        }
-
-        .pinned-messages-header {
-            padding: 8px 12px;
-            font-weight: bold;
-            color: var(--pinned-text, #666);
-            font-size: 0.9em;
-        }
-
-        .pinned-messages-content {
-            padding: 8px;
-        }
-
-        .pin-message-button {
-            position: absolute;
-            right: 40px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 4px;
-            opacity: 0;
-            transition: opacity 0.2s;
-        }
-
-        .message:hover .pin-message-button {
-            opacity: 1;
-        }
-
-        .message {
-            position: relative;
-        }
-    `;
-    document.head.appendChild(style);
 
     plusButton.addEventListener('click', openCalendar);
 
@@ -1320,6 +1177,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Periodically fetch messages for the active chat
+    setInterval(() => {
+        if (activeReceiver) {
+            loadMessages(activeReceiver);
+        }
+    }, 500); // Fetch messages every 0.5 seconds
 
     // ==========================
     // ✉️ COMPOSE MESSAGE MODAL
@@ -1698,41 +1561,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     data.messages.forEach(message => {
                         const messageElement = document.createElement('div');
                         messageElement.classList.add('message', message.sender === sender ? 'sent' : 'received');
-                        messageElement.dataset.messageId = message.id;
 
                         const messageBubble = document.createElement('div');
                         messageBubble.classList.add('message-bubble');
                         messageBubble.textContent = message.message;
 
                         messageElement.appendChild(messageBubble);
-
-                        // Add context menu event listener
-                        messageElement.addEventListener('contextmenu', (e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            
-                            const contextMenu = document.getElementById('message-context-menu');
-                            if (!contextMenu) {
-                                console.error('Message context menu not found');
-                                return;
-                            }
-
-                            console.log('Context menu triggered for message:', message.id); // Debug log
-
-                            contextMenu.style.display = 'block';
-                            contextMenu.style.left = `${e.pageX}px`;
-                            contextMenu.style.top = `${e.pageY}px`;
-                            contextMenu.dataset.messageId = message.id;
-                            contextMenu.dataset.isPinned = message.isPinned;
-                            
-                            const pinOption = contextMenu.querySelector('[data-action="pin"]');
-                            if (pinOption) {
-                                pinOption.innerHTML = message.isPinned ? 
-                                    '<span class="icon">📌</span> Unpin Message' : 
-                                    '<span class="icon">📍</span> Pin Message';
-                            }
-                        });
-
                         messagesContainer.appendChild(messageElement);
                     });
 
@@ -2383,4 +2217,36 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
+
+    // Add event listener for right-click on messages
+    document.querySelector('.messages').addEventListener('contextmenu', (e) => {
+        e.preventDefault(); // Prevent the default browser context menu
+        const messageElement = e.target.closest('.message');
+        if (!messageElement) return;
+
+        const contextMenu = document.getElementById('message-context-menu');
+        if (!contextMenu) {
+            console.error('Context menu element not found');
+            return;
+        }
+
+        // Set the message ID in the context menu dataset
+        const messageId = messageElement.dataset.messageId;
+        contextMenu.dataset.messageId = messageId;
+
+        // Position the context menu at the mouse click location
+        contextMenu.style.left = `${e.pageX}px`;
+        contextMenu.style.top = `${e.pageY}px`;
+        contextMenu.style.display = 'block';
+        contextMenu.classList.remove('hidden');
+    });
+
+    // Hide the context menu when clicking outside
+    document.addEventListener('click', (e) => {
+        const contextMenu = document.getElementById('message-context-menu');
+        if (contextMenu && !e.target.closest('#message-context-menu')) {
+            contextMenu.style.display = 'none';
+            contextMenu.classList.add('hidden');
+        }
+    });
 });
