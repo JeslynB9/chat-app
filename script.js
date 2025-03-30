@@ -218,39 +218,75 @@ function closeInfoPopup() {
 }
 
 function openInfoPopup(username, profilePicture, files) {
-    const popup = document.getElementById('info-popup');
-    const overlay = document.getElementById('popup-overlay');
-    const popupUsername = document.getElementById('popup-username');
-    const popupProfilePicture = document.getElementById('popup-profile-picture');
-    const popupFiles = document.getElementById('popup-files');
+    const popup = document.createElement('div');
+    popup.className = 'info-popup';
+    const overlay = document.createElement('div');
+    overlay.className = 'popup-overlay';
+    document.body.appendChild(overlay);
 
-    popupUsername.textContent = username || 'N/A';
-    popupProfilePicture.src = profilePicture || 'default-avatar.jpg';
+    popup.innerHTML = `
+        <div class="popup-content">
+            <button class="close-button">&times;</button>
+            <h3>${username}</h3>
+            <img src="${profilePicture}" alt="Profile Picture">
+            <ul>
+                ${files.map(file => `<li>${file}</li>`).join('')}
+            </ul>
+        </div>
+    `;
+    document.body.appendChild(popup);
 
-    // Clear and populate the files list
-    popupFiles.innerHTML = '';
-    if (files && files.length > 0) {
-        files.forEach(file => {
-            const fileItem = document.createElement('li');
-            fileItem.textContent = file;
-            popupFiles.appendChild(fileItem);
-        });
-    } else {
-        const noFilesItem = document.createElement('li');
-        noFilesItem.textContent = 'No files sent.';
-        popupFiles.appendChild(noFilesItem);
-    }
+    popup.querySelector('.close-button').addEventListener('click', () => {
+        popup.remove();
+        overlay.remove();
+    });
 
-    popup.style.display = 'block';
-    overlay.style.display = 'block'; // Show the overlay
+    overlay.addEventListener('click', () => {
+        popup.remove();
+        overlay.remove();
+    });
 }
 
 function closeInfoPopup() {
-    const popup = document.getElementById('info-popup');
-    const overlay = document.getElementById('popup-overlay');
+    const popup = document.querySelector('.info-popup');
+    const overlay = document.querySelector('.popup-overlay');
+    if (popup) popup.remove();
+    if (overlay) overlay.remove();
+}
 
-    popup.style.display = 'none';
-    overlay.style.display = 'none'; // Hide the overlay
+function displayPinMessagesPopup(pinId, messages) {
+    const overlay = document.createElement('div');
+    overlay.className = 'popup-overlay';
+    document.body.appendChild(overlay);
+
+    const popup = document.createElement('div');
+    popup.className = 'pin-messages-popup';
+    popup.innerHTML = `
+        <div class="popup-content">
+            <button class="close-button">&times;</button>
+            <h3>Messages for Pin: ${pinId}</h3>
+            <ul class="messages-list">
+                ${messages.map(msg => `
+                    <li>
+                        <strong>${msg.sender}:</strong> ${msg.message}
+                    </li>
+                `).join('')}
+            </ul>
+        </div>
+    `;
+    document.body.appendChild(popup);
+
+    // Add event listener to close the popup
+    popup.querySelector('.close-button').addEventListener('click', () => {
+        popup.remove();
+        overlay.remove();
+    });
+
+    // Close the popup when clicking on the overlay
+    overlay.addEventListener('click', () => {
+        popup.remove();
+        overlay.remove();
+    });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -393,6 +429,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     const messageElement = document.createElement('div');
                     messageElement.className = `message received`;
+                    messageElement.dataset.messageId = data.id; // Set the message ID
 
                     if (data.type === 'file') {
                         let fileData = data.fileData;
@@ -445,11 +482,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         messageElement.appendChild(fileContainer);
                     } else {
-            const messageBubble = document.createElement('div');
-            messageBubble.classList.add('message-bubble');
+                        const messageBubble = document.createElement('div');
+                        messageBubble.classList.add('message-bubble');
                         messageBubble.textContent = data.message || '';
-            messageElement.appendChild(messageBubble);
-        }
+                        messageElement.appendChild(messageBubble);
+                    }
 
                     // Add timestamp
                     const timestamp = document.createElement('span');
@@ -460,8 +497,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Add to messages container
                     const messagesContainer = document.querySelector('.messages');
                     if (messagesContainer) {
-        messagesContainer.appendChild(messageElement);
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                        messagesContainer.appendChild(messageElement);
+                        messagesContainer.scrollTop = messagesContainer.scrollHeight;
                     }
                 } catch (error) {
                     console.error('Error displaying message:', error);
@@ -540,10 +577,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleFileUpload(file) {
-            if (!activeReceiver) {
+        if (!activeReceiver) {
             alert('Please select a chat before uploading a file.');
-                return;
-            }
+            return;
+        }
     
         const formData = new FormData();
         formData.append('file', file);
@@ -576,6 +613,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Display the message in UI
                 const messageElement = document.createElement('div');
                 messageElement.className = 'message sent';
+                messageElement.dataset.messageId = messageData.id; // Set the message ID
     
                 const fileContainer = document.createElement('div');
                 fileContainer.className = 'file-container';
@@ -642,6 +680,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const messageContainer = document.createElement('div');
         messageContainer.className = `message ${isSent ? 'sent' : 'received'}`;
+        messageContainer.dataset.messageId = message.id; // Set the message ID
 
         try {
             if (message.type === 'file') {
@@ -771,6 +810,129 @@ document.addEventListener('DOMContentLoaded', () => {
             event.target.parentElement.remove();
         }
     });
+
+    // Add event listener for pin clicks
+    document.querySelector('.pins-container').addEventListener('click', (event) => {
+        const pinElement = event.target.closest('.pin');
+        if (!pinElement) return;
+
+        const pinId = pinElement.querySelector('.pin-text').textContent.trim();
+        const userA = localStorage.getItem('username'); // Current logged-in user
+        const userB = activeReceiver; // The user currently being chatted with
+
+        if (!userA || !userB || !pinId) {
+            console.error('Missing userA, userB, or pinId:', { userA, userB, pinId });
+            return;
+        }
+
+        // Fetch messages attached to the pin
+        fetch(`http://localhost:3000/chatDB/pins/messages?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}&pinId=${encodeURIComponent(pinId)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    displayPinMessagesPopup(pinId, data.messages);
+                } else {
+                    console.error('Failed to fetch messages for pin:', data.message);
+                    alert('Failed to fetch messages for this pin.');
+                }
+            })
+            .catch(error => console.error('Error fetching messages for pin:', error));
+    });
+
+    // Function to display the popup with messages
+    function displayPinMessagesPopup(pinId, messages) {
+        const overlay = document.createElement('div');
+        overlay.className = 'popup-overlay';
+        document.body.appendChild(overlay);
+
+        const popup = document.createElement('div');
+        popup.className = 'pin-messages-popup';
+        popup.innerHTML = `
+            <div class="popup-content">
+                <button class="close-button">&times;</button>
+                <h3>Messages for Pin: ${pinId}</h3>
+                <ul class="messages-list">
+                    ${messages.map(msg => `
+                        <li>
+                            <strong>${msg.sender}:</strong> ${msg.message}
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+        `;
+        document.body.appendChild(popup);
+
+        // Add event listener to close the popup
+        popup.querySelector('.close-button').addEventListener('click', () => {
+            popup.remove();
+            overlay.remove();
+        });
+
+        // Close the popup when clicking on the overlay
+        overlay.addEventListener('click', () => {
+            popup.remove();
+            overlay.remove();
+        });
+    }
+
+    // Add CSS for the popup
+    const pinMessagesPopupStyle = document.createElement('style');
+    pinMessagesPopupStyle.textContent = `
+        .pin-messages-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            z-index: 1001;
+            padding: 20px;
+            width: 400px;
+            max-height: 80%;
+            overflow-y: auto;
+        }
+
+        .pin-messages-popup .popup-content {
+            position: relative;
+        }
+
+        .pin-messages-popup .close-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            cursor: pointer;
+            color: var(--text-color);
+        }
+
+        .pin-messages-popup .messages-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .pin-messages-popup .messages-list li {
+            margin-bottom: 10px;
+            padding: 5px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+    `;
+    document.head.appendChild(pinMessagesPopupStyle);
 
     // ==========================
     // 📌 PINS (SIDEBAR)
@@ -1623,6 +1785,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     data.messages.forEach(message => {
                         const messageElement = document.createElement('div');
                         messageElement.classList.add('message', message.sender === sender ? 'sent' : 'received');
+                        messageElement.dataset.messageId = message.id; // Set the message ID
 
                         const messageBubble = document.createElement('div');
                         messageBubble.classList.add('message-bubble');
@@ -1958,7 +2121,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!option) return;
 
         const action = option.dataset.action;
-        const messageId = messageContextMenu.dataset.messageId;
+        const messageId = parseInt(messageContextMenu.dataset.messageId, 10); // Ensure message_id is an integer
 
         if (action === 'pin') {
             // Show the pin selection popup
@@ -2231,27 +2394,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     addPinButton.textContent = "+";
                     pinsContainer.appendChild(addPinButton);
 
-                    // Reattach the event listener for adding new pins
-                    addPinButton.addEventListener("click", handleAddPin);
-                } else {
-                    console.error('Failed to fetch pins:', data.message);
-                }
-            })
-            .catch(error => console.error('Error fetching pins:', error));
-    }
-
-    function deletePin(userA, userB, pinId) {
-        fetch(`http://localhost:3000/chatDB/pins/${pinId}?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`, {
-            method: 'DELETE'
-        })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    console.log(`Pin with ID ${pinId} deleted successfully.`);
-                    fetchAndRenderPins(); // Refresh the pins in the main UI
-                } else {
-                    console.error('Failed to delete pin:', data.message);
-                    alert('Failed to delete pin.');
                 }
             })
             .catch(error => console.error('Error deleting pin:', error));
@@ -2289,9 +2431,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // Add event listener for right-click on messages
     document.querySelector('.messages').addEventListener('contextmenu', (e) => {
         e.preventDefault(); // Prevent the default browser context menu
+
+        // Find the closest message element
         const messageElement = e.target.closest('.message');
         if (!messageElement) return;
 
+        // Retrieve the message ID from the data attribute
+        const messageId = messageElement.dataset.messageId;
+        if (!messageId) {
+            console.error('Message ID is undefined. Ensure data-message-id is set on the message element.');
+            return;
+        }
+
+        // Show the context menu
         const contextMenu = document.getElementById('message-context-menu');
         if (!contextMenu) {
             console.error('Context menu element not found');
@@ -2299,7 +2451,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Set the message ID in the context menu dataset
-        const messageId = messageElement.dataset.messageId;
         contextMenu.dataset.messageId = messageId;
 
         // Position the context menu at the mouse click location
