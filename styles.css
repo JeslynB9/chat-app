@@ -1317,4 +1317,82 @@ body {
     display: block;
   } */
 
+.file-container {
+    display: flex;
+    align-items: center;
+    background-color: var(--chat-bg);
+    border-radius: 8px;
+    padding: 10px;
+    margin: 5px 0;
+    max-width: 300px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.file-icon {
+    font-size: 24px;
+    margin-right: 10px;
+    min-width: 30px;
+    text-align: center;
+}
+
+.file-info {
+    flex-grow: 1;
+    overflow: hidden;
+    margin-right: 10px;
+}
+
+.file-name {
+    font-weight: bold;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 2px;
+    color: var(--text-color);
+}
+
+.file-size {
+    font-size: 12px;
+    color: var(--text-color);
+    opacity: 0.7;
+}
+
+.download-button {
+    text-decoration: none;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 4px;
+    transition: transform 0.2s ease;
+}
+
+.download-button:hover {
+    transform: scale(1.1);
+}
+
+.message.sent .file-container {
+    background-color: var(--sent-bg);
+    color: var(--text-color-2);
+}
+
+.message.received .file-container {
+    background-color: var(--received-bg);
+    color: var(--text-color);
+}
+
+.message.sent .file-name,
+.message.sent .file-size {
+    color: var(--text-color-2);
+}
+
+.message img {
+    max-width: 200px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.message img:hover {
+    transform: scale(1.05);
+}
+
 

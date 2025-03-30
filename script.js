@@ -383,70 +383,101 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('receiveMessage', (data) => {
         if (data.sender === username || data.receiver === username) {
-            console.log('New message received:', data);
-
             // Update the last message in the sidebar
-            const displayText = data.image ? '[Image]' : data.message;
+            const displayText = data.type === 'file' ? `[${data.fileData.name}]` : data.message;
             const displaySender = data.sender === username ? "You" : data.sender;
             updateLastMessageInSidebar(data.sender === username ? data.receiver : data.sender, displayText, displaySender, data.timestamp);
 
-            if (data.sender === activeReceiver || data.receiver === activeReceiver) {
-                // Fetch messages for the active chat
-                loadMessages(activeReceiver);
+            // Only display the message if it's in the current chat
+            if ((data.sender === activeReceiver || data.receiver === activeReceiver) && data.sender !== username) {
+                try {
+                    const messageElement = document.createElement('div');
+                    messageElement.className = `message received`;
+
+                    if (data.type === 'file') {
+                        let fileData = data.fileData;
+                        // Try to parse the message if it's a string
+                        if (typeof data.message === 'string' && data.message.startsWith('{')) {
+                            try {
+                                const parsedMessage = JSON.parse(data.message);
+                                if (parsedMessage.type === 'file') {
+                                    fileData = parsedMessage.fileData;
+                                }
+                            } catch (e) {
+                                console.error('Error parsing file message:', e);
+                            }
+                        }
+
+                        const fileContainer = document.createElement('div');
+                        fileContainer.className = 'file-container';
+
+                        if (fileData.type.startsWith('image/')) {
+                            // For images, display a thumbnail
+                            const img = document.createElement('img');
+                            img.src = fileData.url; // Use the server-provided URL
+                            img.alt = fileData.name;
+                            img.style.maxWidth = '200px';
+                            img.style.borderRadius = '8px';
+                            img.style.cursor = 'pointer';
+                            img.onclick = () => window.open(fileData.url, '_blank');
+                            fileContainer.appendChild(img);
+                        } else {
+                            // For other files, show icon and info
+                            const icon = document.createElement('div');
+                            icon.className = 'file-icon';
+                            icon.textContent = getFileIcon(fileData.type);
+                            fileContainer.appendChild(icon);
+
+                            const info = document.createElement('div');
+                            info.className = 'file-info';
+
+                            const name = document.createElement('div');
+                            name.className = 'file-name';
+                            name.textContent = fileData.name;
+                            info.appendChild(name);
+
+                            const size = document.createElement('div');
+                            size.className = 'file-size';
+                            size.textContent = formatFileSize(fileData.size);
+                            info.appendChild(size);
+
+                            fileContainer.appendChild(info);
+                        }
+
+                        const downloadLink = document.createElement('a');
+                        downloadLink.href = fileData.url; // Use the server-provided URL
+                        downloadLink.download = fileData.name;
+                        downloadLink.className = 'download-button';
+                        downloadLink.textContent = '⬇️';
+                        fileContainer.appendChild(downloadLink);
+
+                        messageElement.appendChild(fileContainer);
+                    } else {
+                        const messageBubble = document.createElement('div');
+                        messageBubble.classList.add('message-bubble');
+                        messageBubble.textContent = data.message || '';
+                        messageElement.appendChild(messageBubble);
+                    }
+
+                    // Add timestamp
+                    const timestamp = document.createElement('span');
+                    timestamp.className = 'timestamp';
+                    timestamp.textContent = new Date(data.timestamp).toLocaleTimeString();
+                    messageElement.appendChild(timestamp);
+
+                    // Add to messages container
+                    const messagesContainer = document.querySelector('.messages');
+                    if (messagesContainer) {
+                        messagesContainer.appendChild(messageElement);
+                        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                    }
+                } catch (error) {
+                    console.error('Error displaying message:', error);
+                }
             }
         }
-    
-        const messageElement = document.createElement('div');
-        messageElement.classList.add('message', 'received');
-    
-        if (data.image) {
-            // 👀 Handle image message
-            const image = document.createElement('img');
-            image.src = data.image;
-            image.alt = 'Received Image';
-            image.style.maxWidth = '200px';
-            image.style.borderRadius = '8px';
-            messageElement.appendChild(image);
-        } else {
-            // 💬 Handle text message
-            const usernameElement = document.createElement('div');
-            usernameElement.classList.add('username');
-            usernameElement.textContent = data.sender;
-    
-            const messageBubble = document.createElement('div');
-            messageBubble.classList.add('message-bubble');
-            messageBubble.textContent = data.message;
-    
-            messageElement.appendChild(usernameElement);
-            messageElement.appendChild(messageBubble);
-        }
 
-        const image = document.createElement('img');
-        image.src = data.image;
-        image.alt = 'Received Image';
-        image.style.maxWidth = '200px';
-        image.style.borderRadius = '8px';
-        image.style.cursor = 'pointer';
-        image.addEventListener('click', () => {
-            window.open(data.image, '_blank'); // Open in full screen
-        });
-
-        const filename = document.createElement('div');
-        filename.textContent = data.image.split('/').pop(); // Extract filename from URL
-        filename.style.fontSize = '12px';
-        filename.style.color = '#555';
-
-        messageElement.appendChild(image);
-        messageElement.appendChild(filename);
-            
-        messagesContainer.appendChild(messageElement);
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    
-        // ✅ Update sidebar last message
-        const displayText = data.image ? '[Image]' : data.message;
-        updateLastMessageInSidebar(data.sender, displayText, data.sender, data.timestamp);
-    
-        // 🔔 Unread logic
+        // Handle unread messages
         if (activeReceiver !== data.sender) {
             const unreadCount = parseInt(localStorage.getItem(`unread_${data.sender}`) || '0', 10) + 1;
             localStorage.setItem(`unread_${data.sender}`, unreadCount);
@@ -485,62 +516,230 @@ document.addEventListener('DOMContentLoaded', () => {
     cameraButton.addEventListener('click', () => {
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
-        fileInput.accept = 'image/*';
-    
-        fileInput.addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
-    
-            if (!activeReceiver) {
-                alert("Please select a chat before uploading.");
-                return;
+        fileInput.accept = '*/*';
+        fileInput.click();
+
+        fileInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                handleFileUpload(file);
             }
-    
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const imageUrl = e.target.result;
-    
-                // Save file name in localStorage
-                const files = JSON.parse(localStorage.getItem(`files_${activeReceiver}`) || '[]');
-                files.push(file.name);
-                localStorage.setItem(`files_${activeReceiver}`, JSON.stringify(files));
-    
-                // Show in chat
-                const messageElement = document.createElement('div');
-                messageElement.classList.add('message', 'sent');
-    
-                const image = document.createElement('img');
-                image.src = imageUrl;
-                image.alt = file.name;
-                image.style.maxWidth = '200px';
-                image.style.borderRadius = '8px';
-                image.style.marginTop = '8px';
-    
-                messageElement.appendChild(image);
-                messagesContainer.appendChild(messageElement);
-                messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
-                    // 2️⃣ Send to server (or just to socket for now)
-                socket.emit('sendMessage', {
-                    sender: username,
-                    receiver: activeReceiver,
-                    message: '', // Blank message
-                    image: imageUrl,
-                    timestamp: Date.now()
-                });
-
-                // 3️⃣ Show info popup
-                const profilePicture = getOrGenerateProfilePictureForUser(activeReceiver);
-                openInfoPopup(activeReceiver, profilePicture, files);
-    
-            };
-    
-            reader.readAsDataURL(file);
-        });
-    
-        fileInput.click(); // Trigger file dialog after setting up event
+        };
     });
 
+    function getFileIcon(fileType) {
+        if (fileType.startsWith('image/')) return '🖼️';
+        if (fileType.startsWith('video/')) return '🎥';
+        if (fileType.startsWith('audio/')) return '🎵';
+        if (fileType === 'application/pdf') return '📄';
+        if (fileType.includes('document') || fileType.includes('msword')) return '📝';
+        if (fileType.includes('spreadsheet') || fileType.includes('excel')) return '📊';
+        if (fileType.includes('presentation') || fileType.includes('powerpoint')) return '📊';
+        if (fileType.includes('zip') || fileType.includes('compressed')) return '🗜️';
+        return '📎';
+    }
+
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    function handleFileUpload(file) {
+        if (!activeReceiver) {
+            alert('Please select a chat before uploading a file.');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const fileData = {
+                    name: file.name,
+                    type: file.type,
+                    size: file.size,
+                    data: e.target.result
+                };
+
+                const messageData = {
+                    type: 'file',
+                    fileData: fileData,
+                    sender: username,
+                    receiver: activeReceiver,
+                    timestamp: Date.now()
+                };
+
+                // Create and display the message element immediately
+                const messageElement = document.createElement('div');
+                messageElement.className = `message sent`;
+
+                const fileContainer = document.createElement('div');
+                fileContainer.className = 'file-container';
+
+                if (fileData.type.startsWith('image/')) {
+                    // For images, display a thumbnail
+                    const img = document.createElement('img');
+                    img.src = e.target.result; // Use the local data URL for immediate display
+                    img.alt = fileData.name;
+                    img.style.maxWidth = '200px';
+                    img.style.borderRadius = '8px';
+                    img.style.cursor = 'pointer';
+                    img.onclick = () => window.open(img.src, '_blank');
+                    fileContainer.appendChild(img);
+                } else {
+                    // For other files, show icon and info
+                    const icon = document.createElement('div');
+                    icon.className = 'file-icon';
+                    icon.textContent = getFileIcon(fileData.type);
+                    fileContainer.appendChild(icon);
+
+                    const info = document.createElement('div');
+                    info.className = 'file-info';
+
+                    const name = document.createElement('div');
+                    name.className = 'file-name';
+                    name.textContent = fileData.name;
+                    info.appendChild(name);
+
+                    const size = document.createElement('div');
+                    size.className = 'file-size';
+                    size.textContent = formatFileSize(fileData.size);
+                    info.appendChild(size);
+
+                    fileContainer.appendChild(info);
+                }
+
+                const downloadLink = document.createElement('a');
+                downloadLink.href = e.target.result; // Use the local data URL for immediate display
+                downloadLink.download = fileData.name;
+                downloadLink.className = 'download-button';
+                downloadLink.textContent = '⬇️';
+                fileContainer.appendChild(downloadLink);
+
+                messageElement.appendChild(fileContainer);
+
+                // Add timestamp
+                const timestamp = document.createElement('span');
+                timestamp.className = 'timestamp';
+                timestamp.textContent = new Date(messageData.timestamp).toLocaleTimeString();
+                messageElement.appendChild(timestamp);
+
+                // Add to messages container
+                const messagesContainer = document.querySelector('.messages');
+                if (messagesContainer) {
+                    messagesContainer.appendChild(messageElement);
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                }
+
+                // Emit the message via Socket.IO
+                socket.emit('sendMessage', messageData);
+
+                // Update the last message in the sidebar
+                updateLastMessageInSidebar(activeReceiver, `[${file.name}]`, "You", messageData.timestamp);
+
+            } catch (error) {
+                console.error('Error processing file:', error);
+                alert('Error processing file. Please try again.');
+            }
+        };
+
+        reader.onerror = function(error) {
+            console.error('Error reading file:', error);
+            alert('Error reading file. Please try again.');
+        };
+
+        reader.readAsDataURL(file);
+    }
+
+    function displayMessage(message, isSent = false) {
+        console.log('Displaying message:', {
+            ...message,
+            fileData: message.fileData ? {
+                ...message.fileData,
+                data: message.fileData.data.substring(0, 100) + '...' // Log truncated data
+            } : undefined
+        });
+
+        const messageContainer = document.createElement('div');
+        messageContainer.className = `message ${isSent ? 'sent' : 'received'}`;
+
+        try {
+            if (message.type === 'file') {
+                const fileData = message.fileData;
+                
+                if (fileData.type.startsWith('image/')) {
+                    // Handle image files
+                    const img = document.createElement('img');
+                    img.src = fileData.data;
+                    img.alt = fileData.name;
+                    img.style.maxWidth = '200px';
+                    img.style.borderRadius = '8px';
+                    img.style.cursor = 'pointer';
+                    img.onclick = () => window.open(fileData.data, '_blank');
+                    messageContainer.appendChild(img);
+                } else {
+                    // Handle other file types
+                    const fileContainer = document.createElement('div');
+                    fileContainer.className = 'file-container';
+
+                    const icon = document.createElement('div');
+                    icon.className = 'file-icon';
+                    icon.textContent = getFileIcon(fileData.type);
+                    fileContainer.appendChild(icon);
+
+                    const info = document.createElement('div');
+                    info.className = 'file-info';
+
+                    const name = document.createElement('div');
+                    name.className = 'file-name';
+                    name.textContent = fileData.name;
+                    info.appendChild(name);
+
+                    const size = document.createElement('div');
+                    size.className = 'file-size';
+                    size.textContent = formatFileSize(fileData.size);
+                    info.appendChild(size);
+
+                    fileContainer.appendChild(info);
+
+                    const downloadLink = document.createElement('a');
+                    downloadLink.href = fileData.data;
+                    downloadLink.download = fileData.name;
+                    downloadLink.className = 'download-button';
+                    downloadLink.textContent = '⬇️';
+                    fileContainer.appendChild(downloadLink);
+
+                    messageContainer.appendChild(fileContainer);
+                }
+            } else {
+                // Handle text messages
+                const messageBubble = document.createElement('div');
+                messageBubble.classList.add('message-bubble');
+                messageBubble.textContent = message.message || '';
+                messageContainer.appendChild(messageBubble);
+            }
+
+            // Add timestamp
+            const timestamp = document.createElement('span');
+            timestamp.className = 'timestamp';
+            timestamp.textContent = new Date(message.timestamp).toLocaleTimeString();
+            messageContainer.appendChild(timestamp);
+
+            // Add to messages container
+            const messagesContainer = document.querySelector('.messages');
+            if (messagesContainer) {
+                messagesContainer.appendChild(messageContainer);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            } else {
+                console.error('Messages container not found');
+            }
+        } catch (error) {
+            console.error('Error displaying message:', error);
+            alert('Error displaying message. Please try again.');
+        }
+    }
 
     plusButton.addEventListener('click', openCalendar);
 

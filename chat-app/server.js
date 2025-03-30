@@ -375,25 +375,33 @@ io.on('connection', (socket) => {
     });
 
     socket.on('sendMessage', (data) => {
-        const { message, sender, receiver, timestamp } = data;
-      
+        console.log('Received message:', data); // Debug log
+
+        const { message, sender, receiver, timestamp, type, fileData } = data;
+        const room = [sender, receiver].sort().join('_');
+        
         // Save to chat-specific DB
         const db = getChatDB(sender, receiver);
+        const messageContent = type === 'file' ? JSON.stringify(fileData) : message;
+        
         db.run(
-          `INSERT INTO messages (sender, receiver, message, createdAt) VALUES (?, ?, ?, ?)`,
-          [sender, message, timestamp],
-          (err) => {
-            if (err) {
-              console.error('❌ Failed to save message:', err.message);
-            } else {
-              console.log(`💾 Message saved to chat_${[sender, receiver].sort().join('_')}.db`);
+            `INSERT INTO messages (sender, receiver, message, createdAt) VALUES (?, ?, ?, ?)`,
+            [sender, receiver, messageContent, timestamp],
+            (err) => {
+                if (err) {
+                    console.error('❌ Failed to save message:', err.message);
+                } else {
+                    console.log(`💾 Message saved to chat_${room}.db`);
+                    
+                    // Broadcast to the specific chat room
+                    io.to(room).emit('receiveMessage', {
+                        ...data,
+                        timestamp: timestamp || Date.now()
+                    });
+                }
             }
-          }
         );
-      
-        // Broadcast message to all clients
-        io.emit('receiveMessage', data);
-      });
+    });
 
     socket.on('sendImage', (data) => {
         console.log('Image received:', data);
