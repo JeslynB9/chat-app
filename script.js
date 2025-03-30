@@ -372,10 +372,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('receiveMessage', (data) => {
         // Only display the message if it's in the current chat
-        if ((data.sender === activeReceiver || data.receiver === activeReceiver) && data.sender !== username) {
+        if ((data.sender === activeReceiver || data.receiver === activeReceiver)) {
             try {
                 const messageElement = document.createElement('div');
-                messageElement.className = `message received`;
+                messageElement.className = `message ${data.sender === username ? 'sent' : 'received'}`;
                 messageElement.dataset.messageId = data.id;
 
                 if (data.type === 'file') {
