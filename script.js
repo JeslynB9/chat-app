@@ -1101,6 +1101,15 @@ document.addEventListener('DOMContentLoaded', () => {
             contextMenu.style.left = `${e.pageX}px`;
             contextMenu.style.top = `${e.pageY}px`;
             contextMenu.dataset.username = username;
+            
+            // Update pin option text based on current state
+            const pinOption = contextMenu.querySelector('[data-action="pin"]');
+            if (chatItem.classList.contains('pinned')) {
+                pinOption.innerHTML = '📌 Unpin Chat';
+            } else {
+                pinOption.innerHTML = '📌 Pin Chat';
+            }
+            
             contextMenu.classList.remove('hidden');
         });
 
@@ -1114,6 +1123,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Handle context menu options
     document.querySelectorAll('.context-menu-option').forEach(option => {
         option.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent event bubbling
             const action = e.target.dataset.action;
             const username = contextMenu.dataset.username;
             const chatItem = Array.from(chatList.children).find(chat => 
@@ -1123,9 +1133,28 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!chatItem) return;
 
             if (action === 'pin') {
-                chatList.prepend(chatItem);
-                chatItem.classList.add('pinned');
-                chatItem.classList.remove('archived');
+                if (chatItem.classList.contains('pinned')) {
+                    // If already pinned, unpin it
+                    chatItem.classList.remove('pinned');
+                    // Move to original position (after pinned chats)
+                    const lastPinnedChat = Array.from(chatList.children)
+                        .filter(chat => chat.classList.contains('pinned'))
+                        .pop();
+                    if (lastPinnedChat) {
+                        lastPinnedChat.after(chatItem);
+                    } else {
+                        chatList.prepend(chatItem);
+                    }
+                    // Update the pin option text
+                    e.target.innerHTML = '📌 Pin Chat';
+                } else {
+                    // If not pinned, pin it
+                    chatItem.classList.add('pinned');
+                    chatItem.classList.remove('archived');
+                    chatList.prepend(chatItem);
+                    // Update the pin option text
+                    e.target.innerHTML = '📌 Unpin Chat';
+                }
             } 
             else if (action === 'archive') {
                 chatList.appendChild(chatItem);
@@ -1133,7 +1162,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 chatItem.classList.remove('pinned');
             } 
             else if (action === 'delete') {
-                if (confirm(`Are you sure you want to delete the chat with ${username}?`)) {
+                const confirmDelete = confirm(`Are you sure you want to delete the chat with ${username}?`);
+                if (confirmDelete) {
                     chatItem.remove();
                     if (activeReceiver === username) {
                         activeReceiver = null;
@@ -1519,27 +1549,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.querySelectorAll('.context-menu-option').forEach(option => {
-        option.addEventListener('click', (e) => {
-            const action = e.target.dataset.action;
-            const username = document.getElementById('chat-context-menu').dataset.username;
-            if (!username) return;
-    
-            const chatItem = Array.from(chatList.children).find(c =>
-                c.querySelector('div > div:first-child')?.textContent.trim() === username
-            );
-    
-            if (!chatItem) return;
-    
-            if (action === 'pin') {
-                chatList.prepend(chatItem);
-            } else if (action === 'archive') {
-                alert(`Archived chat with ${username}`);
-            } else if (action === 'delete') {
-                chatItem.remove();
-            }
-    
-            document.getElementById('chat-context-menu').classList.add('hidden');
-        });
+        option.removeEventListener('click', () => {});
     });
 
     document.addEventListener('click', () => {
