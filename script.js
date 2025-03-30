@@ -1223,14 +1223,56 @@ document.addEventListener('DOMContentLoaded', () => {
 
     startChatButton.addEventListener('click', () => {
         if (selectedUser) {
-            console.log(`Starting chat with ${selectedUser}`);
-            addChatToSidebar(selectedUser); // Add the selected user to the sidebar
-            notifyNewChat(username); // Notify the server to add the chat for both users
-            activeChat = selectedUser;
-            messagesContainer.innerHTML = ''; // Clear messages for the new chat
-            composeModal.style.display = 'none';
+            const currentUser = localStorage.getItem('username');
+            console.log(`Starting chat between ${currentUser} and ${selectedUser}`);
+            
+            // Notify server about the new chat
+            fetch('http://localhost:3000/add-chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    sender: currentUser, 
+                    receiver: selectedUser 
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log('Chat created successfully:', data);
+                    
+                    // Add the chat to the sidebar
+                    addChatToSidebar(selectedUser);
+                    
+                    // Set this user as the active receiver
+                    activeReceiver = selectedUser;
+                    
+                    // Update the chat header
+                    chatHeaderUsername.textContent = selectedUser;
+                    const profilePicture = getOrGenerateProfilePictureForUser(selectedUser);
+                    chatHeaderProfilePicture.src = profilePicture;
+                    
+                    // Show the chat screen
+                    toggleChatScreen(true);
+                    
+                    // Clear the messages container
+                    const messagesContainer = document.querySelector('.messages');
+                    if (messagesContainer) {
+                        messagesContainer.innerHTML = '';
+                    }
+                    
+                    // Close the compose modal
+                    composeModal.style.display = 'none';
+                } else {
+                    console.error('Failed to create chat:', data.message);
+                    alert('Failed to create chat. Please try again.');
+                }
+            })
+            .catch(error => {
+                console.error('Error creating chat:', error);
+                alert('Failed to create chat. Please try again.');
+            });
         } else {
-            console.error('No user selected to start a chat.');
+            alert('Please select a user to start a chat with.');
         }
     });
 
@@ -1304,27 +1346,22 @@ document.addEventListener('DOMContentLoaded', () => {
         );
 
         if (existingChatItem) {
-            // Update the profile picture if the chat already exists
-            const profilePicture = getOrGenerateProfilePictureForUser(username);
-            const profileImage = existingChatItem.querySelector('img');
-            if (profileImage) {
-                profileImage.src = profilePicture;
-            }
-            return;
+            return; // Chat already exists, no need to add it again
         }
 
         const chatItem = document.createElement('div');
         chatItem.classList.add('chat-list-item');
         const profilePicture = getOrGenerateProfilePictureForUser(username);
+        
         chatItem.innerHTML = `
             <img src="${profilePicture}" alt="User" width="40" height="40">
             <div>
                 <div>${username}</div>
-                <div class="last-message">Loading...</div>
+                <div class="last-message">No messages yet</div>
             </div>
-            <div class="last-message-time">Loading...</div>
+            <div class="last-message-time"></div>
         `;
-        chatItem.setAttribute('data-last-timestamp', 0);
+        chatItem.setAttribute('data-last-timestamp', Date.now());
         
         // Add click event for selecting chat
         chatItem.addEventListener('click', () => {
@@ -1335,6 +1372,10 @@ document.addEventListener('DOMContentLoaded', () => {
             chatHeaderProfilePicture.src = profilePicture;
             toggleChatScreen(true);
             loadMessages(username);
+
+            // Clear unread count when chat is selected
+            localStorage.setItem(`unread_${username}`, '0');
+            updateUnreadCount(username, 0);
         });
 
         // Add context menu event
@@ -1348,16 +1389,19 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Update pin option text based on current state
             const pinOption = contextMenu.querySelector('[data-action="pin"]');
-            if (chatItem.classList.contains('pinned')) {
-                pinOption.innerHTML = '📌 Unpin Chat';
-            } else {
-                pinOption.innerHTML = '📌 Pin Chat';
+            if (pinOption) {
+                pinOption.innerHTML = chatItem.classList.contains('pinned') ? 
+                    '📌 Unpin Chat' : 
+                    '📌 Pin Chat';
             }
             
             contextMenu.classList.remove('hidden');
         });
 
+        // Add the chat item to the list
         chatList.appendChild(chatItem);
+        
+        // Fetch and display the last message
         fetchLastMessage(username, chatItem);
     }
 
@@ -1472,14 +1516,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Fetch and display the chat list for the logged-in user
     function fetchChatList() {
+        const username = localStorage.getItem('username');
+        if (!username) {
+            console.error('No username found in localStorage');
+            return;
+        }
+
+        console.log('Fetching chat list for:', username);
         return fetch(`http://localhost:3000/user-chats?username=${encodeURIComponent(username)}`)
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
+                    console.log('Received chat list:', data.chats);
                     chatList.innerHTML = ''; // Clear existing chat list
                     data.chats.forEach(chat => {
                         if (!localStorage.getItem(`deleted_chat_${chat.username}`)) {
-                            addChatToSidebar(chat.username); // Only add chats that haven't been deleted
+                            addChatToSidebar(chat.username);
                         }
                     });
                 } else {
@@ -1587,8 +1639,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Listen for updates to the chat list
     socket.on('updateChatList', ({ sender, receiver }) => {
-        if (sender === username || receiver === username) {
-            fetchChatList(); // Refresh the chat list for the logged-in user
+        const currentUser = localStorage.getItem('username');
+        console.log('Received updateChatList event:', { sender, receiver, currentUser });
+        
+        // Add the chat to sidebar if the current user is either the sender or receiver
+        if (currentUser === sender) {
+            addChatToSidebar(receiver);
+        } else if (currentUser === receiver) {
+            addChatToSidebar(sender);
         }
     });
 

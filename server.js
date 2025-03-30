@@ -28,6 +28,8 @@ if (!fs.existsSync(uploadsDir)) {
     }
 }
 
+const connectedUsers = new Set();
+
 function saveFile(base64Data, fileType) {
     try {
         // Extract the actual base64 data (remove data:image/png;base64, etc.)
@@ -54,9 +56,11 @@ io.on('connection', (socket) => {
 
     socket.on('setUsername', (username) => {
         socket.username = username;
-        socket.broadcast.emit('userJoined', username);
-        io.emit('updateUserList', Array.from(new Set([...connectedUsers, username])));
         connectedUsers.add(username);
+        socket.broadcast.emit('userJoined', username);
+        io.emit('updateUserList', Array.from(connectedUsers));
+        console.log('User set username:', username);
+        console.log('Connected users:', Array.from(connectedUsers));
     });
 
     socket.on('sendMessage', (message) => {
@@ -377,6 +381,8 @@ app.post('/add-chat', (req, res) => {
 
         // Emit event to notify both users about the new chat
         io.emit('updateChatList', { sender, receiver });
+
+        console.log(`Chat created between ${sender} and ${receiver}`);
 
         res.json({
             success: true,
