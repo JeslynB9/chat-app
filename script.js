@@ -384,6 +384,12 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('receiveMessage', (data) => {
         if (data.sender === username || data.receiver === username) {
             console.log('New message received:', data);
+
+            // Update the last message in the sidebar
+            const displayText = data.image ? '[Image]' : data.message;
+            const displaySender = data.sender === username ? "You" : data.sender;
+            updateLastMessageInSidebar(data.sender === username ? data.receiver : data.sender, displayText, displaySender, data.timestamp);
+
             if (data.sender === activeReceiver || data.receiver === activeReceiver) {
                 // Fetch messages for the active chat
                 loadMessages(activeReceiver);
@@ -586,7 +592,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     sidebarPinsContainer.addEventListener("click", (event) => {
         if (event.target.classList.contains("remove-pin-button-sidebar")) {
-            event.target.parentElement.remove();
+            const pinElement = event.target.parentElement;
+            const pinText = pinElement.querySelector('.pin-text-sidebar').textContent;
+
+            // Prevent deletion of "All" and "Unread" pins
+            if (pinText === "All" || pinText === "Unread") {
+                alert("This pin cannot be deleted.");
+                return;
+            }
+
+            pinElement.remove();
         }
     });
 
@@ -1053,6 +1068,58 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatScreen = document.getElementById('chat-screen');
     const inputArea = document.getElementById('main-chat-footer'); // Correctly select the footer containing the input area
 
+    function updateLastMessageInSidebar(username, message, sender, timestamp) {
+        const chatItem = Array.from(chatList.children).find(chat =>
+            chat.querySelector('div > div:first-child').textContent.trim() === username
+        );
+
+        if (chatItem) {
+            const lastMessageElement = chatItem.querySelector('.last-message');
+            const lastMessageTimeElement = chatItem.querySelector('.last-message-time');
+            const displaySender = sender === localStorage.getItem('username') ? "You" : sender;
+
+            // Update the last message and timestamp
+            lastMessageElement.textContent = `${displaySender}: ${message}`;
+            lastMessageTimeElement.textContent = formatTimestamp(timestamp);
+            chatItem.setAttribute('data-last-timestamp', timestamp);
+
+            reorderChatList(); // Reorder the chat list after updating the timestamp
+        }
+    }
+
+    function fetchLastMessage(username, chatItem) {
+        const sender = localStorage.getItem('username'); // Current logged-in user
+        const receiver = username;
+
+        fetch(`http://localhost:3000/messages?sender=${encodeURIComponent(sender)}&receiver=${encodeURIComponent(receiver)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.messages.length > 0) {
+                    // Get the most recent message
+                    const lastMessage = data.messages[data.messages.length - 1];
+                    const lastMessageElement = chatItem.querySelector('.last-message');
+                    const lastMessageTimeElement = chatItem.querySelector('.last-message-time');
+                    const displaySender = lastMessage.sender === sender ? "You" : lastMessage.sender;
+
+                    // Update the last message and timestamp
+                    lastMessageElement.textContent = `${displaySender}: ${lastMessage.message}`;
+                    lastMessageTimeElement.textContent = formatTimestamp(new Date(lastMessage.createdAt).getTime());
+                    chatItem.setAttribute('data-last-timestamp', new Date(lastMessage.createdAt).getTime());
+
+                    reorderChatList(); // Reorder the chat list after updating the timestamp
+                } else {
+                    // Handle case where no messages exist
+                    chatItem.querySelector('.last-message').textContent = 'No messages yet';
+                    chatItem.querySelector('.last-message-time').textContent = '';
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching last message:', error);
+                chatItem.querySelector('.last-message').textContent = 'Error loading message';
+                chatItem.querySelector('.last-message-time').textContent = '';
+            });
+    }
+
     function addChatToSidebar(username) {
         // Check if the chat already exists in the sidebar
         const existingChatItem = Array.from(chatList.children).find(chat =>
@@ -1187,36 +1254,6 @@ document.addEventListener('DOMContentLoaded', () => {
             contextMenu.classList.add('hidden');
         }
     });
-
-    function fetchLastMessage(username, chatItem) {
-        fetch(`http://localhost:3000/messages?sender=${encodeURIComponent(username)}&receiver=${encodeURIComponent(username)}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.success && data.messages.length > 0) {
-                    // Filter out "Chat started" messages
-                    const lastMessage = data.messages.reverse().find(message => !message.message.startsWith('Chat started:'));
-                    if (lastMessage) {
-                        const lastMessageElement = chatItem.querySelector('.last-message');
-                        const lastMessageTimeElement = chatItem.querySelector('.last-message-time');
-                        lastMessageElement.textContent = `${lastMessage.sender === username ? "You" : lastMessage.sender}: ${lastMessage.message}`;
-                        lastMessageTimeElement.textContent = formatTimestamp(new Date(lastMessage.createdAt).getTime()); // Ensure consistent formatting
-                        chatItem.setAttribute('data-last-timestamp', new Date(lastMessage.createdAt).getTime());
-                        reorderChatList(); // Reorder the chat list after updating the timestamp
-                    } else {
-                        chatItem.querySelector('.last-message').textContent = 'No messages yet';
-                        chatItem.querySelector('.last-message-time').textContent = '';
-                    }
-                } else {
-                    chatItem.querySelector('.last-message').textContent = 'No messages yet';
-                    chatItem.querySelector('.last-message-time').textContent = '';
-                }
-            })
-            .catch(error => {
-                console.error('Error fetching last message:', error);
-                chatItem.querySelector('.last-message').textContent = 'Error loading message';
-                chatItem.querySelector('.last-message-time').textContent = '';
-            });
-    }
 
     function reorderChatList() {
         const chatItems = Array.from(chatList.children);
@@ -1358,22 +1395,6 @@ document.addEventListener('DOMContentLoaded', () => {
             fetchChatList(); // Refresh the chat list for the logged-in user
         }
     });
-
-    function updateLastMessageInSidebar(username, message, sender, timestamp) {
-        const chatItem = Array.from(chatList.children).find(chat =>
-            chat.querySelector('div > div:first-child').textContent.trim() === username
-        );
-
-        if (chatItem) {
-            const lastMessageElement = chatItem.querySelector('.last-message');
-            const lastMessageTimeElement = chatItem.querySelector('.last-message-time');
-            const displaySender = sender === username ? "You" : sender;
-            lastMessageElement.textContent = `${displaySender}: ${message}`;
-            lastMessageTimeElement.textContent = formatTimestamp(timestamp); // Correctly format timestamp
-            chatItem.setAttribute('data-last-timestamp', timestamp); // Update the timestamp attribute
-            reorderChatList(); // Reorder the chat list after updating the timestamp
-        }
-    }
 
     const uploadProfilePictureInput = document.getElementById('upload-profile-picture');
     const uploadedProfilePicture = document.getElementById('uploaded-profile-picture');
