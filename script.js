@@ -1171,20 +1171,31 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function fetchTasks(userA, userB) {
+        if (!userA || !userB) {
+            console.error('Cannot fetch tasks. Missing users:', { userA, userB });
+            return;
+        }
+
         fetch(`http://localhost:3000/chatDB/tasks?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`)
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    console.log('Tasks fetched successfully:', data.tasks); // Debugging log
+                    console.log('Tasks fetched successfully:', data.tasks);
                     const taskList = document.getElementById('task-items');
-                    taskList.innerHTML = ''; // Clear the existing task list
-                    tasks = data.tasks; // Update the global tasks array
-                    completedTasks = tasks.filter(task => task.status === 'completed').length; // Count completed tasks
-                    updateProgress(); // Update the progress percentage
+                    if (!taskList) {
+                        console.error('Task list element not found');
+                        return;
+                    }
+
+                    taskList.innerHTML = ''; // Clear existing tasks
+                    tasks = data.tasks; // Update global tasks array
+                    completedTasks = tasks.filter(task => task.status === 'completed').length;
+                    updateProgress();
 
                     data.tasks.forEach(task => {
                         const taskItem = document.createElement('li');
-                        taskItem.classList.add('task-item'); // Add a class for styling
+                        taskItem.classList.add('task-item');
+                        taskItem.dataset.taskId = task.id;
                         taskItem.textContent = task.task;
 
                         // Add checkbox
@@ -1192,46 +1203,35 @@ document.addEventListener('DOMContentLoaded', () => {
                         checkbox.type = 'checkbox';
                         checkbox.checked = task.status === 'completed';
                         checkbox.style.position = 'absolute';
-                        checkbox.style.right = '40px'; // Position the checkbox to the right of the task name
+                        checkbox.style.right = '40px';
+                        
+                        // Update checkbox event listener
                         checkbox.addEventListener('change', () => {
-                            task.status = checkbox.checked ? 'completed' : 'not complete';
-                            completedTasks = tasks.filter(t => t.status === 'completed').length;
-                            updateProgress();
-
-                            // Update the task status in the database
-                            fetch(`http://localhost:3000/chatDB/tasks/${task.id}/status`, {
-                                method: 'PUT',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ status: task.status })
-                            })
-                            .then(res => res.json())
-                            .then(data => {
-                                if (data.success) {
-                                    console.log('Task status updated successfully:', data);
-                                } else {
-                                    console.error('Failed to update task status:', data.message);
-                                }
-                            })
-                            .catch(error => console.error('Error updating task status:', error));
+                            const newStatus = checkbox.checked ? 'completed' : 'not complete';
+                            try {
+                                updateTaskStatus(userA, userB, task.id, newStatus);
+                            } catch (error) {
+                                console.error('Failed to update task:', error);
+                                checkbox.checked = !checkbox.checked; // Revert checkbox state
+                            }
                         });
 
                         // Add delete button
                         const deleteButton = document.createElement('button');
-                        deleteButton.innerHTML = '&times;'; // "x" symbol
+                        deleteButton.innerHTML = '&times;';
                         deleteButton.classList.add('delete-task-button');
-                        deleteButton.style.width = '20px'; // Smaller width
-                        deleteButton.style.height = '20px'; // Smaller height
-                        deleteButton.style.fontSize = '12px'; // Smaller font size
+                        deleteButton.style.width = '20px';
+                        deleteButton.style.height = '20px';
+                        deleteButton.style.fontSize = '12px';
                         deleteButton.addEventListener('click', () => deleteTask(userA, userB, task.id, taskItem));
 
                         taskItem.appendChild(checkbox);
                         taskItem.appendChild(deleteButton);
-                        taskItem.style.position = 'relative'; // Ensure proper positioning
+                        taskItem.style.position = 'relative';
                         taskList.appendChild(taskItem);
                     });
                 } else {
-                    console.error('Failed to fetch tasks:', data.message); // Debugging log
-                    alert('Failed to fetch tasks.');
+                    console.error('Failed to fetch tasks:', data.message);
                 }
             })
             .catch(error => console.error('Error fetching tasks:', error));
@@ -1239,9 +1239,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateProgress() {
         const progress = tasks.length ? Math.round((completedTasks / tasks.length) * 100) : 0;
-        progressPercentage.textContent = `${progress}%`;
-        progressCircle.style.background = `conic-gradient(var(--sent-bg) 0% ${progress}%, var(--received-bg) ${progress}% 100%)`;
-        progressCircle.style.transition = 'background 0.3s ease-in-out';
+        const progressPercentage = document.querySelector('.progress-percentage');
+        const progressCircle = document.querySelector('.progress-circle');
+        
+        if (progressPercentage && progressCircle) {
+            progressPercentage.textContent = `${progress}%`;
+            progressCircle.style.background = `conic-gradient(var(--sent-bg) 0% ${progress}%, var(--received-bg) ${progress}% 100%)`;
+            progressCircle.style.transition = 'background 0.3s ease-in-out';
+            
+            // Log the update for debugging
+            console.log('Progress updated:', {
+                totalTasks: tasks.length,
+                completedTasks,
+                progress,
+                tasks: tasks.map(t => ({ id: t.id, status: t.status }))
+            });
+        } else {
+            console.error('Progress elements not found:', { progressPercentage, progressCircle });
+        }
     }
 
     function deleteTask(userA, userB, taskId, taskElement) {
@@ -1409,14 +1424,56 @@ document.addEventListener('DOMContentLoaded', () => {
 
     startChatButton.addEventListener('click', () => {
         if (selectedUser) {
-            console.log(`Starting chat with ${selectedUser}`);
-            addChatToSidebar(selectedUser); // Add the selected user to the sidebar
-            notifyNewChat(username); // Notify the server to add the chat for both users
-            activeChat = selectedUser;
-            messagesContainer.innerHTML = ''; // Clear messages for the new chat
-            composeModal.style.display = 'none';
+            const currentUser = localStorage.getItem('username');
+            console.log(`Starting chat between ${currentUser} and ${selectedUser}`);
+            
+            // Notify server about the new chat
+            fetch('http://localhost:3000/add-chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    sender: currentUser, 
+                    receiver: selectedUser 
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log('Chat created successfully:', data);
+                    
+                    // Add the chat to the sidebar
+                    addChatToSidebar(selectedUser);
+                    
+                    // Set this user as the active receiver
+                    activeReceiver = selectedUser;
+                    
+                    // Update the chat header
+                    chatHeaderUsername.textContent = selectedUser;
+                    const profilePicture = getOrGenerateProfilePictureForUser(selectedUser);
+                    chatHeaderProfilePicture.src = profilePicture;
+                    
+                    // Show the chat screen
+                    toggleChatScreen(true);
+                    
+                    // Clear the messages container
+                    const messagesContainer = document.querySelector('.messages');
+                    if (messagesContainer) {
+                        messagesContainer.innerHTML = '';
+                    }
+                    
+                    // Close the compose modal
+                    composeModal.style.display = 'none';
+                } else {
+                    console.error('Failed to create chat:', data.message);
+                    alert('Failed to create chat. Please try again.');
+                }
+            })
+            .catch(error => {
+                console.error('Error creating chat:', error);
+                alert('Failed to create chat. Please try again.');
+            });
         } else {
-            console.error('No user selected to start a chat.');
+            alert('Please select a user to start a chat with.');
         }
     });
 
@@ -1490,27 +1547,22 @@ document.addEventListener('DOMContentLoaded', () => {
         );
 
         if (existingChatItem) {
-            // Update the profile picture if the chat already exists
-            const profilePicture = getOrGenerateProfilePictureForUser(username);
-            const profileImage = existingChatItem.querySelector('img');
-            if (profileImage) {
-                profileImage.src = profilePicture;
-            }
-            return;
+            return; // Chat already exists, no need to add it again
         }
 
         const chatItem = document.createElement('div');
         chatItem.classList.add('chat-list-item');
         const profilePicture = getOrGenerateProfilePictureForUser(username);
+        
         chatItem.innerHTML = `
             <img src="${profilePicture}" alt="User" width="40" height="40">
             <div>
                 <div>${username}</div>
-                <div class="last-message">Loading...</div>
+                <div class="last-message">No messages yet</div>
             </div>
-            <div class="last-message-time">Loading...</div>
+            <div class="last-message-time"></div>
         `;
-        chatItem.setAttribute('data-last-timestamp', 0);
+        chatItem.setAttribute('data-last-timestamp', Date.now());
         
         // Add click event for selecting chat
         chatItem.addEventListener('click', () => {
@@ -1521,7 +1573,6 @@ document.addEventListener('DOMContentLoaded', () => {
             chatHeaderProfilePicture.src = profilePicture;
             toggleChatScreen(true);
             loadMessages(username);
-            fetchAndRenderPins(); // Fetch and display pins for the selected chat
         });
 
         // Add context menu event
@@ -1535,16 +1586,19 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Update pin option text based on current state
             const pinOption = contextMenu.querySelector('[data-action="pin"]');
-            if (chatItem.classList.contains('pinned')) {
-                pinOption.innerHTML = '📌 Unpin Chat';
-            } else {
-                pinOption.innerHTML = '📌 Pin Chat';
+            if (pinOption) {
+                pinOption.innerHTML = chatItem.classList.contains('pinned') ? 
+                    '📌 Unpin Chat' : 
+                    '📌 Pin Chat';
             }
             
             contextMenu.classList.remove('hidden');
         });
 
+        // Add the chat item to the list
         chatList.appendChild(chatItem);
+        
+        // Fetch and display the last message
         fetchLastMessage(username, chatItem);
     }
 
@@ -1659,14 +1713,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Fetch and display the chat list for the logged-in user
     function fetchChatList() {
+        const username = localStorage.getItem('username');
+        if (!username) {
+            console.error('No username found in localStorage');
+            return;
+        }
+
+        console.log('Fetching chat list for:', username);
         return fetch(`http://localhost:3000/user-chats?username=${encodeURIComponent(username)}`)
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
+                    console.log('Received chat list:', data.chats);
                     chatList.innerHTML = ''; // Clear existing chat list
                     data.chats.forEach(chat => {
                         if (!localStorage.getItem(`deleted_chat_${chat.username}`)) {
-                            addChatToSidebar(chat.username); // Only add chats that haven't been deleted
+                            addChatToSidebar(chat.username);
                         }
                     });
                 } else {
@@ -1775,8 +1837,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Listen for updates to the chat list
     socket.on('updateChatList', ({ sender, receiver }) => {
-        if (sender === username || receiver === username) {
-            fetchChatList(); // Refresh the chat list for the logged-in user
+        const currentUser = localStorage.getItem('username');
+        console.log('Received updateChatList event:', { sender, receiver, currentUser });
+        
+        // Add the chat to sidebar if the current user is either the sender or receiver
+        if (currentUser === sender) {
+            addChatToSidebar(receiver);
+        } else if (currentUser === receiver) {
+            addChatToSidebar(sender);
         }
     });
 
@@ -2400,4 +2468,221 @@ document.addEventListener('DOMContentLoaded', () => {
             contextMenu.classList.add('hidden');
         }
     });
+
+    // Add socket event listeners for task updates
+    socket.on('taskStatusChanged', ({ userA, userB, taskId, status }) => {
+        console.log('Received task status update:', { userA, userB, taskId, status });
+        const currentUser = localStorage.getItem('username');
+        const currentChat = activeReceiver;
+        
+        if ((currentUser === userA && currentChat === userB) || 
+            (currentUser === userB && currentChat === userA)) {
+            
+            // Update the task in the tasks array
+            const task = tasks.find(t => t.id === taskId);
+            if (task) {
+                task.status = status;
+                completedTasks = tasks.filter(t => t.status === 'completed').length;
+                updateProgress();
+                
+                // Update the checkbox in the UI
+                const taskItem = document.querySelector(`[data-task-id="${taskId}"]`);
+                if (taskItem) {
+                    const checkbox = taskItem.querySelector('input[type="checkbox"]');
+                    if (checkbox) {
+                        checkbox.checked = status === 'completed';
+                    }
+                }
+            }
+        }
+        
+        // Refresh tasks to ensure consistency
+        fetchTasks(userA, userB);
+    });
+
+    socket.on('taskUpdated', ({ userA, userB, task }) => {
+        const currentUser = localStorage.getItem('username');
+        const currentChat = activeReceiver;
+        
+        if ((currentUser === userA && currentChat === userB) || 
+            (currentUser === userB && currentChat === userA)) {
+            fetchTasks(userA, userB); // Refresh the task list
+        }
+    });
+
+    socket.on('taskDeleted', ({ userA, userB, taskId }) => {
+        const currentUser = localStorage.getItem('username');
+        const currentChat = activeReceiver;
+        
+        if ((currentUser === userA && currentChat === userB) || 
+            (currentUser === userB && currentChat === userA)) {
+            const taskItem = document.querySelector(`[data-task-id="${taskId}"]`);
+            if (taskItem) {
+                taskItem.remove();
+                tasks = tasks.filter(t => t.id !== taskId);
+                completedTasks = tasks.filter(t => t.status === 'completed').length;
+                updateProgress();
+            }
+        }
+    });
+
+    // Update the task status handling function
+    function updateTaskStatus(userA, userB, taskId, newStatus) {
+        return fetch(`http://localhost:3000/chatDB/tasks/${taskId}/status`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                status: newStatus,
+                userA: userA,
+                userB: userB
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                // Update will be handled by the socket event listener
+                console.log('Task status update sent successfully');
+            } else {
+                console.error('Failed to update task status:', data.message);
+                throw new Error(data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error updating task status:', error);
+            throw error;
+        });
+    }
+
+    // Update the socket event listener for task status changes
+    socket.on('taskStatusChanged', (data) => {
+        console.log('Received task status update:', data);
+        const currentUser = localStorage.getItem('username');
+        const currentChat = activeReceiver;
+        
+        // Check if this update is relevant for the current chat
+        if ((currentUser === data.userA && currentChat === data.userB) || 
+            (currentUser === data.userB && currentChat === data.userA)) {
+            
+            // Find and update the task in the tasks array
+            const task = tasks.find(t => t.id === data.taskId);
+            if (task) {
+                task.status = data.status;
+                completedTasks = tasks.filter(t => t.status === 'completed').length;
+                
+                // Update the UI
+                const taskItem = document.querySelector(`[data-task-id="${data.taskId}"]`);
+                if (taskItem) {
+                    const checkbox = taskItem.querySelector('input[type="checkbox"]');
+                    if (checkbox) {
+                        checkbox.checked = data.status === 'completed';
+                    }
+                }
+                
+                // Update the progress circle
+                updateProgress();
+            }
+        }
+    });
+
+    // Update the checkbox event listener in fetchTasks
+    function fetchTasks(userA, userB) {
+        if (!userA || !userB) {
+            console.error('Cannot fetch tasks. Missing users:', { userA, userB });
+            return;
+        }
+
+        return fetch(`http://localhost:3000/chatDB/tasks?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    console.log('Tasks fetched successfully:', data.tasks);
+                    const taskList = document.getElementById('task-items');
+                    if (!taskList) {
+                        console.error('Task list element not found');
+                        return;
+                    }
+
+                    taskList.innerHTML = ''; // Clear existing tasks
+                    tasks = data.tasks; // Update global tasks array
+                    completedTasks = tasks.filter(task => task.status === 'completed').length;
+                    updateProgress();
+
+                    data.tasks.forEach(task => {
+                        const taskItem = document.createElement('li');
+                        taskItem.classList.add('task-item');
+                        taskItem.dataset.taskId = task.id;
+                        taskItem.textContent = task.task;
+
+                        // Add checkbox
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.checked = task.status === 'completed';
+                        checkbox.style.position = 'absolute';
+                        checkbox.style.right = '40px';
+                        
+                        // Update checkbox event listener
+                        checkbox.addEventListener('change', async () => {
+                            const newStatus = checkbox.checked ? 'completed' : 'not complete';
+                            try {
+                                await updateTaskStatus(userA, userB, task.id, newStatus);
+                            } catch (error) {
+                                console.error('Failed to update task:', error);
+                                checkbox.checked = !checkbox.checked; // Revert checkbox state
+                            }
+                        });
+
+                        // Add delete button
+                        const deleteButton = document.createElement('button');
+                        deleteButton.innerHTML = '&times;';
+                        deleteButton.classList.add('delete-task-button');
+                        deleteButton.style.width = '20px';
+                        deleteButton.style.height = '20px';
+                        deleteButton.style.fontSize = '12px';
+                        deleteButton.addEventListener('click', () => deleteTask(userA, userB, task.id, taskItem));
+
+                        taskItem.appendChild(checkbox);
+                        taskItem.appendChild(deleteButton);
+                        taskItem.style.position = 'relative';
+                        taskList.appendChild(taskItem);
+                    });
+                } else {
+                    console.error('Failed to fetch tasks:', data.message);
+                }
+            })
+            .catch(error => console.error('Error fetching tasks:', error));
+    }
+
+    // Update the progress update function
+    function updateProgress() {
+        const progress = tasks.length ? Math.round((completedTasks / tasks.length) * 100) : 0;
+        const progressPercentage = document.querySelector('.progress-percentage');
+        const progressCircle = document.querySelector('.progress-circle');
+        
+        if (progressPercentage && progressCircle) {
+            progressPercentage.textContent = `${progress}%`;
+            progressCircle.style.background = `conic-gradient(var(--sent-bg) 0% ${progress}%, var(--received-bg) ${progress}% 100%)`;
+            progressCircle.style.transition = 'background 0.3s ease-in-out';
+            
+            // Log the update for debugging
+            console.log('Progress updated:', {
+                totalTasks: tasks.length,
+                completedTasks,
+                progress,
+                tasks: tasks.map(t => ({ id: t.id, status: t.status }))
+            });
+        } else {
+            console.error('Progress elements not found:', { progressPercentage, progressCircle });
+        }
+    }
+
+    // Add periodic task refresh
+    function startTaskRefresh() {
+        if (activeReceiver) {
+            const currentUser = localStorage.getItem('username');
+            fetchTasks(currentUser, activeReceiver);
+        }
+    }
+
+    // Set up periodic task refresh
+    setInterval(startTaskRefresh, 2000); // Refresh tasks every 2 seconds
 });

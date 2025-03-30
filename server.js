@@ -28,6 +28,8 @@ if (!fs.existsSync(uploadsDir)) {
     }
 }
 
+const connectedUsers = new Set();
+
 function saveFile(base64Data, fileType) {
     try {
         // Extract the actual base64 data (remove data:image/png;base64, etc.)
@@ -54,9 +56,11 @@ io.on('connection', (socket) => {
 
     socket.on('setUsername', (username) => {
         socket.username = username;
-        socket.broadcast.emit('userJoined', username);
-        io.emit('updateUserList', Array.from(new Set([...connectedUsers, username])));
         connectedUsers.add(username);
+        socket.broadcast.emit('userJoined', username);
+        io.emit('updateUserList', Array.from(connectedUsers));
+        console.log('User set username:', username);
+        console.log('Connected users:', Array.from(connectedUsers));
     });
 
     socket.on('sendMessage', (message) => {
@@ -115,9 +119,9 @@ io.on('connection', (socket) => {
     });
 
     socket.on('joinChat', ({ userA, userB }) => {
-        const room = [userA, userB].sort().join('_');
-        socket.join(room);
-        console.log(`User ${socket.id} joined room: ${room}`);
+        const chatRoom = [userA, userB].sort().join('-');
+        socket.join(chatRoom);
+        console.log(`User joined chat room: ${chatRoom}`);
     });
 
     socket.on('disconnect', () => {
@@ -127,6 +131,30 @@ io.on('connection', (socket) => {
             io.emit('updateUserList', Array.from(connectedUsers));
         }
         console.log('A user disconnected');
+    });
+
+    // Add task update event handler
+    socket.on('taskStatusUpdate', ({ userA, userB, taskId, status }) => {
+        console.log('Task status update received:', { userA, userB, taskId, status });
+        
+        // Broadcast the update to all connected clients
+        io.emit('taskStatusChanged', { 
+            userA, 
+            userB, 
+            taskId, 
+            status,
+            timestamp: Date.now()
+        });
+    });
+
+    socket.on('taskAdded', ({ userA, userB, task }) => {
+        console.log('New task added:', { userA, userB, task });
+        io.emit('taskUpdated', { userA, userB, task });
+    });
+
+    socket.on('taskDeleted', ({ userA, userB, taskId }) => {
+        console.log('Task deleted:', { userA, userB, taskId });
+        io.emit('taskDeleted', { userA, userB, taskId });
     });
 });
 
@@ -378,6 +406,8 @@ app.post('/add-chat', (req, res) => {
         // Emit event to notify both users about the new chat
         io.emit('updateChatList', { sender, receiver });
 
+        console.log(`Chat created between ${sender} and ${receiver}`);
+
         res.json({
             success: true,
             message: 'Chat created successfully'
@@ -430,6 +460,49 @@ app.get('/user-chats', (req, res) => {
             message: 'Error getting chat list'
         });
     }
+});
+
+// Update the task status endpoint
+app.put('/chatDB/tasks/:taskId/status', (req, res) => {
+    const { taskId } = req.params;
+    const { status, userA, userB } = req.body;
+
+    if (!userA || !userB) {
+        return res.status(400).json({
+            success: false,
+            message: 'Missing userA or userB'
+        });
+    }
+
+    const dbName = `chat_${userA}_${userB}.db`;
+    const db = new sqlite3.Database(dbName);
+
+    db.run('UPDATE tasks SET status = ? WHERE id = ?', [status, taskId], function(err) {
+        if (err) {
+            console.error('Error updating task status:', err);
+            res.status(500).json({
+                success: false,
+                message: 'Error updating task status'
+            });
+            return;
+        }
+
+        // Broadcast the update to all connected clients
+        io.emit('taskStatusChanged', { 
+            userA, 
+            userB, 
+            taskId, 
+            status,
+            timestamp: Date.now()
+        });
+
+        res.json({
+            success: true,
+            message: 'Task status updated successfully'
+        });
+    });
+
+    db.close();
 });
 
 // Start the server
