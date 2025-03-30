@@ -172,20 +172,17 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // File upload endpoint with better error handling
 app.post('/upload', (req, res) => {
-    // Set response headers to ensure JSON response
+    // Set response headers
     res.setHeader('Content-Type', 'application/json');
 
-    // Handle file upload
     upload(req, res, function(err) {
         if (err instanceof multer.MulterError) {
-            // A Multer error occurred when uploading
             console.error('Multer error:', err);
             return res.status(400).json({
                 success: false,
                 message: `Upload error: ${err.message}`
             });
         } else if (err) {
-            // An unknown error occurred
             console.error('Unknown upload error:', err);
             return res.status(500).json({
                 success: false,
@@ -193,7 +190,6 @@ app.post('/upload', (req, res) => {
             });
         }
 
-        // Check if file exists
         if (!req.file) {
             console.error('No file received');
             return res.status(400).json({
@@ -207,7 +203,7 @@ app.post('/upload', (req, res) => {
             console.log('File uploaded successfully:', req.file);
 
             // Return success response with file details
-            return res.status(200).json({
+            res.status(200).json({
                 success: true,
                 message: 'File uploaded successfully',
                 url: `/uploads/${req.file.filename}`,
@@ -220,7 +216,7 @@ app.post('/upload', (req, res) => {
             });
         } catch (error) {
             console.error('Error processing upload:', error);
-            return res.status(500).json({
+            res.status(500).json({
                 success: false,
                 message: 'Error processing upload'
             });
@@ -334,6 +330,106 @@ app.delete('/messages/:messageId', (req, res) => {
     });
     
     db.close();
+});
+
+// Add endpoint to handle new chat creation
+app.post('/add-chat', (req, res) => {
+    const { sender, receiver } = req.body;
+    
+    if (!sender || !receiver) {
+        return res.status(400).json({
+            success: false,
+            message: 'Sender and receiver are required'
+        });
+    }
+
+    try {
+        // Create chat database for both users
+        const dbName1 = `chat_${sender}_${receiver}.db`;
+        const dbName2 = `chat_${receiver}_${sender}.db`;
+        
+        // Create databases if they don't exist
+        const db1 = new sqlite3.Database(dbName1);
+        const db2 = new sqlite3.Database(dbName2);
+
+        // Create messages table in both databases
+        const createTable = `CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            type TEXT,
+            content TEXT,
+            sender TEXT,
+            receiver TEXT,
+            timestamp INTEGER,
+            fileData TEXT,
+            isPinned INTEGER DEFAULT 0
+        )`;
+
+        db1.serialize(() => {
+            db1.run(createTable);
+        });
+
+        db2.serialize(() => {
+            db2.run(createTable);
+        });
+
+        db1.close();
+        db2.close();
+
+        // Emit event to notify both users about the new chat
+        io.emit('updateChatList', { sender, receiver });
+
+        res.json({
+            success: true,
+            message: 'Chat created successfully'
+        });
+    } catch (error) {
+        console.error('Error creating chat:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error creating chat'
+        });
+    }
+});
+
+// Add endpoint to get user's chat list
+app.get('/user-chats', (req, res) => {
+    const { username } = req.query;
+    
+    if (!username) {
+        return res.status(400).json({
+            success: false,
+            message: 'Username is required'
+        });
+    }
+
+    try {
+        // Get all database files that start with chat_username or where username is the receiver
+        const files = fs.readdirSync(__dirname).filter(file => 
+            file.startsWith('chat_') && 
+            file.endsWith('.db') && 
+            (file.includes(`_${username}_`) || file.includes(`_${username}.db`))
+        );
+
+        // Extract unique usernames from the database files
+        const chats = files.map(file => {
+            const parts = file.replace('chat_', '').replace('.db', '').split('_');
+            return parts[0] === username ? parts[1] : parts[0];
+        });
+
+        // Remove duplicates
+        const uniqueChats = [...new Set(chats)];
+
+        res.json({
+            success: true,
+            chats: uniqueChats.map(username => ({ username }))
+        });
+    } catch (error) {
+        console.error('Error getting chat list:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error getting chat list'
+        });
+    }
 });
 
 // Start the server
