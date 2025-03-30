@@ -386,6 +386,101 @@ app.post('/delete-chat-database', (req, res) => {
     });
 });
 
+// Add a new pin
+app.post('/chatDB/pins', (req, res) => {
+    const { userA, userB, pinName } = req.body;
+
+    if (!userA || !userB || !pinName) {
+        return res.status(400).json({ success: false, message: 'userA, userB, and pinName are required' });
+    }
+
+    const db = getChatDB(userA, userB); // Use chat-specific database
+    const pinId = pinName; // Use the entered pin name as the ID
+
+    const query = `
+        INSERT INTO pins (id, message_id)
+        VALUES (?, ?)
+    `;
+    db.run(query, [pinId, pinName], function (err) {
+        if (err) {
+            console.error('❌ Failed to add pin:', err.message);
+            return res.status(500).json({ success: false, message: 'Failed to add pin' });
+        }
+        console.log(`Pin with ID ${pinId} added successfully to chat_${[userA, userB].sort().join('_')}.db`);
+        res.status(201).json({ success: true, message: 'Pin added successfully', pin: { id: pinId, name: pinName } });
+    });
+});
+
+// Fetch available pins for a chat
+app.get('/chatDB/pins', (req, res) => {
+    const { userA, userB } = req.query;
+
+    if (!userA || !userB) {
+        return res.status(400).json({ success: false, message: 'userA and userB are required' });
+    }
+
+    const db = getChatDB(userA, userB);
+    const query = `SELECT * FROM pins`;
+
+    db.all(query, [], (err, rows) => {
+        if (err) {
+            console.error('❌ Failed to fetch pins:', err.message);
+            return res.status(500).json({ success: false, message: 'Failed to fetch pins' });
+        }
+
+        res.json({ success: true, pins: rows });
+    });
+});
+
+// Assign multiple messages to a pin
+app.post('/chatDB/pins/assign', (req, res) => {
+    const { userA, userB, messageId, pinId } = req.body;
+
+    if (!userA || !userB || !messageId || !pinId) {
+        return res.status(400).json({ success: false, message: 'userA, userB, messageId, and pinId are required' });
+    }
+
+    const db = getChatDB(userA, userB);
+    const query = `
+        INSERT OR IGNORE INTO pins (id, message_id)
+        VALUES (?, ?)
+    `;
+
+    db.run(query, [pinId, messageId], function (err) {
+        if (err) {
+            console.error('❌ Failed to assign message to pin:', err.message);
+            return res.status(500).json({ success: false, message: 'Failed to assign message to pin' });
+        }
+        if (this.changes === 0) {
+            return res.status(200).json({ success: false, message: 'Message is already assigned to this pin' });
+        }
+        res.json({ success: true, message: 'Message assigned to pin successfully' });
+    });
+});
+
+// Delete a pin
+app.delete('/chatDB/pins/:pinId', (req, res) => {
+    const { userA, userB } = req.query;
+    const { pinId } = req.params;
+
+    if (!userA || !userB || !pinId) {
+        return res.status(400).json({ success: false, message: 'userA, userB, and pinId are required' });
+    }
+
+    const db = getChatDB(userA, userB);
+    const query = `DELETE FROM pins WHERE id = ?`;
+
+    db.run(query, [pinId], function (err) {
+        if (err) {
+            console.error('❌ Failed to delete pin:', err.message);
+            return res.status(500).json({ success: false, message: 'Failed to delete pin' });
+        }
+
+        console.log(`Pin with ID ${pinId} deleted successfully from chat_${[userA, userB].sort().join('_')}.db`);
+        res.json({ success: true, message: 'Pin deleted successfully' });
+    });
+});
+
 // ========== Socket.IO ==========
 io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);

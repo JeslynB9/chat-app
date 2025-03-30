@@ -739,6 +739,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 <button class="remove-pin-button">&times;</button>
             `;
             pinsContainer.insertBefore(pin, addPinButton);
+
+            // Send the new pin to the backend
+            const userA = localStorage.getItem('username'); // Current logged-in user
+            const userB = activeReceiver; // The user currently being chatted with
+
+            if (userA && userB) {
+                fetch('http://localhost:3000/chatDB/pins', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userA, userB, pinName: pinText })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log('Pin added successfully:', data); // Debugging log
+                    } else {
+                        console.error('Failed to add pin:', data.message); // Debugging log
+                        alert('Failed to add pin.');
+                    }
+                })
+                .catch(error => console.error('Error adding pin:', error));
+            } else {
+                console.error('Missing userA or userB:', { userA, userB }); // Debugging log
+            }
         }
     });
 
@@ -1372,10 +1396,6 @@ document.addEventListener('DOMContentLoaded', () => {
             chatHeaderProfilePicture.src = profilePicture;
             toggleChatScreen(true);
             loadMessages(username);
-
-            // Clear unread count when chat is selected
-            localStorage.setItem(`unread_${username}`, '0');
-            updateUnreadCount(username, 0);
         });
 
         // Add context menu event
@@ -1829,5 +1849,457 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.addEventListener('click', () => {
         document.getElementById('chat-context-menu')?.classList.add('hidden');
+    });
+
+    // Add message context menu HTML
+    const messageContextMenu = document.createElement('div');
+    messageContextMenu.id = 'message-context-menu';
+    messageContextMenu.className = 'context-menu hidden';
+    messageContextMenu.innerHTML = `
+        <div class="context-menu-option" data-action="pin">
+            <span class="icon">📌</span> Pin Message
+        </div>
+        <div class="context-menu-option" data-action="copy">
+            <span class="icon">📋</span> Copy Text
+        </div>
+        <div class="context-menu-option" data-action="delete">
+            <span class="icon">🗑️</span> Delete Message
+        </div>
+    `;
+    document.body.appendChild(messageContextMenu);
+
+    // Add pin selection popup
+    const pinSelectionPopup = document.createElement('div');
+    pinSelectionPopup.id = 'pin-selection-popup';
+    pinSelectionPopup.className = 'modal hidden';
+    pinSelectionPopup.innerHTML = `
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h3>Select a Pin</h3>
+            <ul id="available-pins"></ul>
+        </div>
+    `;
+    document.body.appendChild(pinSelectionPopup);
+
+    // Add CSS for pin selection popup
+    const pinSelectionPopupStyle = document.createElement('style');
+    pinSelectionPopupStyle.textContent = `
+        #pin-selection-popup {
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.4);
+            display: none;
+        }
+
+        #pin-selection-popup .modal-content {
+            background-color: var(--bg-color, #ffffff);
+            color: var(--text-color, #000000);
+            margin: 10% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 40%;
+            text-align: center;
+        }
+
+        #pin-selection-popup .close-button {
+            float: right;
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        #available-pins {
+            list-style: none;
+            padding: 0;
+        }
+
+        #available-pins li {
+            padding: 10px;
+            cursor: pointer;
+            border: 1px solid var(--border-color, #ddd);
+            margin-bottom: 5px;
+            border-radius: 5px;
+            transition: background-color 0.2s;
+        }
+
+        #available-pins li:hover {
+            background-color: var(--hover-color, #f5f5f5);
+        }
+    `;
+    document.head.appendChild(pinSelectionPopupStyle);
+
+    // Handle pin selection popup logic
+    document.getElementById('pin-selection-popup').addEventListener('click', (e) => {
+        if (e.target.classList.contains('close-button') || e.target === pinSelectionPopup) {
+            pinSelectionPopup.style.display = 'none';
+        }
+    });
+
+    document.getElementById('message-context-menu').addEventListener('click', (e) => {
+        const option = e.target.closest('.context-menu-option');
+        if (!option) return;
+
+        const action = option.dataset.action;
+        const messageId = messageContextMenu.dataset.messageId;
+
+        if (action === 'pin') {
+            // Show the pin selection popup
+            const availablePinsList = document.getElementById('available-pins');
+            availablePinsList.innerHTML = ''; // Clear existing pins
+
+            // Fetch available pins dynamically
+            const userA = localStorage.getItem('username');
+            const userB = activeReceiver;
+
+            if (userA && userB) {
+                fetch(`http://localhost:3000/chatDB/pins?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success) {
+                            data.pins.forEach(pin => {
+                                const pinItem = document.createElement('li');
+                                pinItem.textContent = pin.id; // Display the pin name
+                                pinItem.addEventListener('click', () => {
+                                    // Attach the message_id to the selected pin
+                                    fetch(`http://localhost:3000/chatDB/pins/assign`, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ userA, userB, messageId, pinId: pin.id })
+                                    })
+                                    .then(res => res.json())
+                                    .then(response => {
+                                        if (response.success) {
+                                            alert(`Message successfully attached to pin "${pin.id}".`);
+                                        } else {
+                                            alert(response.message || 'Failed to attach the message to the pin.');
+                                        }
+                                    })
+                                    .catch(error => console.error('Error attaching message to pin:', error));
+
+                                    pinSelectionPopup.style.display = 'none';
+                                });
+                                availablePinsList.appendChild(pinItem);
+                            });
+                            pinSelectionPopup.style.display = 'block';
+                        } else {
+                            alert('Failed to fetch pins.');
+                        }
+                    })
+                    .catch(error => console.error('Error fetching pins:', error));
+            }
+        }
+    });
+
+    // Add CSS for message context menu
+    const messageContextMenuStyle = document.createElement('style');
+    messageContextMenuStyle.textContent = `
+        #message-context-menu {
+            position: fixed;
+            background: var(--bg-color, #ffffff);
+            border: 1px solid var(--border-color, #ddd);
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 1000;
+            min-width: 150px;
+            display: none;
+        }
+
+        #message-context-menu.hidden {
+            display: none;
+        }
+
+        #message-context-menu .context-menu-option {
+            padding: 8px 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background-color 0.2s;
+        }
+
+        #message-context-menu .context-menu-option:hover {
+            background-color: var(--hover-color, #f5f5f5);
+        }
+
+        #message-context-menu .icon {
+            font-size: 16px;
+        }
+
+        .message {
+            user-select: text;
+            position: relative;
+        }
+    `;
+    document.head.appendChild(messageContextMenuStyle);
+
+    // Add context menu event listeners
+    document.addEventListener('click', (e) => {
+        const contextMenu = document.getElementById('message-context-menu');
+        if (!e.target.closest('#message-context-menu')) {
+            contextMenu.style.display = 'none';
+            contextMenu.classList.add('hidden');
+        }
+    });
+
+    document.getElementById('message-context-menu').addEventListener('click', (e) => {
+        const option = e.target.closest('.context-menu-option');
+        if (!option) return;
+
+        const action = option.dataset.action;
+        const messageId = e.currentTarget.dataset.messageId;
+        const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+
+        if (!messageElement) {
+            console.error('Message element not found');
+            return;
+        }
+
+        switch (action) {
+            case 'pin':
+                toggleMessagePin(messageId, messageElement);
+                break;
+            case 'copy':
+                const messageText = messageElement.querySelector('.message-bubble')?.textContent;
+                if (messageText) {
+                    navigator.clipboard.writeText(messageText).then(() => {
+                        alert('Message copied to clipboard!');
+                    });
+                }
+                break;
+            case 'delete':
+                if (confirm('Are you sure you want to delete this message?')) {
+                    deleteMessage(messageId);
+                }
+                break;
+        }
+
+        // Hide the context menu
+        e.currentTarget.style.display = 'none';
+        e.currentTarget.classList.add('hidden');
+    });
+
+    function toggleMessagePin(messageId, messageElement) {
+        console.log('Toggling pin for message:', { messageId, messageElement }); // Debug log
+        
+        const isCurrentlyPinned = messageElement.parentElement.classList.contains('pinned-messages-content');
+        const sender = localStorage.getItem('username');
+        const receiver = activeReceiver;
+        
+        console.log('Pin toggle details:', { sender, receiver, isCurrentlyPinned }); // Debug log
+        
+        if (!sender || !receiver) {
+            console.error('Missing sender or receiver:', { sender, receiver });
+            alert('Error: Missing user information');
+            return;
+        }
+        
+        fetch(`http://localhost:3000/messages/${messageId}/pin`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                isPinned: !isCurrentlyPinned,
+                sender: sender,
+                receiver: receiver
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Pin toggle response:', data); // Debug log
+            if (data.success) {
+                const messagesContainer = document.querySelector('.messages');
+                const pinnedSection = messagesContainer.querySelector('.pinned-messages-section');
+                
+                if (!isCurrentlyPinned) {
+                    if (!pinnedSection) {
+                        createPinnedSection();
+                    }
+                    const pinnedContent = messagesContainer.querySelector('.pinned-messages-content');
+                    pinnedContent.appendChild(messageElement);
+                    
+                    const pinOption = document.querySelector('[data-action="pin"]');
+                    if (pinOption) {
+                        pinOption.innerHTML = '<span class="icon">📌</span> Unpin Message';
+                    }
+                } else {
+                    messagesContainer.appendChild(messageElement);
+                    
+                    const pinOption = document.querySelector('[data-action="pin"]');
+                    if (pinOption) {
+                        pinOption.innerHTML = '<span class="icon">📌</span> Pin Message';
+                    }
+                    
+                    const pinnedContent = pinnedSection.querySelector('.pinned-messages-content');
+                    if (pinnedContent && pinnedContent.children.length === 0) {
+                        pinnedSection.remove();
+                    }
+                }
+            } else {
+                console.error('Failed to update pin status:', data.message);
+                alert('Failed to update pin status');
+            }
+        });
+    }
+
+    function deleteMessage(messageId) {
+        console.log('Deleting message:', { messageId }); // Debug log
+        
+        const sender = localStorage.getItem('username');
+        const receiver = activeReceiver;
+        
+        console.log('Delete message details:', { sender, receiver }); // Debug log
+        
+        if (!sender || !receiver) {
+            console.error('Missing sender or receiver:', { sender, receiver });
+            alert('Error: Missing user information');
+            return;
+        }
+        
+        fetch(`http://localhost:3000/messages/${messageId}?sender=${encodeURIComponent(sender)}&receiver=${encodeURIComponent(receiver)}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Delete message response:', data); // Debug log
+            if (data.success) {
+                const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+                if (messageElement) {
+                    messageElement.remove();
+                }
+            } else {
+                console.error('Failed to delete message:', data.message);
+                alert('Failed to delete message');
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting message:', error);
+            alert('Error deleting message');
+        });
+    }
+
+    function fetchAndRenderPins() {
+        const userA = localStorage.getItem('username'); // Current logged-in user
+        const userB = activeReceiver; // The user currently being chatted with
+
+        if (!userA || !userB) {
+            console.error('Cannot fetch pins. Missing users:', { userA, userB });
+            return;
+        }
+
+        fetch(`http://localhost:3000/chatDB/pins?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    const pinsContainer = document.querySelector(".pins-container");
+                    pinsContainer.innerHTML = ''; // Clear existing pins
+
+                    data.pins.forEach(pin => {
+                        const pinElement = document.createElement("div");
+                        pinElement.className = "pin";
+                        pinElement.innerHTML = `
+                            <span class="pin-text">${pin.id}</span>
+                            <button class="remove-pin-button">&times;</button>
+                        `;
+                        pinsContainer.appendChild(pinElement);
+
+                        // Attach delete event listener
+                        pinElement.querySelector(".remove-pin-button").addEventListener("click", () => {
+                            deletePin(userA, userB, pin.id);
+                        });
+                    });
+
+                    // Add the "Add Pin" button at the end
+                    const addPinButton = document.createElement("button");
+                    addPinButton.id = "add-pin-button";
+                    addPinButton.textContent = "+";
+                    pinsContainer.appendChild(addPinButton);
+
+                    // Reattach the event listener for adding new pins
+                    addPinButton.addEventListener("click", handleAddPin);
+                } else {
+                    console.error('Failed to fetch pins:', data.message);
+                }
+            })
+            .catch(error => console.error('Error fetching pins:', error));
+    }
+
+    function deletePin(userA, userB, pinId) {
+        fetch(`http://localhost:3000/chatDB/pins/${pinId}?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`, {
+            method: 'DELETE'
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    console.log(`Pin with ID ${pinId} deleted successfully.`);
+                    fetchAndRenderPins(); // Refresh the pins in the main UI
+                } else {
+                    console.error('Failed to delete pin:', data.message);
+                    alert('Failed to delete pin.');
+                }
+            })
+            .catch(error => console.error('Error deleting pin:', error));
+    }
+
+    function handleAddPin() {
+        const pinText = prompt("Enter the text for the new pin:");
+        if (pinText) {
+            const userA = localStorage.getItem('username'); // Current logged-in user
+            const userB = activeReceiver; // The user currently being chatted with
+
+            if (userA && userB) {
+                fetch('http://localhost:3000/chatDB/pins', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userA, userB, pinName: pinText })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log('Pin added successfully:', data);
+                        fetchAndRenderPins(); // Refresh the pins to include the new one
+                    } else {
+                        console.error('Failed to add pin:', data.message);
+                        alert('Failed to add pin.');
+                    }
+                })
+                .catch(error => console.error('Error adding pin:', error));
+            } else {
+                console.error('Missing userA or userB:', { userA, userB });
+            }
+        }
+    }
+
+    // Add event listener for right-click on messages
+    document.querySelector('.messages').addEventListener('contextmenu', (e) => {
+        e.preventDefault(); // Prevent the default browser context menu
+        const messageElement = e.target.closest('.message');
+        if (!messageElement) return;
+
+        const contextMenu = document.getElementById('message-context-menu');
+        if (!contextMenu) {
+            console.error('Context menu element not found');
+            return;
+        }
+
+        // Set the message ID in the context menu dataset
+        const messageId = messageElement.dataset.messageId;
+        contextMenu.dataset.messageId = messageId;
+
+        // Position the context menu at the mouse click location
+        contextMenu.style.left = `${e.pageX}px`;
+        contextMenu.style.top = `${e.pageY}px`;
+        contextMenu.style.display = 'block';
+        contextMenu.classList.remove('hidden');
+    });
+
+    // Hide the context menu when clicking outside
+    document.addEventListener('click', (e) => {
+        const contextMenu = document.getElementById('message-context-menu');
+        if (contextMenu && !e.target.closest('#message-context-menu')) {
+            contextMenu.style.display = 'none';
+            contextMenu.classList.add('hidden');
+        }
     });
 });
