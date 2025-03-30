@@ -423,53 +423,45 @@ document.addEventListener('DOMContentLoaded', () => {
                         const fileContainer = document.createElement('div');
                         fileContainer.className = 'file-container';
 
-                        if (fileData.type.startsWith('image/')) {
-                            // For images, display a thumbnail
-                            const img = document.createElement('img');
-                            img.src = fileData.url; // Use the server-provided URL
-                            img.alt = fileData.name;
-                            img.style.maxWidth = '200px';
-                            img.style.borderRadius = '8px';
-                            img.style.cursor = 'pointer';
-                            img.onclick = () => window.open(fileData.url, '_blank');
-                            fileContainer.appendChild(img);
-                        } else {
-                            // For other files, show icon and info
-                            const icon = document.createElement('div');
-                            icon.className = 'file-icon';
-                            icon.textContent = getFileIcon(fileData.type);
-                            fileContainer.appendChild(icon);
+                        // Add file icon
+                        const icon = document.createElement('div');
+                        icon.className = 'file-icon';
+                        icon.textContent = getFileIcon(fileData.type);
+                        fileContainer.appendChild(icon);
 
-                            const info = document.createElement('div');
-                            info.className = 'file-info';
+                        // Add file info
+                        const info = document.createElement('div');
+                        info.className = 'file-info';
 
-                            const name = document.createElement('div');
-                            name.className = 'file-name';
-                            name.textContent = fileData.name;
-                            info.appendChild(name);
+                        const name = document.createElement('div');
+                        name.className = 'file-name';
+                        name.textContent = fileData.name;
+                        info.appendChild(name);
 
-                            const size = document.createElement('div');
-                            size.className = 'file-size';
-                            size.textContent = formatFileSize(fileData.size);
-                            info.appendChild(size);
+                        const size = document.createElement('div');
+                        size.className = 'file-size';
+                        size.textContent = formatFileSize(fileData.size);
+                        info.appendChild(size);
 
-                            fileContainer.appendChild(info);
+                        fileContainer.appendChild(info);
+
+                        // Add download link if URL is available
+                        if (fileData.url) {
+                            const downloadLink = document.createElement('a');
+                            downloadLink.href = fileData.url;
+                            downloadLink.download = fileData.name;
+                            downloadLink.className = 'download-button';
+                            downloadLink.textContent = '⬇️';
+                            fileContainer.appendChild(downloadLink);
                         }
-
-                        const downloadLink = document.createElement('a');
-                        downloadLink.href = fileData.url; // Use the server-provided URL
-                        downloadLink.download = fileData.name;
-                        downloadLink.className = 'download-button';
-                        downloadLink.textContent = '⬇️';
-                        fileContainer.appendChild(downloadLink);
 
                         messageElement.appendChild(fileContainer);
                     } else {
-                        const messageBubble = document.createElement('div');
-                        messageBubble.classList.add('message-bubble');
+            const messageBubble = document.createElement('div');
+            messageBubble.classList.add('message-bubble');
                         messageBubble.textContent = data.message || '';
-                        messageElement.appendChild(messageBubble);
-                    }
+            messageElement.appendChild(messageBubble);
+        }
 
                     // Add timestamp
                     const timestamp = document.createElement('span');
@@ -479,8 +471,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Add to messages container
                     if (messagesContainer) {
-                        messagesContainer.appendChild(messageElement);
-                        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        messagesContainer.appendChild(messageElement);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
                     }
                 } catch (error) {
                     console.error('Error displaying message:', error);
@@ -525,18 +517,119 @@ document.addEventListener('DOMContentLoaded', () => {
     const plusButton = document.querySelector('.input-area button:nth-child(4)');
     
     cameraButton.addEventListener('click', () => {
+        if (!activeReceiver) {
+            alert('Please select a chat before uploading a file.');
+            return;
+        }
+
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
         fileInput.accept = '*/*';
-        fileInput.click();
+        fileInput.style.display = 'none';
+        document.body.appendChild(fileInput);
 
         fileInput.onchange = (e) => {
             const file = e.target.files[0];
             if (file) {
                 handleFileUpload(file);
             }
+            document.body.removeChild(fileInput);
         };
+
+        fileInput.click();
     });
+
+    function handleFileUpload(file) {
+        // Create and display the message element with upload status
+        const messageElement = document.createElement('div');
+        messageElement.className = 'message sent';
+        
+        const statusContainer = document.createElement('div');
+        statusContainer.className = 'file-container';
+        statusContainer.innerHTML = `
+            <div class="file-icon">${getFileIcon(file.type)}</div>
+            <div class="file-info">
+                <div class="file-name">${file.name}</div>
+                <div class="file-size">${formatFileSize(file.size)}</div>
+            </div>
+            <div class="upload-status">Uploading...</div>
+        `;
+        
+        messageElement.appendChild(statusContainer);
+        const messagesContainer = document.querySelector('.messages');
+        messagesContainer.appendChild(messageElement);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+        // Create FormData
+        const formData = new FormData();
+        formData.append('file', file);
+
+        // Send file to server
+        fetch('http://localhost:3000/upload', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const fileData = {
+                    name: file.name,
+                    type: file.type,
+                    size: file.size,
+                    url: `http://localhost:3000${data.url}`
+                };
+
+                // Create message data
+                const messageData = {
+                    type: 'file',
+                    fileData: fileData,
+                    sender: username,
+                    receiver: activeReceiver,
+                    timestamp: Date.now()
+                };
+
+                // Emit socket message
+                socket.emit('sendMessage', messageData);
+
+                // Update the message element
+                statusContainer.innerHTML = `
+                    <div class="file-icon">${getFileIcon(fileData.type)}</div>
+                    <div class="file-info">
+                        <div class="file-name">${fileData.name}</div>
+                        <div class="file-size">${formatFileSize(fileData.size)}</div>
+                    </div>
+                    <a href="${fileData.url}" class="download-button" download="${fileData.name}" target="_blank">⬇️</a>
+                `;
+
+                // Add timestamp
+                const timestamp = document.createElement('span');
+                timestamp.className = 'timestamp';
+                timestamp.textContent = new Date(messageData.timestamp).toLocaleTimeString();
+                messageElement.appendChild(timestamp);
+
+                // Update sidebar
+                updateLastMessageInSidebar(activeReceiver, `[${file.name}]`, "You", messageData.timestamp);
+
+                // Store file info
+                const files = JSON.parse(localStorage.getItem(`files_${activeReceiver}`) || '[]');
+                files.push(file.name);
+                localStorage.setItem(`files_${activeReceiver}`, JSON.stringify(files));
+            } else {
+                throw new Error(data.error || 'Upload failed');
+            }
+        })
+        .catch(error => {
+            console.error('Upload error:', error);
+            statusContainer.innerHTML = `
+                <div class="file-icon">❌</div>
+                <div class="file-info">
+                    <div class="file-name">Upload failed</div>
+                    <div class="file-size error-message">${error.message}</div>
+                </div>
+            `;
+            messageElement.style.color = 'red';
+        });
+    }
 
     function getFileIcon(fileType) {
         if (fileType.startsWith('image/')) return '🖼️';
@@ -558,112 +651,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 
-    function handleFileUpload(file) {
-        if (!activeReceiver) {
-            alert('Please select a chat before uploading a file.');
-            return;
-        }
-
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            try {
-                const fileData = {
-                    name: file.name,
-                    type: file.type,
-                    size: file.size,
-                    data: e.target.result
-                };
-
-                const messageData = {
-                    type: 'file',
-                    fileData: fileData,
-                    sender: username,
-                    receiver: activeReceiver,
-                    timestamp: Date.now()
-                };
-
-                // Create and display the message element immediately
-                const messageElement = document.createElement('div');
-                messageElement.className = `message sent`;
-
-                const fileContainer = document.createElement('div');
-                fileContainer.className = 'file-container';
-
-                if (fileData.type.startsWith('image/')) {
-                    // For images, display a thumbnail
-                    const img = document.createElement('img');
-                    img.src = e.target.result; // Use the local data URL for immediate display
-                    img.alt = fileData.name;
-                    img.style.maxWidth = '200px';
-                    img.style.borderRadius = '8px';
-                    img.style.cursor = 'pointer';
-                    img.onclick = () => window.open(img.src, '_blank');
-                    fileContainer.appendChild(img);
-                } else {
-                    // For other files, show icon and info
-                    const icon = document.createElement('div');
-                    icon.className = 'file-icon';
-                    icon.textContent = getFileIcon(fileData.type);
-                    fileContainer.appendChild(icon);
-
-                    const info = document.createElement('div');
-                    info.className = 'file-info';
-
-                    const name = document.createElement('div');
-                    name.className = 'file-name';
-                    name.textContent = fileData.name;
-                    info.appendChild(name);
-
-                    const size = document.createElement('div');
-                    size.className = 'file-size';
-                    size.textContent = formatFileSize(fileData.size);
-                    info.appendChild(size);
-
-                    fileContainer.appendChild(info);
-                }
-
-                const downloadLink = document.createElement('a');
-                downloadLink.href = e.target.result; // Use the local data URL for immediate display
-                downloadLink.download = fileData.name;
-                downloadLink.className = 'download-button';
-                downloadLink.textContent = '⬇️';
-                fileContainer.appendChild(downloadLink);
-
-                messageElement.appendChild(fileContainer);
-
-                // Add timestamp
-                const timestamp = document.createElement('span');
-                timestamp.className = 'timestamp';
-                timestamp.textContent = new Date(messageData.timestamp).toLocaleTimeString();
-                messageElement.appendChild(timestamp);
-
-                // Add to messages container
-                const messagesContainer = document.querySelector('.messages');
-                if (messagesContainer) {
-                    messagesContainer.appendChild(messageElement);
-                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-                }
-
-                // Emit the message via Socket.IO
-                socket.emit('sendMessage', messageData);
-
-                // Update the last message in the sidebar
-                updateLastMessageInSidebar(activeReceiver, `[${file.name}]`, "You", messageData.timestamp);
-
-            } catch (error) {
-                console.error('Error processing file:', error);
-                alert('Error processing file. Please try again.');
-            }
-        };
-
-        reader.onerror = function(error) {
-            console.error('Error reading file:', error);
-            alert('Error reading file. Please try again.');
-        };
-
-        reader.readAsDataURL(file);
-    }
-
     function displayMessage(message, isSent = false) {
         console.log('Displaying message:', {
             ...message,
@@ -675,6 +662,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const messageContainer = document.createElement('div');
         messageContainer.className = `message ${isSent ? 'sent' : 'received'}`;
+        messageContainer.dataset.messageId = message.id;
 
         try {
             if (message.type === 'file') {
@@ -732,6 +720,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 messageContainer.appendChild(messageBubble);
             }
 
+            // Add pin button
+            const pinButton = document.createElement('button');
+            pinButton.className = 'pin-message-button';
+            pinButton.innerHTML = message.isPinned ? '📌' : '📍';
+            pinButton.title = message.isPinned ? 'Unpin message' : 'Pin message';
+            pinButton.onclick = (e) => {
+                e.stopPropagation();
+                toggleMessagePin(message.id, messageContainer, pinButton);
+            };
+            messageContainer.appendChild(pinButton);
+
             // Add timestamp
             const timestamp = document.createElement('span');
             timestamp.className = 'timestamp';
@@ -741,16 +740,172 @@ document.addEventListener('DOMContentLoaded', () => {
             // Add to messages container
             const messagesContainer = document.querySelector('.messages');
             if (messagesContainer) {
-                messagesContainer.appendChild(messageContainer);
+                if (message.isPinned) {
+                    // Add pinned messages to the top
+                    const pinnedSection = messagesContainer.querySelector('.pinned-messages-section') || createPinnedSection();
+                    pinnedSection.appendChild(messageContainer);
+                } else {
+                    messagesContainer.appendChild(messageContainer);
+                }
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
             } else {
                 console.error('Messages container not found');
             }
+
+            // Add context menu event listener
+            messageContainer.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation(); // Prevent event bubbling
+                
+                const contextMenu = document.getElementById('message-context-menu');
+                if (!contextMenu) {
+                    console.error('Message context menu not found');
+                    return;
+                }
+
+                // Position the context menu at the cursor
+                contextMenu.style.display = 'block';
+                contextMenu.style.left = `${e.pageX}px`;
+                contextMenu.style.top = `${e.pageY}px`;
+                contextMenu.dataset.messageId = message.id;
+                contextMenu.dataset.isPinned = message.isPinned;
+                
+                // Update pin option text based on current state
+                const pinOption = contextMenu.querySelector('[data-action="pin"]');
+                if (pinOption) {
+                    pinOption.innerHTML = message.isPinned ? 
+                        '<span class="icon">📌</span> Unpin Message' : 
+                        '<span class="icon">📍</span> Pin Message';
+                }
+            });
+
         } catch (error) {
             console.error('Error displaying message:', error);
             alert('Error displaying message. Please try again.');
         }
     }
+
+    function createPinnedSection() {
+        const messagesContainer = document.querySelector('.messages');
+        const pinnedSection = document.createElement('div');
+        pinnedSection.className = 'pinned-messages-section';
+        
+        const pinnedHeader = document.createElement('div');
+        pinnedHeader.className = 'pinned-messages-header';
+        pinnedHeader.innerHTML = '📌 Pinned Messages';
+        
+        const pinnedContent = document.createElement('div');
+        pinnedContent.className = 'pinned-messages-content';
+        
+        pinnedSection.appendChild(pinnedHeader);
+        pinnedSection.appendChild(pinnedContent);
+        messagesContainer.insertBefore(pinnedSection, messagesContainer.firstChild);
+        
+        return pinnedContent;
+    }
+
+    function toggleMessagePin(messageId, messageContainer, pinButton) {
+        const isCurrentlyPinned = messageContainer.parentElement.classList.contains('pinned-messages-content');
+        const sender = localStorage.getItem('username');
+        const receiver = activeReceiver;
+        
+        fetch(`http://localhost:3000/messages/${messageId}/pin`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                isPinned: !isCurrentlyPinned,
+                sender: sender,
+                receiver: receiver
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const messagesContainer = document.querySelector('.messages');
+                const pinnedSection = messagesContainer.querySelector('.pinned-messages-section');
+                
+                if (!isCurrentlyPinned) {
+                    // Pin the message
+                    if (!pinnedSection) {
+                        createPinnedSection();
+                    }
+                    const pinnedContent = messagesContainer.querySelector('.pinned-messages-content');
+                    pinnedContent.appendChild(messageContainer);
+                    
+                    // Update the pin option text
+                    const pinOption = document.querySelector('[data-action="pin"]');
+                    if (pinOption) {
+                        pinOption.innerHTML = '<span class="icon">📌</span> Unpin Message';
+                    }
+                } else {
+                    // Unpin the message
+                    messagesContainer.appendChild(messageContainer);
+                    
+                    // Update the pin option text
+                    const pinOption = document.querySelector('[data-action="pin"]');
+                    if (pinOption) {
+                        pinOption.innerHTML = '<span class="icon">📌</span> Pin Message';
+                    }
+                    
+                    // Remove pinned section if no pinned messages
+                    const pinnedContent = pinnedSection.querySelector('.pinned-messages-content');
+                    if (pinnedContent && pinnedContent.children.length === 0) {
+                        pinnedSection.remove();
+                    }
+                }
+            } else {
+                console.error('Failed to update pin status:', data.message);
+                alert('Failed to update pin status');
+            }
+        })
+        .catch(error => {
+            console.error('Error toggling message pin:', error);
+            alert('Error updating pin status');
+        });
+    }
+
+    // Add CSS styles for pinned messages
+    const style = document.createElement('style');
+    style.textContent = `
+        .pinned-messages-section {
+            background-color: var(--pinned-bg, #f5f5f5);
+            border-bottom: 1px solid var(--border-color, #ddd);
+            margin-bottom: 10px;
+        }
+
+        .pinned-messages-header {
+            padding: 8px 12px;
+            font-weight: bold;
+            color: var(--pinned-text, #666);
+            font-size: 0.9em;
+        }
+
+        .pinned-messages-content {
+            padding: 8px;
+        }
+
+        .pin-message-button {
+            position: absolute;
+            right: 40px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .message:hover .pin-message-button {
+            opacity: 1;
+        }
+
+        .message {
+            position: relative;
+        }
+    `;
+    document.head.appendChild(style);
 
     plusButton.addEventListener('click', openCalendar);
 
@@ -1447,8 +1602,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ userA: localStorage.getItem('username'), userB: username })
                     })
-                    .then(response => response.json())
-                    .then(data => {
+            .then(response => response.json())
+            .then(data => {
                         if (data.success) {
                             console.log(`Database for chat with ${username} deleted successfully.`);
                             localStorage.setItem(`deleted_chat_${username}`, true); // Mark chat as deleted
@@ -1458,8 +1613,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                 chatHeaderUsername.textContent = '';
                                 chatHeaderProfilePicture.src = '';
                                 toggleChatScreen(false);
-                            }
-                        } else {
+                    }
+                } else {
                             console.error(`Failed to delete database for chat with ${username}:`, data.message);
                             alert('Failed to delete chat.');
                         }
@@ -1569,12 +1724,41 @@ document.addEventListener('DOMContentLoaded', () => {
                     data.messages.forEach(message => {
                         const messageElement = document.createElement('div');
                         messageElement.classList.add('message', message.sender === sender ? 'sent' : 'received');
+                        messageElement.dataset.messageId = message.id;
 
                         const messageBubble = document.createElement('div');
                         messageBubble.classList.add('message-bubble');
                         messageBubble.textContent = message.message;
 
                         messageElement.appendChild(messageBubble);
+
+                        // Add context menu event listener
+                        messageElement.addEventListener('contextmenu', (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            
+                            const contextMenu = document.getElementById('message-context-menu');
+                            if (!contextMenu) {
+                                console.error('Message context menu not found');
+                                return;
+                            }
+
+                            // Position the context menu at the cursor
+                            contextMenu.style.display = 'block';
+                            contextMenu.style.left = `${e.pageX}px`;
+                            contextMenu.style.top = `${e.pageY}px`;
+                            contextMenu.dataset.messageId = message.id;
+                            contextMenu.dataset.isPinned = message.isPinned;
+                            
+                            // Update pin option text based on current state
+                            const pinOption = contextMenu.querySelector('[data-action="pin"]');
+                            if (pinOption) {
+                                pinOption.innerHTML = message.isPinned ? 
+                                    '<span class="icon">📌</span> Unpin Message' : 
+                                    '<span class="icon">📍</span> Pin Message';
+                            }
+                        });
+
                         messagesContainer.appendChild(messageElement);
                     });
 
@@ -1805,4 +1989,194 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('click', () => {
         document.getElementById('chat-context-menu')?.classList.add('hidden');
     });
+
+    // Add message context menu HTML
+    const messageContextMenu = document.createElement('div');
+    messageContextMenu.id = 'message-context-menu';
+    messageContextMenu.className = 'context-menu hidden';
+    messageContextMenu.innerHTML = `
+        <div class="context-menu-option" data-action="pin">
+            <span class="icon">📌</span> Pin Message
+        </div>
+        <div class="context-menu-option" data-action="copy">
+            <span class="icon">📋</span> Copy Text
+        </div>
+        <div class="context-menu-option" data-action="delete">
+            <span class="icon">🗑️</span> Delete Message
+        </div>
+    `;
+    document.body.appendChild(messageContextMenu);
+
+    // Add CSS for message context menu
+    const messageContextMenuStyle = document.createElement('style');
+    messageContextMenuStyle.textContent = `
+        #message-context-menu {
+            position: fixed;
+            background: var(--bg-color, #ffffff);
+            border: 1px solid var(--border-color, #ddd);
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 1000;
+            min-width: 150px;
+            display: none;
+        }
+
+        #message-context-menu.hidden {
+            display: none;
+        }
+
+        #message-context-menu .context-menu-option {
+            padding: 8px 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background-color 0.2s;
+        }
+
+        #message-context-menu .context-menu-option:hover {
+            background-color: var(--hover-color, #f5f5f5);
+        }
+
+        #message-context-menu .icon {
+            font-size: 16px;
+        }
+
+        .message {
+            user-select: text;
+            position: relative;
+        }
+    `;
+    document.head.appendChild(messageContextMenuStyle);
+
+    // Add context menu event listeners
+    document.addEventListener('click', (e) => {
+        const contextMenu = document.getElementById('message-context-menu');
+        if (!e.target.closest('#message-context-menu')) {
+            contextMenu.style.display = 'none';
+            contextMenu.classList.add('hidden');
+        }
+    });
+
+    document.getElementById('message-context-menu').addEventListener('click', (e) => {
+        const option = e.target.closest('.context-menu-option');
+        if (!option) return;
+
+        const action = option.dataset.action;
+        const messageId = e.currentTarget.dataset.messageId;
+        const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+
+        if (!messageElement) {
+            console.error('Message element not found');
+            return;
+        }
+
+        switch (action) {
+            case 'pin':
+                toggleMessagePin(messageId, messageElement);
+                break;
+            case 'copy':
+                const messageText = messageElement.querySelector('.message-bubble')?.textContent;
+                if (messageText) {
+                    navigator.clipboard.writeText(messageText).then(() => {
+                        alert('Message copied to clipboard!');
+                    });
+                }
+                break;
+            case 'delete':
+                if (confirm('Are you sure you want to delete this message?')) {
+                    deleteMessage(messageId);
+                }
+                break;
+        }
+
+        // Hide the context menu
+        e.currentTarget.style.display = 'none';
+        e.currentTarget.classList.add('hidden');
+    });
+
+    function toggleMessagePin(messageId, messageElement) {
+        const isCurrentlyPinned = messageElement.parentElement.classList.contains('pinned-messages-content');
+        const sender = localStorage.getItem('username');
+        const receiver = activeReceiver;
+        
+        fetch(`http://localhost:3000/messages/${messageId}/pin`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                isPinned: !isCurrentlyPinned,
+                sender: sender,
+                receiver: receiver
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const messagesContainer = document.querySelector('.messages');
+                const pinnedSection = messagesContainer.querySelector('.pinned-messages-section');
+                
+                if (!isCurrentlyPinned) {
+                    // Pin the message
+                    if (!pinnedSection) {
+                        createPinnedSection();
+                    }
+                    const pinnedContent = messagesContainer.querySelector('.pinned-messages-content');
+                    pinnedContent.appendChild(messageElement);
+                    
+                    // Update the pin option text
+                    const pinOption = document.querySelector('[data-action="pin"]');
+                    if (pinOption) {
+                        pinOption.innerHTML = '<span class="icon">📌</span> Unpin Message';
+                    }
+                } else {
+                    // Unpin the message
+                    messagesContainer.appendChild(messageElement);
+                    
+                    // Update the pin option text
+                    const pinOption = document.querySelector('[data-action="pin"]');
+                    if (pinOption) {
+                        pinOption.innerHTML = '<span class="icon">📌</span> Pin Message';
+                    }
+                    
+                    // Remove pinned section if no pinned messages
+                    const pinnedContent = pinnedSection.querySelector('.pinned-messages-content');
+                    if (pinnedContent && pinnedContent.children.length === 0) {
+                        pinnedSection.remove();
+                    }
+                }
+            } else {
+                console.error('Failed to update pin status:', data.message);
+                alert('Failed to update pin status');
+            }
+        })
+        .catch(error => {
+            console.error('Error toggling message pin:', error);
+            alert('Error updating pin status');
+        });
+    }
+
+    function deleteMessage(messageId) {
+        const sender = localStorage.getItem('username');
+        const receiver = activeReceiver;
+        
+        fetch(`http://localhost:3000/messages/${messageId}?sender=${encodeURIComponent(sender)}&receiver=${encodeURIComponent(receiver)}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+                if (messageElement) {
+                    messageElement.remove();
+                }
+            } else {
+                console.error('Failed to delete message:', data.message);
+                alert('Failed to delete message');
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting message:', error);
+            alert('Error deleting message');
+        });
+    }
 });

@@ -1,6 +1,21 @@
-const fs = require('fs');
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const cors = require('cors');
+const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 const crypto = require('crypto');
+const sqlite3 = require('sqlite3');
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
+});
 
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -9,23 +24,28 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 function saveFile(base64Data, fileType) {
-    // Extract the actual base64 data (remove data:image/png;base64, etc.)
-    const base64Content = base64Data.split(';base64,').pop();
-    
-    // Generate a unique filename
-    const uniqueId = crypto.randomBytes(16).toString('hex');
-    const extension = fileType.split('/')[1] || 'bin'; // Default to bin if no extension
-    const filename = `${uniqueId}.${extension}`;
-    
-    // Save the file to disk
-    const filePath = path.join(uploadsDir, filename);
-    fs.writeFileSync(filePath, base64Content, { encoding: 'base64' });
-    
-    return `/uploads/${filename}`;
+    try {
+        // Extract the actual base64 data (remove data:image/png;base64, etc.)
+        const base64Content = base64Data.split(';base64,').pop();
+        
+        // Generate a unique filename
+        const uniqueId = crypto.randomBytes(16).toString('hex');
+        const extension = fileType.split('/')[1] || 'bin'; // Default to bin if no extension
+        const filename = `${uniqueId}.${extension}`;
+        
+        // Save the file to disk
+        const filePath = path.join(uploadsDir, filename);
+        fs.writeFileSync(filePath, base64Content, { encoding: 'base64' });
+        
+        return `/uploads/${filename}`;
+    } catch (error) {
+        console.error('Error saving file:', error);
+        throw error;
+    }
 }
 
 io.on('connection', (socket) => {
-    console.log('A user connected');
+    console.log('A user connected:', socket.id);
 
     socket.on('setUsername', (username) => {
         socket.username = username;
@@ -34,75 +54,65 @@ io.on('connection', (socket) => {
         connectedUsers.add(username);
     });
 
-    socket.on('sendMessage', (data) => {
-        console.log('Received message:', {
-            type: data.type,
-            sender: data.sender,
-            receiver: data.receiver,
-            fileData: data.fileData ? {
-                name: data.fileData.name,
-                type: data.fileData.type,
-                size: data.fileData.size
-            } : undefined
-        });
+    socket.on('sendMessage', (message) => {
+        console.log('Received message:', message);
+        
+        const messageToSend = {
+            ...message,
+            timestamp: Date.now()
+        };
 
-        const { sender, receiver, timestamp } = data;
-        const room = [sender, receiver].sort().join('-');
-
-        // Format the message content based on type
-        let messageContent;
-        let messageToSend = { ...data };
-
-        if (data.type === 'file') {
-            try {
-                // Save the file and get its URL
-                const fileUrl = saveFile(data.fileData.data, data.fileData.type);
-                
-                // Create the message content for database
-                messageContent = JSON.stringify({
-                    type: 'file',
-                    fileData: {
-                        name: data.fileData.name,
-                        type: data.fileData.type,
-                        size: data.fileData.size,
-                        url: fileUrl
-                    }
-                });
-
-                // Update the message to send with the URL instead of base64
-                messageToSend.fileData = {
-                    name: data.fileData.name,
-                    type: data.fileData.type,
-                    size: data.fileData.size,
-                    url: fileUrl
-                };
-            } catch (error) {
-                console.error('Error saving file:', error);
-                return;
-            }
-        } else {
-            messageContent = data.message;
+        // If it's a file message, ensure we're only sending the necessary data
+        if (message.type === 'file' && message.fileData) {
+            messageToSend.fileData = {
+                name: message.fileData.name,
+                type: message.fileData.type,
+                size: message.fileData.size,
+                url: message.fileData.url
+            };
         }
 
-        // Get the chat-specific database
-        const db = getChatDB(sender, receiver);
+        // Save message to database
+        const dbName = `chat_${message.sender}_${message.receiver}.db`;
+        const db = new sqlite3.Database(dbName);
+        
+        db.serialize(() => {
+            db.run(`CREATE TABLE IF NOT EXISTS messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                type TEXT,
+                content TEXT,
+                sender TEXT,
+                receiver TEXT,
+                timestamp INTEGER,
+                fileData TEXT,
+                isPinned INTEGER DEFAULT 0
+            )`);
 
-        // Save the message to the database
-        db.run(
-            'INSERT INTO messages (sender, receiver, message, timestamp) VALUES (?, ?, ?, ?)',
-            [sender, receiver, messageContent, timestamp],
-            (err) => {
-                if (err) {
-                    console.error('Error saving message:', err);
-                    return;
-                }
+            const stmt = db.prepare(`INSERT INTO messages (type, content, sender, receiver, timestamp, fileData)
+                VALUES (?, ?, ?, ?, ?, ?)`);
+                
+            stmt.run(
+                message.type,
+                message.content || null,
+                message.sender,
+                message.receiver,
+                messageToSend.timestamp,
+                message.fileData ? JSON.stringify(message.fileData) : null
+            );
+            
+            stmt.finalize();
+        });
 
-                // Broadcast the message with URL instead of base64
-                io.to(room).emit('receiveMessage', messageToSend);
-                io.to(sender).emit('receiveMessage', messageToSend);
-                io.to(receiver).emit('receiveMessage', messageToSend);
-            }
-        );
+        db.close();
+
+        // Broadcast the message
+        io.emit('receiveMessage', messageToSend);
+    });
+
+    socket.on('joinChat', ({ userA, userB }) => {
+        const room = [userA, userB].sort().join('_');
+        socket.join(room);
+        console.log(`User ${socket.id} joined room: ${room}`);
     });
 
     socket.on('disconnect', () => {
@@ -115,5 +125,173 @@ io.on('connection', (socket) => {
     });
 });
 
-// Add a route to serve uploaded files
-app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); 
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const uploadDir = path.join(__dirname, 'uploads');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        console.log('Saving file to:', uploadDir);
+        cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext = path.extname(file.originalname);
+        cb(null, file.fieldname + '-' + uniqueSuffix + ext);
+    }
+});
+
+const upload = multer({
+    storage: storage,
+    limits: {
+        fileSize: 10 * 1024 * 1024 // 10MB limit
+    }
+});
+
+// Apply CORS middleware
+app.use(cors());
+app.use(express.json());
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// File upload endpoint
+app.post('/upload', upload.single('file'), (req, res) => {
+    console.log('File upload request received');
+    
+    if (!req.file) {
+        console.error('No file received');
+        return res.status(400).json({
+            success: false,
+            error: 'No file received'
+        });
+    }
+
+    try {
+        console.log('File saved:', req.file);
+        
+        // Return the file URL and details
+        res.json({
+            success: true,
+            url: `/uploads/${req.file.filename}`,
+            name: req.file.originalname,
+            type: req.file.mimetype,
+            size: req.file.size
+        });
+    } catch (error) {
+        console.error('Error handling file upload:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Error saving file'
+        });
+    }
+});
+
+// Add endpoint to toggle message pin status
+app.post('/messages/:messageId/pin', (req, res) => {
+    const messageId = req.params.messageId;
+    const { isPinned, sender, receiver } = req.body;
+
+    if (!sender || !receiver) {
+        return res.status(400).json({ success: false, message: 'Sender and receiver are required' });
+    }
+
+    const dbName = `chat_${sender}_${receiver}.db`;
+    const db = new sqlite3.Database(dbName);
+    
+    db.run('UPDATE messages SET isPinned = ? WHERE id = ?', [isPinned ? 1 : 0, messageId], function(err) {
+        if (err) {
+            console.error('Error updating message pin status:', err);
+            res.status(500).json({ success: false, message: 'Error updating pin status' });
+            return;
+        }
+        
+        if (this.changes === 0) {
+            res.status(404).json({ success: false, message: 'Message not found' });
+            return;
+        }
+        
+        // Emit socket event to notify clients about the pinned message
+        io.emit('messagePinned', { messageId, isPinned });
+        
+        res.json({ success: true });
+    });
+    
+    db.close();
+});
+
+// Update the message fetching to include pin status
+app.get('/messages', (req, res) => {
+    const { sender, receiver } = req.query;
+    
+    if (!sender || !receiver) {
+        return res.status(400).json({ success: false, message: 'Sender and receiver are required' });
+    }
+    
+    const db = new sqlite3.Database('chat.db');
+    
+    db.all(
+        `SELECT * FROM messages 
+         WHERE (sender = ? AND receiver = ?) 
+         OR (sender = ? AND receiver = ?)
+         ORDER BY isPinned DESC, timestamp ASC`,
+        [sender, receiver, receiver, sender],
+        (err, rows) => {
+            if (err) {
+                console.error('Error fetching messages:', err);
+                res.status(500).json({ success: false, message: 'Error fetching messages' });
+                return;
+            }
+            
+            // Convert isPinned from integer to boolean
+            const messages = rows.map(row => ({
+                ...row,
+                isPinned: Boolean(row.isPinned)
+            }));
+            
+            res.json({ success: true, messages });
+        }
+    );
+    
+    db.close();
+});
+
+// Add endpoint to delete a message
+app.delete('/messages/:messageId', (req, res) => {
+    const messageId = req.params.messageId;
+    const { sender, receiver } = req.query;
+    
+    if (!sender || !receiver) {
+        return res.status(400).json({ success: false, message: 'Sender and receiver are required' });
+    }
+    
+    const dbName = `chat_${sender}_${receiver}.db`;
+    const db = new sqlite3.Database(dbName);
+    
+    db.run('DELETE FROM messages WHERE id = ?', [messageId], function(err) {
+        if (err) {
+            console.error('Error deleting message:', err);
+            res.status(500).json({ success: false, message: 'Error deleting message' });
+            return;
+        }
+        
+        if (this.changes === 0) {
+            res.status(404).json({ success: false, message: 'Message not found' });
+            return;
+        }
+        
+        // Emit socket event to notify clients about the deleted message
+        io.emit('messageDeleted', { messageId });
+        
+        res.json({ success: true });
+    });
+    
+    db.close();
+});
+
+// Start the server
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+}); 
