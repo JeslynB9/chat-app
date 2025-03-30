@@ -382,6 +382,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     socket.on('receiveMessage', (data) => {
+        // Prevent duplicate messages by checking if the message already exists
+        const existingMessages = Array.from(messagesContainer.querySelectorAll('.message'));
+        const isDuplicate = existingMessages.some(message => {
+            const bubble = message.querySelector('.message-bubble');
+            return bubble && bubble.textContent === data.message && message.classList.contains(data.sender === username ? 'sent' : 'received');
+        });
+
+        if (isDuplicate) {
+            console.warn('Duplicate message detected, skipping render:', data);
+            return;
+        }
+
         if (data.sender === username || data.receiver === username) {
             // Update the last message in the sidebar
             const displayText = data.type === 'file' ? `[${data.fileData.name}]` : data.message;
@@ -466,7 +478,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     messageElement.appendChild(timestamp);
 
                     // Add to messages container
-                    const messagesContainer = document.querySelector('.messages');
                     if (messagesContainer) {
                         messagesContainer.appendChild(messageElement);
                         messagesContainer.scrollTop = messagesContainer.scrollHeight;
