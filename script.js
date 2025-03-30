@@ -325,18 +325,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(data => {
                     if (data.success) {
                         console.log('Message saved:', data);
-
-                        // Append the sent message to the UI immediately
-                        const messageElement = document.createElement('div');
-                        messageElement.classList.add('message', 'sent');
-                        const messageBubble = document.createElement('div');
-                        messageBubble.classList.add('message-bubble');
-                        messageBubble.textContent = messageText;
-                        messageElement.appendChild(messageBubble);
-                        messagesContainer.appendChild(messageElement);
-                        messagesContainer.scrollTop = messagesContainer.scrollHeight; // Scroll to the bottom
-
-                        // Dynamically update the last message in the sidebar
+                        // Update the last message in the sidebar
                         updateLastMessageInSidebar(activeReceiver, messageText, "You", messageData.timestamp);
                     } else {
                         console.error('Error saving message:', data.message);
@@ -382,101 +371,84 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     socket.on('receiveMessage', (data) => {
-        // Prevent duplicate messages by checking if the message already exists
-        const existingMessages = Array.from(messagesContainer.querySelectorAll('.message'));
-        const isDuplicate = existingMessages.some(message => {
-            const bubble = message.querySelector('.message-bubble');
-            return bubble && bubble.textContent === data.message && message.classList.contains(data.sender === username ? 'sent' : 'received');
-        });
+        // Only display the message if it's in the current chat
+        if ((data.sender === activeReceiver || data.receiver === activeReceiver) && data.sender !== username) {
+            try {
+                const messageElement = document.createElement('div');
+                messageElement.className = `message received`;
+                messageElement.dataset.messageId = data.id;
 
-        if (isDuplicate) {
-            console.warn('Duplicate message detected, skipping render:', data);
-            return;
-        }
-
-        if (data.sender === username || data.receiver === username) {
-            // Update the last message in the sidebar
-            const displayText = data.type === 'file' ? `[${data.fileData.name}]` : data.message;
-            const displaySender = data.sender === username ? "You" : data.sender;
-            updateLastMessageInSidebar(data.sender === username ? data.receiver : data.sender, displayText, displaySender, data.timestamp);
-
-            // Only display the message if it's in the current chat
-            if ((data.sender === activeReceiver || data.receiver === activeReceiver) && data.sender !== username) {
-                try {
-                    const messageElement = document.createElement('div');
-                    messageElement.className = `message received`;
-
-                    if (data.type === 'file') {
-                        let fileData = data.fileData;
-                        // Try to parse the message if it's a string
-                        if (typeof data.message === 'string' && data.message.startsWith('{')) {
-                            try {
-                                const parsedMessage = JSON.parse(data.message);
-                                if (parsedMessage.type === 'file') {
-                                    fileData = parsedMessage.fileData;
-                                }
-                            } catch (e) {
-                                console.error('Error parsing file message:', e);
+                if (data.type === 'file') {
+                    let fileData = data.fileData;
+                    // Try to parse the message if it's a string
+                    if (typeof data.message === 'string' && data.message.startsWith('{')) {
+                        try {
+                            const parsedMessage = JSON.parse(data.message);
+                            if (parsedMessage.type === 'file') {
+                                fileData = parsedMessage.fileData;
                             }
+                        } catch (e) {
+                            console.error('Error parsing file message:', e);
                         }
-
-                        const fileContainer = document.createElement('div');
-                        fileContainer.className = 'file-container';
-
-                        // Add file icon
-                        const icon = document.createElement('div');
-                        icon.className = 'file-icon';
-                        icon.textContent = getFileIcon(fileData.type);
-                        fileContainer.appendChild(icon);
-
-                        // Add file info
-                        const info = document.createElement('div');
-                        info.className = 'file-info';
-
-                        const name = document.createElement('div');
-                        name.className = 'file-name';
-                        name.textContent = fileData.name;
-                        info.appendChild(name);
-
-                        const size = document.createElement('div');
-                        size.className = 'file-size';
-                        size.textContent = formatFileSize(fileData.size);
-                        info.appendChild(size);
-
-                        fileContainer.appendChild(info);
-
-                        // Add download link if URL is available
-                        if (fileData.url) {
-                            const downloadLink = document.createElement('a');
-                            downloadLink.href = fileData.url;
-                            downloadLink.download = fileData.name;
-                            downloadLink.className = 'download-button';
-                            downloadLink.textContent = '⬇️';
-                            fileContainer.appendChild(downloadLink);
-                        }
-
-                        messageElement.appendChild(fileContainer);
-                    } else {
-            const messageBubble = document.createElement('div');
-            messageBubble.classList.add('message-bubble');
-                        messageBubble.textContent = data.message || '';
-            messageElement.appendChild(messageBubble);
-        }
-
-                    // Add timestamp
-                    const timestamp = document.createElement('span');
-                    timestamp.className = 'timestamp';
-                    timestamp.textContent = new Date(data.timestamp).toLocaleTimeString();
-                    messageElement.appendChild(timestamp);
-
-                    // Add to messages container
-                    if (messagesContainer) {
-        messagesContainer.appendChild(messageElement);
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
                     }
-                } catch (error) {
-                    console.error('Error displaying message:', error);
+
+                    const fileContainer = document.createElement('div');
+                    fileContainer.className = 'file-container';
+
+                    // Add file icon
+                    const icon = document.createElement('div');
+                    icon.className = 'file-icon';
+                    icon.textContent = getFileIcon(fileData.type);
+                    fileContainer.appendChild(icon);
+
+                    // Add file info
+                    const info = document.createElement('div');
+                    info.className = 'file-info';
+
+                    const name = document.createElement('div');
+                    name.className = 'file-name';
+                    name.textContent = fileData.name;
+                    info.appendChild(name);
+
+                    const size = document.createElement('div');
+                    size.className = 'file-size';
+                    size.textContent = formatFileSize(fileData.size);
+                    info.appendChild(size);
+
+                    fileContainer.appendChild(info);
+
+                    // Add download link if URL is available
+                    if (fileData.url) {
+                        const downloadLink = document.createElement('a');
+                        downloadLink.href = fileData.url;
+                        downloadLink.download = fileData.name;
+                        downloadLink.className = 'download-button';
+                        downloadLink.textContent = '⬇️';
+                        fileContainer.appendChild(downloadLink);
+                    }
+
+                    messageElement.appendChild(fileContainer);
+                } else {
+                    const messageBubble = document.createElement('div');
+                    messageBubble.classList.add('message-bubble');
+                    messageBubble.textContent = data.message || '';
+                    messageElement.appendChild(messageBubble);
                 }
+
+                // Add timestamp
+                const timestamp = document.createElement('span');
+                timestamp.className = 'timestamp';
+                timestamp.textContent = new Date(data.timestamp).toLocaleTimeString();
+                messageElement.appendChild(timestamp);
+
+                // Add to messages container
+                const messagesContainer = document.querySelector('.messages');
+                if (messagesContainer) {
+                    messagesContainer.appendChild(messageElement);
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                }
+            } catch (error) {
+                console.error('Error displaying message:', error);
             }
         }
 
