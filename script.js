@@ -1457,7 +1457,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
     // ========== 🔍 SIDEBAR CHAT LIST SEARCH ==========
-    const sidebarSearchInput = document.getElementById('sidebar-search');
+    const sidebarSearchInput = document.querySelector('.search-bar');
 
     sidebarSearchInput.addEventListener('input', () => {
         const query = sidebarSearchInput.value.toLowerCase();
