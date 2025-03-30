@@ -84,7 +84,8 @@ io.on('connection', (socket) => {
                 sender TEXT,
                 receiver TEXT,
                 timestamp INTEGER,
-                fileData TEXT
+                fileData TEXT,
+                isPinned INTEGER DEFAULT 0
             )`);
 
             const stmt = db.prepare(`INSERT INTO messages (type, content, sender, receiver, timestamp, fileData)
@@ -185,6 +186,108 @@ app.post('/upload', upload.single('file'), (req, res) => {
             error: 'Error saving file'
         });
     }
+});
+
+// Add endpoint to toggle message pin status
+app.post('/messages/:messageId/pin', (req, res) => {
+    const messageId = req.params.messageId;
+    const { isPinned, sender, receiver } = req.body;
+
+    if (!sender || !receiver) {
+        return res.status(400).json({ success: false, message: 'Sender and receiver are required' });
+    }
+
+    const dbName = `chat_${sender}_${receiver}.db`;
+    const db = new sqlite3.Database(dbName);
+    
+    db.run('UPDATE messages SET isPinned = ? WHERE id = ?', [isPinned ? 1 : 0, messageId], function(err) {
+        if (err) {
+            console.error('Error updating message pin status:', err);
+            res.status(500).json({ success: false, message: 'Error updating pin status' });
+            return;
+        }
+        
+        if (this.changes === 0) {
+            res.status(404).json({ success: false, message: 'Message not found' });
+            return;
+        }
+        
+        // Emit socket event to notify clients about the pinned message
+        io.emit('messagePinned', { messageId, isPinned });
+        
+        res.json({ success: true });
+    });
+    
+    db.close();
+});
+
+// Update the message fetching to include pin status
+app.get('/messages', (req, res) => {
+    const { sender, receiver } = req.query;
+    
+    if (!sender || !receiver) {
+        return res.status(400).json({ success: false, message: 'Sender and receiver are required' });
+    }
+    
+    const db = new sqlite3.Database('chat.db');
+    
+    db.all(
+        `SELECT * FROM messages 
+         WHERE (sender = ? AND receiver = ?) 
+         OR (sender = ? AND receiver = ?)
+         ORDER BY isPinned DESC, timestamp ASC`,
+        [sender, receiver, receiver, sender],
+        (err, rows) => {
+            if (err) {
+                console.error('Error fetching messages:', err);
+                res.status(500).json({ success: false, message: 'Error fetching messages' });
+                return;
+            }
+            
+            // Convert isPinned from integer to boolean
+            const messages = rows.map(row => ({
+                ...row,
+                isPinned: Boolean(row.isPinned)
+            }));
+            
+            res.json({ success: true, messages });
+        }
+    );
+    
+    db.close();
+});
+
+// Add endpoint to delete a message
+app.delete('/messages/:messageId', (req, res) => {
+    const messageId = req.params.messageId;
+    const { sender, receiver } = req.query;
+    
+    if (!sender || !receiver) {
+        return res.status(400).json({ success: false, message: 'Sender and receiver are required' });
+    }
+    
+    const dbName = `chat_${sender}_${receiver}.db`;
+    const db = new sqlite3.Database(dbName);
+    
+    db.run('DELETE FROM messages WHERE id = ?', [messageId], function(err) {
+        if (err) {
+            console.error('Error deleting message:', err);
+            res.status(500).json({ success: false, message: 'Error deleting message' });
+            return;
+        }
+        
+        if (this.changes === 0) {
+            res.status(404).json({ success: false, message: 'Message not found' });
+            return;
+        }
+        
+        // Emit socket event to notify clients about the deleted message
+        io.emit('messageDeleted', { messageId });
+        
+        res.json({ success: true });
+    });
+    
+    db.close();
 });
 
 // Start the server
