@@ -190,6 +190,8 @@ app.get('/messages', (req, res) => {
             console.error('Error fetching messages:', err);
             return res.status(500).json({ success: false, message: 'Failed to fetch messages' });
         }
+
+        // Ensure the response includes the message ID
         res.json({ success: true, messages });
     });
 });
@@ -432,7 +434,7 @@ app.get('/chatDB/pins', (req, res) => {
     });
 });
 
-// Assign multiple messages to a pin
+// Assign a message to a pin
 app.post('/chatDB/pins/assign', (req, res) => {
     const { userA, userB, messageId, pinId } = req.body;
 
@@ -446,7 +448,7 @@ app.post('/chatDB/pins/assign', (req, res) => {
         VALUES (?, ?)
     `;
 
-    db.run(query, [pinId, messageId], function (err) {
+    db.run(query, [pinId, parseInt(messageId, 10)], function (err) {
         if (err) {
             console.error('❌ Failed to assign message to pin:', err.message);
             return res.status(500).json({ success: false, message: 'Failed to assign message to pin' });
@@ -478,6 +480,31 @@ app.delete('/chatDB/pins/:pinId', (req, res) => {
 
         console.log(`Pin with ID ${pinId} deleted successfully from chat_${[userA, userB].sort().join('_')}.db`);
         res.json({ success: true, message: 'Pin deleted successfully' });
+    });
+});
+
+// Fetch messages for a specific pin
+app.get('/chatDB/pins/messages', (req, res) => {
+    const { userA, userB, pinId } = req.query;
+
+    if (!userA || !userB || !pinId) {
+        return res.status(400).json({ success: false, message: 'userA, userB, and pinId are required' });
+    }
+
+    const db = getChatDB(userA, userB);
+    const query = `
+        SELECT messages.sender, messages.message
+        FROM pins
+        JOIN messages ON pins.message_id = messages.id
+        WHERE pins.id = ?
+    `;
+
+    db.all(query, [pinId], (err, rows) => {
+        if (err) {
+            console.error('Error fetching messages for pin:', err);
+            return res.status(500).json({ success: false, message: 'Failed to fetch messages for pin' });
+        }
+        res.json({ success: true, messages: rows });
     });
 });
 

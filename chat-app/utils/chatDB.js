@@ -60,7 +60,7 @@ function getChatDB(userA, userB) {
     db.run(`
       CREATE TABLE IF NOT EXISTS pins (
         id TEXT NOT NULL,
-        message_id TEXT NOT NULL,
+        message_id INTEGER NOT NULL, -- Ensure message_id is an integer
         PRIMARY KEY (id, message_id)
       )
     `);
@@ -208,6 +208,24 @@ function createPin(userA, userB, messageId, callback) {
       return callback(err);
     }
     console.log('Pin created with ID:', pinId);
+    callback(null, { id: pinId, message_id: messageId });
+  });
+}
+
+// Assign a message to a pin
+function assignMessageToPin(userA, userB, pinId, messageId, callback) {
+  const db = getChatDB(userA, userB);
+
+  const query = `
+    INSERT OR IGNORE INTO pins (id, message_id)
+    VALUES (?, ?)
+  `;
+  db.run(query, [pinId, messageId], function (err) {
+    if (err) {
+      console.error('Error assigning message to pin:', err);
+      return callback(err);
+    }
+    console.log('Message assigned to pin with ID:', pinId);
     callback(null, { id: pinId, message_id: messageId });
   });
 }
@@ -367,6 +385,7 @@ module.exports = {
   getMessagesBetweenUsers,
   addChatForBothUsers,
   createPin,
+  assignMessageToPin,
   removePin,
   getPinnedMessages,
   isMessagePinned,
