@@ -506,18 +506,119 @@ document.addEventListener('DOMContentLoaded', () => {
     const plusButton = document.querySelector('.input-area button:nth-child(4)');
     
     cameraButton.addEventListener('click', () => {
+        if (!activeReceiver) {
+            alert('Please select a chat before uploading a file.');
+            return;
+        }
+
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
         fileInput.accept = '*/*';
-        fileInput.click();
+        fileInput.style.display = 'none';
+        document.body.appendChild(fileInput);
 
         fileInput.onchange = (e) => {
             const file = e.target.files[0];
             if (file) {
                 handleFileUpload(file);
             }
+            document.body.removeChild(fileInput);
         };
+
+        fileInput.click();
     });
+
+    function handleFileUpload(file) {
+        // Create and display the message element with upload status
+        const messageElement = document.createElement('div');
+        messageElement.className = 'message sent';
+        
+        const statusContainer = document.createElement('div');
+        statusContainer.className = 'file-container';
+        statusContainer.innerHTML = `
+            <div class="file-icon">${getFileIcon(file.type)}</div>
+            <div class="file-info">
+                <div class="file-name">${file.name}</div>
+                <div class="file-size">${formatFileSize(file.size)}</div>
+            </div>
+            <div class="upload-status">Uploading...</div>
+        `;
+        
+        messageElement.appendChild(statusContainer);
+        const messagesContainer = document.querySelector('.messages');
+        messagesContainer.appendChild(messageElement);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+        // Create FormData
+        const formData = new FormData();
+        formData.append('file', file);
+
+        // Send file to server
+        fetch('http://localhost:3000/upload', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const fileData = {
+                    name: file.name,
+                    type: file.type,
+                    size: file.size,
+                    url: `http://localhost:3000${data.url}`
+                };
+
+                // Create message data
+                const messageData = {
+                    type: 'file',
+                    fileData: fileData,
+                    sender: username,
+                    receiver: activeReceiver,
+                    timestamp: Date.now()
+                };
+
+                // Emit socket message
+                socket.emit('sendMessage', messageData);
+
+                // Update the message element
+                statusContainer.innerHTML = `
+                    <div class="file-icon">${getFileIcon(fileData.type)}</div>
+                    <div class="file-info">
+                        <div class="file-name">${fileData.name}</div>
+                        <div class="file-size">${formatFileSize(fileData.size)}</div>
+                    </div>
+                    <a href="${fileData.url}" class="download-button" download="${fileData.name}" target="_blank">⬇️</a>
+                `;
+
+                // Add timestamp
+                const timestamp = document.createElement('span');
+                timestamp.className = 'timestamp';
+                timestamp.textContent = new Date(messageData.timestamp).toLocaleTimeString();
+                messageElement.appendChild(timestamp);
+
+                // Update sidebar
+                updateLastMessageInSidebar(activeReceiver, `[${file.name}]`, "You", messageData.timestamp);
+
+                // Store file info
+                const files = JSON.parse(localStorage.getItem(`files_${activeReceiver}`) || '[]');
+                files.push(file.name);
+                localStorage.setItem(`files_${activeReceiver}`, JSON.stringify(files));
+            } else {
+                throw new Error(data.error || 'Upload failed');
+            }
+        })
+        .catch(error => {
+            console.error('Upload error:', error);
+            statusContainer.innerHTML = `
+                <div class="file-icon">❌</div>
+                <div class="file-info">
+                    <div class="file-name">Upload failed</div>
+                    <div class="file-size error-message">${error.message}</div>
+                </div>
+            `;
+            messageElement.style.color = 'red';
+        });
+    }
 
     function getFileIcon(fileType) {
         if (fileType.startsWith('image/')) return '🖼️';
@@ -537,119 +638,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const sizes = ['Bytes', 'KB', 'MB', 'GB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    }
-
-    function handleFileUpload(file) {
-        if (!activeReceiver) {
-            alert('Please select a chat before uploading a file.');
-            return;
-        }
-
-        // Show uploading status
-        const messageElement = document.createElement('div');
-        messageElement.className = 'message sent';
-        const statusContainer = document.createElement('div');
-        statusContainer.className = 'file-container';
-        statusContainer.innerHTML = 'Uploading...';
-        messageElement.appendChild(statusContainer);
-        const messagesContainer = document.querySelector('.messages');
-        messagesContainer.appendChild(messageElement);
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
-        const formData = new FormData();
-        formData.append('file', file);
-
-        console.log('Sending file:', {
-            name: file.name,
-            type: file.type,
-            size: file.size
-        });
-
-        fetch('http://localhost:3000/upload', {
-            method: 'POST',
-            body: formData
-        })
-        .then(async res => {
-            const data = await res.json();
-            console.log('Server response:', data);
-            if (!res.ok) {
-                throw new Error(data.error || `HTTP error! status: ${res.status}`);
-            }
-            return data;
-        })
-        .then(data => {
-            console.log('Upload response:', data);
-            if (data.success) {
-                const fileData = {
-                    name: file.name,
-                    type: file.type,
-                    size: file.size,
-                    url: `http://localhost:3000${data.url}`
-                };
-
-                console.log('File data:', fileData);
-
-                const messageData = {
-                    type: 'file',
-                    fileData: fileData,
-                    sender: username,
-                    receiver: activeReceiver,
-                    timestamp: Date.now()
-                };
-
-                // Emit the message via Socket.IO
-                socket.emit('sendMessage', messageData);
-
-                // Update the message element with file info
-                const fileContainer = document.createElement('div');
-                fileContainer.className = 'file-container';
-
-                const icon = document.createElement('div');
-                icon.className = 'file-icon';
-                icon.textContent = getFileIcon(fileData.type);
-                fileContainer.appendChild(icon);
-
-                const info = document.createElement('div');
-                info.className = 'file-info';
-
-                const name = document.createElement('div');
-                name.className = 'file-name';
-                name.textContent = fileData.name;
-                info.appendChild(name);
-
-                const size = document.createElement('div');
-                size.className = 'file-size';
-                size.textContent = formatFileSize(fileData.size);
-                info.appendChild(size);
-
-                fileContainer.appendChild(info);
-
-                const downloadLink = document.createElement('a');
-                downloadLink.href = fileData.url;
-                downloadLink.download = fileData.name;
-                downloadLink.className = 'download-button';
-                downloadLink.textContent = '⬇️';
-                downloadLink.target = '_blank';
-                fileContainer.appendChild(downloadLink);
-
-                messageElement.innerHTML = '';
-                messageElement.appendChild(fileContainer);
-
-                const timestamp = document.createElement('span');
-                timestamp.className = 'timestamp';
-                timestamp.textContent = new Date(messageData.timestamp).toLocaleTimeString();
-                messageElement.appendChild(timestamp);
-
-                updateLastMessageInSidebar(activeReceiver, `[${file.name}]`, "You", messageData.timestamp);
-            } else {
-                throw new Error(data.error || 'Upload failed');
-            }
-        })
-        .catch(error => {
-            console.error('Upload error:', error);
-            statusContainer.innerHTML = `Upload failed: ${error.message}`;
-            messageElement.style.color = 'red';
-        });
     }
 
     function displayMessage(message, isSent = false) {

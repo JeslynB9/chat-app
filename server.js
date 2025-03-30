@@ -6,6 +6,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const sqlite3 = require('sqlite3');
 
 const app = express();
 const server = http.createServer(app);
@@ -44,7 +45,7 @@ function saveFile(base64Data, fileType) {
 }
 
 io.on('connection', (socket) => {
-    console.log('A user connected');
+    console.log('A user connected:', socket.id);
 
     socket.on('setUsername', (username) => {
         socket.username = username;
@@ -53,78 +54,64 @@ io.on('connection', (socket) => {
         connectedUsers.add(username);
     });
 
-    socket.on('sendMessage', (data) => {
-        console.log('Received message:', {
-            type: data.type,
-            sender: data.sender,
-            receiver: data.receiver,
-            fileData: data.fileData ? {
-                name: data.fileData.name,
-                type: data.fileData.type,
-                size: data.fileData.size
-            } : undefined
+    socket.on('sendMessage', (message) => {
+        console.log('Received message:', message);
+        
+        const messageToSend = {
+            ...message,
+            timestamp: Date.now()
+        };
+
+        // If it's a file message, ensure we're only sending the necessary data
+        if (message.type === 'file' && message.fileData) {
+            messageToSend.fileData = {
+                name: message.fileData.name,
+                type: message.fileData.type,
+                size: message.fileData.size,
+                url: message.fileData.url
+            };
+        }
+
+        // Save message to database
+        const dbName = `chat_${message.sender}_${message.receiver}.db`;
+        const db = new sqlite3.Database(dbName);
+        
+        db.serialize(() => {
+            db.run(`CREATE TABLE IF NOT EXISTS messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                type TEXT,
+                content TEXT,
+                sender TEXT,
+                receiver TEXT,
+                timestamp INTEGER,
+                fileData TEXT
+            )`);
+
+            const stmt = db.prepare(`INSERT INTO messages (type, content, sender, receiver, timestamp, fileData)
+                VALUES (?, ?, ?, ?, ?, ?)`);
+                
+            stmt.run(
+                message.type,
+                message.content || null,
+                message.sender,
+                message.receiver,
+                messageToSend.timestamp,
+                message.fileData ? JSON.stringify(message.fileData) : null
+            );
+            
+            stmt.finalize();
         });
 
-        const { sender, receiver, timestamp } = data;
-        const room = [sender, receiver].sort().join('-');
+        db.close();
 
-        try {
-            // Format the message content based on type
-            let messageContent;
-            let messageToSend;
+        // Broadcast the message
+        io.emit('receiveMessage', messageToSend);
+    });
 
-            if (data.type === 'file') {
-                // Save the file and get its URL
-                const fileUrl = saveFile(data.fileData.data, data.fileData.type);
-                
-                // Create the message content for database
-                const fileData = {
-                    name: data.fileData.name,
-                    type: data.fileData.type,
-                    size: data.fileData.size,
-                    url: fileUrl
-                };
-
-                messageContent = JSON.stringify({
-                    type: 'file',
-                    fileData: fileData
-                });
-
-                // Create message to send to clients (without base64 data)
-                messageToSend = {
-                    type: 'file',
-                    sender: data.sender,
-                    receiver: data.receiver,
-                    timestamp: data.timestamp,
-                    fileData: fileData
-                };
-            } else {
-                messageContent = data.message;
-                messageToSend = data;
-            }
-
-            // Get the chat-specific database
-            const db = getChatDB(sender, receiver);
-
-            // Save the message to the database
-            db.run(
-                'INSERT INTO messages (sender, receiver, message, timestamp) VALUES (?, ?, ?, ?)',
-                [sender, receiver, messageContent, timestamp],
-                (err) => {
-                    if (err) {
-                        console.error('Error saving message:', err);
-                        return;
-                    }
-
-                    // Broadcast the message without base64 data
-                    io.to(room).emit('receiveMessage', messageToSend);
-                    io.to(sender).emit('receiveMessage', messageToSend);
-                    io.to(receiver).emit('receiveMessage', messageToSend);
-                }
-            );
-        } catch (error) {
-            console.error('Error processing message:', error);
-        }
+    socket.on('joinChat', ({ userA, userB }) => {
+        const room = [userA, userB].sort().join('_');
+        socket.join(room);
+        console.log(`User ${socket.id} joined room: ${room}`);
     });
 
     socket.on('disconnect', () => {
@@ -140,17 +127,17 @@ io.on('connection', (socket) => {
 // Configure multer for file uploads
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        console.log('Multer destination called:', { file: file.originalname });
-        if (!fs.existsSync(uploadsDir)) {
-            fs.mkdirSync(uploadsDir, { recursive: true });
+        const uploadDir = path.join(__dirname, 'uploads');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
         }
-        cb(null, uploadsDir);
+        console.log('Saving file to:', uploadDir);
+        cb(null, uploadDir);
     },
     filename: function (req, file, cb) {
-        console.log('Multer filename called:', { file: file.originalname });
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         const ext = path.extname(file.originalname);
-        cb(null, uniqueSuffix + ext);
+        cb(null, file.fieldname + '-' + uniqueSuffix + ext);
     }
 });
 
@@ -161,71 +148,47 @@ const upload = multer({
     }
 });
 
-// Apply CORS middleware with proper configuration
-app.use(cors({
-    origin: 'http://localhost:3000',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-}));
-
+// Apply CORS middleware
+app.use(cors());
 app.use(express.json());
-app.use('/uploads', express.static(uploadsDir));
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // File upload endpoint
-app.post('/upload', (req, res) => {
-    console.log('Upload endpoint hit');
-    console.log('Request headers:', req.headers);
+app.post('/upload', upload.single('file'), (req, res) => {
+    console.log('File upload request received');
     
-    upload.single('file')(req, res, function(err) {
-        console.log('Multer upload callback:', { 
-            error: err, 
-            file: req.file,
-            body: req.body 
+    if (!req.file) {
+        console.error('No file received');
+        return res.status(400).json({
+            success: false,
+            error: 'No file received'
         });
+    }
 
-        if (err instanceof multer.MulterError) {
-            console.error('Multer error:', err);
-            return res.status(400).json({
-                success: false,
-                error: `Upload error: ${err.message}`
-            });
-        } else if (err) {
-            console.error('Unknown upload error:', err);
-            return res.status(500).json({
-                success: false,
-                error: 'Failed to upload file'
-            });
-        }
+    try {
+        console.log('File saved:', req.file);
+        
+        // Return the file URL and details
+        res.json({
+            success: true,
+            url: `/uploads/${req.file.filename}`,
+            name: req.file.originalname,
+            type: req.file.mimetype,
+            size: req.file.size
+        });
+    } catch (error) {
+        console.error('Error handling file upload:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Error saving file'
+        });
+    }
+});
 
-        if (!req.file) {
-            console.error('No file uploaded');
-            return res.status(400).json({
-                success: false,
-                error: 'No file uploaded'
-            });
-        }
-
-        try {
-            const fileUrl = `/uploads/${req.file.filename}`;
-            console.log('File uploaded successfully:', {
-                filename: req.file.filename,
-                originalname: req.file.originalname,
-                size: req.file.size,
-                url: fileUrl
-            });
-
-            res.json({
-                success: true,
-                url: fileUrl,
-                filename: req.file.originalname,
-                size: req.file.size
-            });
-        } catch (error) {
-            console.error('Error processing uploaded file:', error);
-            res.status(500).json({
-                success: false,
-                error: 'Failed to process uploaded file'
-            });
-        }
-    });
+// Start the server
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
 }); 
