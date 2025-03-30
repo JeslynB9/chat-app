@@ -119,9 +119,9 @@ io.on('connection', (socket) => {
     });
 
     socket.on('joinChat', ({ userA, userB }) => {
-        const room = [userA, userB].sort().join('_');
-        socket.join(room);
-        console.log(`User ${socket.id} joined room: ${room}`);
+        const chatRoom = [userA, userB].sort().join('-');
+        socket.join(chatRoom);
+        console.log(`User joined chat room: ${chatRoom}`);
     });
 
     socket.on('disconnect', () => {
@@ -136,19 +136,24 @@ io.on('connection', (socket) => {
     // Add task update event handler
     socket.on('taskStatusUpdate', ({ userA, userB, taskId, status }) => {
         console.log('Task status update received:', { userA, userB, taskId, status });
-        // Broadcast the update to all users in the chat
-        io.emit('taskStatusChanged', { userA, userB, taskId, status });
+        
+        // Broadcast the update to all connected clients
+        io.emit('taskStatusChanged', { 
+            userA, 
+            userB, 
+            taskId, 
+            status,
+            timestamp: Date.now()
+        });
     });
 
     socket.on('taskAdded', ({ userA, userB, task }) => {
         console.log('New task added:', { userA, userB, task });
-        // Broadcast the new task to all users in the chat
         io.emit('taskUpdated', { userA, userB, task });
     });
 
     socket.on('taskDeleted', ({ userA, userB, taskId }) => {
         console.log('Task deleted:', { userA, userB, taskId });
-        // Broadcast the deletion to all users in the chat
         io.emit('taskDeleted', { userA, userB, taskId });
     });
 });
@@ -482,8 +487,14 @@ app.put('/chatDB/tasks/:taskId/status', (req, res) => {
             return;
         }
 
-        // Emit the update through Socket.IO
-        io.emit('taskStatusChanged', { userA, userB, taskId, status });
+        // Broadcast the update to all connected clients
+        io.emit('taskStatusChanged', { 
+            userA, 
+            userB, 
+            taskId, 
+            status,
+            timestamp: Date.now()
+        });
 
         res.json({
             success: true,
