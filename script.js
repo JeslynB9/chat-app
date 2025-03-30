@@ -302,38 +302,56 @@ document.addEventListener('DOMContentLoaded', () => {
         if (messageText && activeReceiver) {
             if (username === activeReceiver) {
                 alert("You cannot message yourself.");
-                return; // Prevent sending the message
+                return;
             }
 
             const messageData = {
                 message: messageText,
                 sender: username,
                 receiver: activeReceiver,
-                timestamp: Date.now() // Use the current timestamp
+                timestamp: Date.now()
             };
 
-            // Emit the message via Socket.IO
-            socket.emit('sendMessage', messageData);
-
-            // Save the message to the database
+            // Save the message to the database first
             fetch('http://localhost:3000/messages', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(messageData)
             })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        console.log('Message saved:', data);
-                        // Update the last message in the sidebar
-                        updateLastMessageInSidebar(activeReceiver, messageText, "You", messageData.timestamp);
-                    } else {
-                        console.error('Error saving message:', data.message);
-                    }
-                })
-                .catch(error => console.error('Error sending message:', error));
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Create and display the message immediately
+                    const messageElement = document.createElement('div');
+                    messageElement.className = 'message sent';
+                    messageElement.dataset.messageId = data.message.id;
 
-            inputField.value = ''; // Clear the input field
+                    const messageBubble = document.createElement('div');
+                    messageBubble.classList.add('message-bubble');
+                    messageBubble.textContent = messageText;
+                    messageElement.appendChild(messageBubble);
+
+                    const timestamp = document.createElement('span');
+                    timestamp.className = 'timestamp';
+                    timestamp.textContent = new Date(messageData.timestamp).toLocaleTimeString();
+                    messageElement.appendChild(timestamp);
+
+                    const messagesContainer = document.querySelector('.messages');
+                    messagesContainer.appendChild(messageElement);
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+                    // Update the last message in the sidebar
+                    updateLastMessageInSidebar(activeReceiver, messageText, "You", messageData.timestamp);
+
+                    // Emit the message via Socket.IO after successful save
+                    socket.emit('sendMessage', messageData);
+                } else {
+                    console.error('Error saving message:', data.message);
+                }
+            })
+            .catch(error => console.error('Error sending message:', error));
+
+            inputField.value = '';
         } else if (!activeReceiver) {
             alert('Please select a user to chat with.');
         }
@@ -371,11 +389,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     socket.on('receiveMessage', (data) => {
-        // Only display the message if it's in the current chat
-        if ((data.sender === activeReceiver || data.receiver === activeReceiver)) {
+        // Only display the message if it's from the active receiver and not from the current user
+        if (data.sender === activeReceiver && data.sender !== username) {
             try {
                 const messageElement = document.createElement('div');
-                messageElement.className = `message ${data.sender === username ? 'sent' : 'received'}`;
+                messageElement.className = 'message received';
                 messageElement.dataset.messageId = data.id;
 
                 if (data.type === 'file') {
@@ -1278,12 +1296,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Periodically fetch messages for the active chat
-    setInterval(() => {
-        if (activeReceiver) {
-            loadMessages(activeReceiver);
-        }
-    }, 500); // Fetch messages every 0.5 seconds
 
     // ==========================
     // ✉️ COMPOSE MESSAGE MODAL
