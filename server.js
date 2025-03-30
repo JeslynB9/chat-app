@@ -132,6 +132,25 @@ io.on('connection', (socket) => {
         }
         console.log('A user disconnected');
     });
+
+    // Add task update event handler
+    socket.on('taskStatusUpdate', ({ userA, userB, taskId, status }) => {
+        console.log('Task status update received:', { userA, userB, taskId, status });
+        // Broadcast the update to all users in the chat
+        io.emit('taskStatusChanged', { userA, userB, taskId, status });
+    });
+
+    socket.on('taskAdded', ({ userA, userB, task }) => {
+        console.log('New task added:', { userA, userB, task });
+        // Broadcast the new task to all users in the chat
+        io.emit('taskUpdated', { userA, userB, task });
+    });
+
+    socket.on('taskDeleted', ({ userA, userB, taskId }) => {
+        console.log('Task deleted:', { userA, userB, taskId });
+        // Broadcast the deletion to all users in the chat
+        io.emit('taskDeleted', { userA, userB, taskId });
+    });
 });
 
 // Configure multer for file uploads
@@ -436,6 +455,43 @@ app.get('/user-chats', (req, res) => {
             message: 'Error getting chat list'
         });
     }
+});
+
+// Update the task status endpoint
+app.put('/chatDB/tasks/:taskId/status', (req, res) => {
+    const { taskId } = req.params;
+    const { status, userA, userB } = req.body;
+
+    if (!userA || !userB) {
+        return res.status(400).json({
+            success: false,
+            message: 'Missing userA or userB'
+        });
+    }
+
+    const dbName = `chat_${userA}_${userB}.db`;
+    const db = new sqlite3.Database(dbName);
+
+    db.run('UPDATE tasks SET status = ? WHERE id = ?', [status, taskId], function(err) {
+        if (err) {
+            console.error('Error updating task status:', err);
+            res.status(500).json({
+                success: false,
+                message: 'Error updating task status'
+            });
+            return;
+        }
+
+        // Emit the update through Socket.IO
+        io.emit('taskStatusChanged', { userA, userB, taskId, status });
+
+        res.json({
+            success: true,
+            message: 'Task status updated successfully'
+        });
+    });
+
+    db.close();
 });
 
 // Start the server
