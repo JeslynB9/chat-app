@@ -1044,10 +1044,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         checkbox.style.right = '40px';
                         
                         // Update checkbox event listener
-                        checkbox.addEventListener('change', () => {
+                        checkbox.addEventListener('change', async () => {
                             const newStatus = checkbox.checked ? 'completed' : 'not complete';
                             try {
-                                updateTaskStatus(userA, userB, task.id, newStatus);
+                                await updateTaskStatus(userA, userB, task.id, newStatus);
                             } catch (error) {
                                 console.error('Failed to update task:', error);
                                 checkbox.checked = !checkbox.checked; // Revert checkbox state
@@ -2377,6 +2377,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Update the task status handling function
     function updateTaskStatus(userA, userB, taskId, newStatus) {
+        console.log('Updating task status:', { userA, userB, taskId, newStatus });
+        
         return fetch(`http://localhost:3000/chatDB/tasks/${taskId}/status`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -2389,8 +2391,21 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(res => res.json())
         .then(data => {
             if (data.success) {
-                // Update will be handled by the socket event listener
-                console.log('Task status update sent successfully');
+                // Emit the status update through socket
+                socket.emit('taskStatusUpdate', {
+                    userA: userA,
+                    userB: userB,
+                    taskId: taskId,
+                    status: newStatus
+                });
+                
+                // Update local task status
+                const task = tasks.find(t => t.id === taskId);
+                if (task) {
+                    task.status = newStatus;
+                    completedTasks = tasks.filter(t => t.status === 'completed').length;
+                    updateProgress();
+                }
             } else {
                 console.error('Failed to update task status:', data.message);
                 throw new Error(data.message);
@@ -2431,9 +2446,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateProgress();
             }
         }
+        
+        // Refresh tasks to ensure consistency
+        fetchTasks(data.userA, data.userB);
     });
 
-    // Update the checkbox event listener in fetchTasks
+    // Update the fetchTasks function
     function fetchTasks(userA, userB) {
         if (!userA || !userB) {
             console.error('Cannot fetch tasks. Missing users:', { userA, userB });
@@ -2532,6 +2550,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Set up periodic task refresh
-    setInterval(startTaskRefresh, 2000); // Refresh tasks every 2 seconds
+    // Set up periodic task refresh with a shorter interval
+    setInterval(startTaskRefresh, 1000); // Refresh tasks every second
 });
