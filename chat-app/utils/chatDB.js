@@ -57,6 +57,30 @@ function getChatDB(userA, userB) {
         status TEXT DEFAULT 'not complete'
       )
     `);
+    db.run(`
+      CREATE TABLE IF NOT EXISTS pins (
+        id TEXT NOT NULL,
+        message_id TEXT NOT NULL,
+        PRIMARY KEY (id, message_id)
+      )
+    `);
+
+    // Add default pins if not already present
+    const defaultPins = [
+      { id: 'Urgent', message_id: 'Urgent' }, // Retain original casing
+      { id: 'General', message_id: 'General' } // Retain original casing
+    ];
+    defaultPins.forEach(pin => {
+      db.run(
+        `INSERT OR IGNORE INTO pins (id, message_id) VALUES (?, ?)`,
+        [pin.id, pin.message_id],
+        (err) => {
+          if (err) {
+            console.error('Error adding default pin:', err);
+          }
+        }
+      );
+    });
   });
 
   return db;
@@ -169,6 +193,171 @@ function addChatForBothUsers(userA, userB, callback) {
   });
 }
 
+// Create a new pin for a message
+function createPin(userA, userB, messageId, callback) {
+  const db = getChatDB(userA, userB);
+  const pinId = `${userA}_${userB}_${messageId}`; // Unique pin ID
+
+  const query = `
+    INSERT INTO pins (id, message_id)
+    VALUES (?, ?)
+  `;
+  db.run(query, [pinId, messageId], function (err) {
+    if (err) {
+      console.error('Error creating pin:', err);
+      return callback(err);
+    }
+    console.log('Pin created with ID:', pinId);
+    callback(null, { id: pinId, message_id: messageId });
+  });
+}
+
+// Remove a pin for a message
+function removePin(userA, userB, messageId, callback) {
+  const db = getChatDB(userA, userB);
+  const pinId = `${userA}_${userB}_${messageId}`; // Unique pin ID
+
+  const query = `
+    DELETE FROM pins
+    WHERE id = ? AND message_id = ?
+  `;
+  db.run(query, [pinId, messageId], function (err) {
+    if (err) {
+      console.error('Error removing pin:', err);
+      return callback(err);
+    }
+    console.log('Pin removed with ID:', pinId);
+    callback(null, { id: pinId });
+  });
+}
+
+// Fetch all pinned messages for a chat
+function getPinnedMessages(userA, userB, callback) {
+  const db = getChatDB(userA, userB);
+
+  const query = `
+    SELECT messages.*
+    FROM pins
+    JOIN messages ON pins.message_id = messages.id
+  `;
+  db.all(query, [], (err, rows) => {
+    if (err) {
+      console.error('Error fetching pinned messages:', err);
+      return callback(err);
+    }
+    callback(null, rows);
+  });
+}
+
+// Check if a message is pinned
+function isMessagePinned(userA, userB, messageId, callback) {
+  const db = getChatDB(userA, userB);
+  const pinId = `${userA}_${userB}_${messageId}`; // Unique pin ID
+
+  const query = `
+    SELECT COUNT(*) AS count
+    FROM pins
+    WHERE id = ? AND message_id = ?
+  `;
+  db.get(query, [pinId, messageId], (err, row) => {
+    if (err) {
+      console.error('Error checking if message is pinned:', err);
+      return callback(err);
+    }
+    callback(null, row.count > 0);
+  });
+}
+
+/**
+ * Create a new category for a user.
+ * @param {string} userId - The ID of the user.
+ * @param {string} categoryName - The name of the category.
+ * @param {function} callback - Callback function.
+ */
+function createCategory(userId, categoryName, callback) {
+  const db = new sqlite3.Database(path.join(chatDBPath, 'categories.db'));
+
+  const query = `
+    INSERT INTO categories (user_id, name)
+    VALUES (?, ?)
+  `;
+  db.run(query, [userId, categoryName], function (err) {
+    if (err) {
+      console.error('Error creating category:', err);
+      return callback(err);
+    }
+    console.log('Category created with ID:', this.lastID);
+    callback(null, { id: this.lastID, name: categoryName });
+  });
+}
+
+/**
+ * Assign a chat to a category.
+ * @param {string} userA - The first user in the chat.
+ * @param {string} userB - The second user in the chat.
+ * @param {number} categoryId - The ID of the category.
+ * @param {function} callback - Callback function.
+ */
+function assignChatToCategory(userA, userB, categoryId, callback) {
+  const db = getChatDB(userA, userB);
+  const chatId = getChatDBName(userA, userB);
+
+  const query = `
+    INSERT INTO chat_categories (chat_id, category_id)
+    VALUES (?, ?)
+  `;
+  db.run(query, [chatId, categoryId], function (err) {
+    if (err) {
+      console.error('Error assigning chat to category:', err);
+      return callback(err);
+    }
+    console.log('Chat assigned to category with ID:', categoryId);
+    callback(null, { chatId, categoryId });
+  });
+}
+
+/**
+ * Get all categories for a user.
+ * @param {string} userId - The ID of the user.
+ * @param {function} callback - Callback function.
+ */
+function getCategories(userId, callback) {
+  const db = new sqlite3.Database(path.join(chatDBPath, 'categories.db'));
+
+  const query = `
+    SELECT * FROM categories
+    WHERE user_id = ?
+  `;
+  db.all(query, [userId], (err, rows) => {
+    if (err) {
+      console.error('Error fetching categories:', err);
+      return callback(err);
+    }
+    callback(null, rows);
+  });
+}
+
+/**
+ * Get all chats in a category.
+ * @param {number} categoryId - The ID of the category.
+ * @param {function} callback - Callback function.
+ */
+function getChatsInCategory(categoryId, callback) {
+  const db = new sqlite3.Database(path.join(chatDBPath, 'categories.db'));
+
+  const query = `
+    SELECT chat_id FROM chat_categories
+    WHERE category_id = ?
+  `;
+  db.all(query, [categoryId], (err, rows) => {
+    if (err) {
+      console.error('Error fetching chats in category:', err);
+      return callback(err);
+    }
+    callback(null, rows.map(row => row.chat_id));
+  });
+}
+
 module.exports = {
   getChatDB,
   addEvent,
@@ -176,5 +365,13 @@ module.exports = {
   addTask,
   saveMessage,
   getMessagesBetweenUsers,
-  addChatForBothUsers
+  addChatForBothUsers,
+  createPin,
+  removePin,
+  getPinnedMessages,
+  isMessagePinned,
+  createCategory,
+  assignChatToCategory,
+  getCategories,
+  getChatsInCategory,
 };
