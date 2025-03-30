@@ -1162,7 +1162,7 @@ body {
 }
 
 .context-menu {
-    position: absolute;
+    position: fixed;
     z-index: 1000;
     background: var(--bg-color);
     border: 1px solid var(--border-color);
@@ -1170,19 +1170,19 @@ body {
     box-shadow: 0 2px 6px rgba(0,0,0,0.2);
     width: 160px;
     padding: 5px 0;
-    display: none; /* Hidden by default */
+    display: none;
 }
 
 .context-menu.hidden {
-    display: none !important; /* Force hide when hidden class is present */
+    display: none;
 }
 
 .context-menu:not(.hidden) {
-    display: block; /* Show when not hidden */
+    display: block;
 }
 
 .context-menu-option {
-    padding: 10px 15px;
+    padding: 8px 15px;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -1203,9 +1203,8 @@ body {
 .chat-list-item.pinned::before {
     content: '📌';
     position: absolute;
-    left: 5px;
-    top: 50%;
-    transform: translateY(-50%);
+    right: 10px;
+    top: 5px;
     font-size: 12px;
 }
 
@@ -1216,9 +1215,8 @@ body {
 .chat-list-item.archived::before {
     content: '📁';
     position: absolute;
-    left: 5px;
-    top: 50%;
-    transform: translateY(-50%);
+    right: 10px;
+    top: 5px;
     font-size: 12px;
 }
 

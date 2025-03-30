@@ -1071,49 +1071,92 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const chatItem = document.createElement('div');
         chatItem.classList.add('chat-list-item');
-        const profilePicture = getOrGenerateProfilePictureForUser(username); // Get or generate the profile picture
+        const profilePicture = getOrGenerateProfilePictureForUser(username);
         chatItem.innerHTML = `
             <img src="${profilePicture}" alt="User" width="40" height="40">
             <div>
                 <div>${username}</div>
-                <div class="last-message">Loading...</div> <!-- Placeholder for the last message -->
+                <div class="last-message">Loading...</div>
             </div>
-            <div class="last-message-time">Loading...</div> <!-- Placeholder for the last message time -->
+            <div class="last-message-time">Loading...</div>
         `;
-        chatItem.setAttribute('data-last-timestamp', 0); // Default timestamp for sorting
+        chatItem.setAttribute('data-last-timestamp', 0);
+        
+        // Add click event for selecting chat
         chatItem.addEventListener('click', () => {
-            highlightSelectedChat(chatItem); // Highlight the selected chat
-            activeReceiver = username; // Set the active receiver
-            chatHeaderUsername.textContent = username; // Update the chat header with the username
-            const profilePicture = getOrGenerateProfilePictureForUser(username); // Get or generate the profile picture
-            chatHeaderProfilePicture.src = profilePicture; // Update the chat header profile picture
-            toggleChatScreen(true); // Show the chat screen
-            loadMessages(username); // Fetch and display previous messages
-            socket.emit('joinChat', { userA: username, userB: username }); // Emit joinChat event
+            highlightSelectedChat(chatItem);
+            activeReceiver = username;
+            chatHeaderUsername.textContent = username;
+            const profilePicture = getOrGenerateProfilePictureForUser(username);
+            chatHeaderProfilePicture.src = profilePicture;
+            toggleChatScreen(true);
+            loadMessages(username);
         });
 
-        // Add right-click context menu
+        // Add context menu event
         chatItem.addEventListener('contextmenu', (e) => {
             e.preventDefault();
-            showContextMenu(e.pageX, e.pageY, username);
+            const contextMenu = document.getElementById('chat-context-menu');
+            contextMenu.style.display = 'block';
+            contextMenu.style.left = `${e.pageX}px`;
+            contextMenu.style.top = `${e.pageY}px`;
+            contextMenu.dataset.username = username;
+            contextMenu.classList.remove('hidden');
         });
 
         chatList.appendChild(chatItem);
-
-        // Fetch the last message for this chat
         fetchLastMessage(username, chatItem);
     }
 
-    function showContextMenu(x, y, username) {
-        const menu = document.getElementById('chat-context-menu');
-        // Hide any other open context menus first
-        document.querySelectorAll('.context-menu').forEach(m => m.classList.add('hidden'));
-        
-        menu.style.left = `${x}px`;
-        menu.style.top = `${y}px`;
-        menu.classList.remove('hidden');
-        menu.dataset.username = username;
-    }
+    // Context menu event listeners
+    const contextMenu = document.getElementById('chat-context-menu');
+    
+    // Handle context menu options
+    document.querySelectorAll('.context-menu-option').forEach(option => {
+        option.addEventListener('click', (e) => {
+            const action = e.target.dataset.action;
+            const username = contextMenu.dataset.username;
+            const chatItem = Array.from(chatList.children).find(chat => 
+                chat.querySelector('div > div:first-child').textContent.trim() === username
+            );
+
+            if (!chatItem) return;
+
+            if (action === 'pin') {
+                chatList.prepend(chatItem);
+                chatItem.classList.add('pinned');
+                chatItem.classList.remove('archived');
+            } 
+            else if (action === 'archive') {
+                chatList.appendChild(chatItem);
+                chatItem.classList.add('archived');
+                chatItem.classList.remove('pinned');
+            } 
+            else if (action === 'delete') {
+                if (confirm(`Are you sure you want to delete the chat with ${username}?`)) {
+                    chatItem.remove();
+                    if (activeReceiver === username) {
+                        activeReceiver = null;
+                        chatHeaderUsername.textContent = '';
+                        chatHeaderProfilePicture.src = '';
+                        toggleChatScreen(false);
+                    }
+                }
+            }
+
+            // Hide context menu after action
+            contextMenu.style.display = 'none';
+            contextMenu.classList.add('hidden');
+        });
+    });
+
+    // Hide context menu when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#chat-context-menu')) {
+            contextMenu.style.display = 'none';
+            contextMenu.classList.add('hidden');
+        }
+    });
 
     function fetchLastMessage(username, chatItem) {
         fetch(`http://localhost:3000/messages?sender=${encodeURIComponent(username)}&receiver=${encodeURIComponent(username)}`)
@@ -1420,12 +1463,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatSearchResults = document.getElementById('chat-search-results');
     const closeChatSearch = document.getElementById('close-chat-search');
 
-    // Ensure the search modal is hidden by default
-    if (chatSearchModal) {
-        chatSearchModal.style.display = 'none';
-        chatSearchModal.classList.add('hidden');
-    }
-
     topSearchButton.addEventListener('click', () => {
         chatSearchModal.classList.remove('hidden');
         chatSearchModal.style.display = 'block';
@@ -1437,16 +1474,6 @@ document.addEventListener('DOMContentLoaded', () => {
         chatSearchModal.style.display = 'none';
         chatSearchInput.value = '';
         chatSearchResults.innerHTML = '';
-    });
-
-    // Close search modal when clicking outside
-    window.addEventListener('click', (event) => {
-        if (event.target === chatSearchModal) {
-            chatSearchModal.classList.add('hidden');
-            chatSearchModal.style.display = 'none';
-            chatSearchInput.value = '';
-            chatSearchResults.innerHTML = '';
-        }
     });
 
     chatSearchInput.addEventListener('input', () => {
@@ -1491,85 +1518,31 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    document.addEventListener('click', () => {
-        document.getElementById('chat-context-menu')?.classList.add('hidden');
+    document.querySelectorAll('.context-menu-option').forEach(option => {
+        option.addEventListener('click', (e) => {
+            const action = e.target.dataset.action;
+            const username = document.getElementById('chat-context-menu').dataset.username;
+            if (!username) return;
+    
+            const chatItem = Array.from(chatList.children).find(c =>
+                c.querySelector('div > div:first-child')?.textContent.trim() === username
+            );
+    
+            if (!chatItem) return;
+    
+            if (action === 'pin') {
+                chatList.prepend(chatItem);
+            } else if (action === 'archive') {
+                alert(`Archived chat with ${username}`);
+            } else if (action === 'delete') {
+                chatItem.remove();
+            }
+    
+            document.getElementById('chat-context-menu').classList.add('hidden');
+        });
     });
 
-    // Add event listeners for context menu options
-    document.addEventListener('DOMContentLoaded', () => {
-        // Hide context menu by default
-        const menu = document.getElementById('chat-context-menu');
-        if (menu) {
-            menu.classList.add('hidden');
-        }
-
-        // Add event listeners for context menu options
-        document.querySelectorAll('.context-menu-option').forEach(option => {
-            option.addEventListener('click', (e) => {
-                const action = e.target.dataset.action;
-                const username = document.getElementById('chat-context-menu').dataset.username;
-                if (!username) return;
-
-                const chatItem = Array.from(chatList.children).find(c =>
-                    c.querySelector('div > div:first-child')?.textContent.trim() === username
-                );
-
-                if (!chatItem) return;
-
-                if (action === 'pin') {
-                    // Move the chat to the top of the list
-                    chatList.prepend(chatItem);
-                    // Add a pin indicator
-                    chatItem.classList.add('pinned');
-                    // Save pinned status to localStorage
-                    const pinnedChats = JSON.parse(localStorage.getItem('pinnedChats') || '[]');
-                    if (!pinnedChats.includes(username)) {
-                        pinnedChats.push(username);
-                        localStorage.setItem('pinnedChats', JSON.stringify(pinnedChats));
-                    }
-                } else if (action === 'archive') {
-                    // Move the chat to the bottom of the list
-                    chatList.appendChild(chatItem);
-                    // Add an archive indicator
-                    chatItem.classList.add('archived');
-                    // Save archived status to localStorage
-                    const archivedChats = JSON.parse(localStorage.getItem('archivedChats') || '[]');
-                    if (!archivedChats.includes(username)) {
-                        archivedChats.push(username);
-                        localStorage.setItem('archivedChats', JSON.stringify(archivedChats));
-                    }
-                } else if (action === 'delete') {
-                    if (confirm(`Are you sure you want to delete the chat with ${username}?`)) {
-                        // Remove from localStorage
-                        const pinnedChats = JSON.parse(localStorage.getItem('pinnedChats') || '[]');
-                        const archivedChats = JSON.parse(localStorage.getItem('archivedChats') || '[]');
-                        localStorage.setItem('pinnedChats', JSON.stringify(pinnedChats.filter(chat => chat !== username)));
-                        localStorage.setItem('archivedChats', JSON.stringify(archivedChats.filter(chat => chat !== username)));
-                        
-                        // Remove the chat item
-                        chatItem.remove();
-                        
-                        // If this was the active chat, clear the chat screen
-                        if (activeReceiver === username) {
-                            activeReceiver = null;
-                            chatHeaderUsername.textContent = '';
-                            chatHeaderProfilePicture.src = '';
-                            toggleChatScreen(false);
-                        }
-                    }
-                }
-
-                // Hide the context menu
-                document.getElementById('chat-context-menu').classList.add('hidden');
-            });
-        });
-
-        // Close context menu when clicking outside
-        document.addEventListener('click', (e) => {
-            const contextMenu = document.getElementById('chat-context-menu');
-            if (!e.target.closest('.context-menu') && !e.target.closest('.chat-list-item')) {
-                contextMenu?.classList.add('hidden');
-            }
-        });
+    document.addEventListener('click', () => {
+        document.getElementById('chat-context-menu')?.classList.add('hidden');
     });
 });
