@@ -592,7 +592,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     sidebarPinsContainer.addEventListener("click", (event) => {
         if (event.target.classList.contains("remove-pin-button-sidebar")) {
-            event.target.parentElement.remove();
+            const pinElement = event.target.parentElement;
+            const pinText = pinElement.querySelector('.pin-text-sidebar').textContent;
+
+            // Prevent deletion of "All" and "Unread" pins
+            if (pinText === "All" || pinText === "Unread") {
+                alert("This pin cannot be deleted.");
+                return;
+            }
+
+            pinElement.remove();
         }
     });
 
