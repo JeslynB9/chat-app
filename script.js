@@ -411,53 +411,45 @@ document.addEventListener('DOMContentLoaded', () => {
                         const fileContainer = document.createElement('div');
                         fileContainer.className = 'file-container';
 
-                        if (fileData.type.startsWith('image/')) {
-                            // For images, display a thumbnail
-                            const img = document.createElement('img');
-                            img.src = fileData.url; // Use the server-provided URL
-                            img.alt = fileData.name;
-                            img.style.maxWidth = '200px';
-                            img.style.borderRadius = '8px';
-                            img.style.cursor = 'pointer';
-                            img.onclick = () => window.open(fileData.url, '_blank');
-                            fileContainer.appendChild(img);
-                        } else {
-                            // For other files, show icon and info
-                            const icon = document.createElement('div');
-                            icon.className = 'file-icon';
-                            icon.textContent = getFileIcon(fileData.type);
-                            fileContainer.appendChild(icon);
+                        // Add file icon
+                        const icon = document.createElement('div');
+                        icon.className = 'file-icon';
+                        icon.textContent = getFileIcon(fileData.type);
+                        fileContainer.appendChild(icon);
 
-                            const info = document.createElement('div');
-                            info.className = 'file-info';
+                        // Add file info
+                        const info = document.createElement('div');
+                        info.className = 'file-info';
 
-                            const name = document.createElement('div');
-                            name.className = 'file-name';
-                            name.textContent = fileData.name;
-                            info.appendChild(name);
+                        const name = document.createElement('div');
+                        name.className = 'file-name';
+                        name.textContent = fileData.name;
+                        info.appendChild(name);
 
-                            const size = document.createElement('div');
-                            size.className = 'file-size';
-                            size.textContent = formatFileSize(fileData.size);
-                            info.appendChild(size);
+                        const size = document.createElement('div');
+                        size.className = 'file-size';
+                        size.textContent = formatFileSize(fileData.size);
+                        info.appendChild(size);
 
-                            fileContainer.appendChild(info);
+                        fileContainer.appendChild(info);
+
+                        // Add download link if URL is available
+                        if (fileData.url) {
+                            const downloadLink = document.createElement('a');
+                            downloadLink.href = fileData.url;
+                            downloadLink.download = fileData.name;
+                            downloadLink.className = 'download-button';
+                            downloadLink.textContent = '⬇️';
+                            fileContainer.appendChild(downloadLink);
                         }
-
-                        const downloadLink = document.createElement('a');
-                        downloadLink.href = fileData.url; // Use the server-provided URL
-                        downloadLink.download = fileData.name;
-                        downloadLink.className = 'download-button';
-                        downloadLink.textContent = '⬇️';
-                        fileContainer.appendChild(downloadLink);
 
                         messageElement.appendChild(fileContainer);
                     } else {
-                        const messageBubble = document.createElement('div');
-                        messageBubble.classList.add('message-bubble');
+            const messageBubble = document.createElement('div');
+            messageBubble.classList.add('message-bubble');
                         messageBubble.textContent = data.message || '';
-                        messageElement.appendChild(messageBubble);
-                    }
+            messageElement.appendChild(messageBubble);
+        }
 
                     // Add timestamp
                     const timestamp = document.createElement('span');
@@ -468,8 +460,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Add to messages container
                     const messagesContainer = document.querySelector('.messages');
                     if (messagesContainer) {
-                        messagesContainer.appendChild(messageElement);
-                        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        messagesContainer.appendChild(messageElement);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
                     }
                 } catch (error) {
                     console.error('Error displaying message:', error);
@@ -553,15 +545,49 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            try {
+        // Show uploading status
+        const messageElement = document.createElement('div');
+        messageElement.className = 'message sent';
+        const statusContainer = document.createElement('div');
+        statusContainer.className = 'file-container';
+        statusContainer.innerHTML = 'Uploading...';
+        messageElement.appendChild(statusContainer);
+        const messagesContainer = document.querySelector('.messages');
+        messagesContainer.appendChild(messageElement);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        console.log('Sending file:', {
+            name: file.name,
+            type: file.type,
+            size: file.size
+        });
+
+        fetch('http://localhost:3000/upload', {
+            method: 'POST',
+            body: formData
+        })
+        .then(async res => {
+            const data = await res.json();
+            console.log('Server response:', data);
+            if (!res.ok) {
+                throw new Error(data.error || `HTTP error! status: ${res.status}`);
+            }
+            return data;
+        })
+        .then(data => {
+            console.log('Upload response:', data);
+            if (data.success) {
                 const fileData = {
                     name: file.name,
                     type: file.type,
                     size: file.size,
-                    data: e.target.result
+                    url: `http://localhost:3000${data.url}`
                 };
+
+                console.log('File data:', fileData);
 
                 const messageData = {
                     type: 'file',
@@ -571,86 +597,59 @@ document.addEventListener('DOMContentLoaded', () => {
                     timestamp: Date.now()
                 };
 
-                // Create and display the message element immediately
-                const messageElement = document.createElement('div');
-                messageElement.className = `message sent`;
+                // Emit the message via Socket.IO
+                socket.emit('sendMessage', messageData);
 
+                // Update the message element with file info
                 const fileContainer = document.createElement('div');
                 fileContainer.className = 'file-container';
 
-                if (fileData.type.startsWith('image/')) {
-                    // For images, display a thumbnail
-                    const img = document.createElement('img');
-                    img.src = e.target.result; // Use the local data URL for immediate display
-                    img.alt = fileData.name;
-                    img.style.maxWidth = '200px';
-                    img.style.borderRadius = '8px';
-                    img.style.cursor = 'pointer';
-                    img.onclick = () => window.open(img.src, '_blank');
-                    fileContainer.appendChild(img);
-                } else {
-                    // For other files, show icon and info
-                    const icon = document.createElement('div');
-                    icon.className = 'file-icon';
-                    icon.textContent = getFileIcon(fileData.type);
-                    fileContainer.appendChild(icon);
+                const icon = document.createElement('div');
+                icon.className = 'file-icon';
+                icon.textContent = getFileIcon(fileData.type);
+                fileContainer.appendChild(icon);
 
-                    const info = document.createElement('div');
-                    info.className = 'file-info';
+                const info = document.createElement('div');
+                info.className = 'file-info';
 
-                    const name = document.createElement('div');
-                    name.className = 'file-name';
-                    name.textContent = fileData.name;
-                    info.appendChild(name);
+                const name = document.createElement('div');
+                name.className = 'file-name';
+                name.textContent = fileData.name;
+                info.appendChild(name);
 
-                    const size = document.createElement('div');
-                    size.className = 'file-size';
-                    size.textContent = formatFileSize(fileData.size);
-                    info.appendChild(size);
+                const size = document.createElement('div');
+                size.className = 'file-size';
+                size.textContent = formatFileSize(fileData.size);
+                info.appendChild(size);
 
-                    fileContainer.appendChild(info);
-                }
+                fileContainer.appendChild(info);
 
                 const downloadLink = document.createElement('a');
-                downloadLink.href = e.target.result; // Use the local data URL for immediate display
+                downloadLink.href = fileData.url;
                 downloadLink.download = fileData.name;
                 downloadLink.className = 'download-button';
                 downloadLink.textContent = '⬇️';
+                downloadLink.target = '_blank';
                 fileContainer.appendChild(downloadLink);
 
+                messageElement.innerHTML = '';
                 messageElement.appendChild(fileContainer);
 
-                // Add timestamp
                 const timestamp = document.createElement('span');
                 timestamp.className = 'timestamp';
                 timestamp.textContent = new Date(messageData.timestamp).toLocaleTimeString();
                 messageElement.appendChild(timestamp);
 
-                // Add to messages container
-                const messagesContainer = document.querySelector('.messages');
-                if (messagesContainer) {
-                    messagesContainer.appendChild(messageElement);
-                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-                }
-
-                // Emit the message via Socket.IO
-                socket.emit('sendMessage', messageData);
-
-                // Update the last message in the sidebar
                 updateLastMessageInSidebar(activeReceiver, `[${file.name}]`, "You", messageData.timestamp);
-
-            } catch (error) {
-                console.error('Error processing file:', error);
-                alert('Error processing file. Please try again.');
+            } else {
+                throw new Error(data.error || 'Upload failed');
             }
-        };
-
-        reader.onerror = function(error) {
-            console.error('Error reading file:', error);
-            alert('Error reading file. Please try again.');
-        };
-
-        reader.readAsDataURL(file);
+        })
+        .catch(error => {
+            console.error('Upload error:', error);
+            statusContainer.innerHTML = `Upload failed: ${error.message}`;
+            messageElement.style.color = 'red';
+        });
     }
 
     function displayMessage(message, isSent = false) {
@@ -1436,8 +1435,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ userA: localStorage.getItem('username'), userB: username })
                     })
-                    .then(response => response.json())
-                    .then(data => {
+            .then(response => response.json())
+            .then(data => {
                         if (data.success) {
                             console.log(`Database for chat with ${username} deleted successfully.`);
                             localStorage.setItem(`deleted_chat_${username}`, true); // Mark chat as deleted
@@ -1447,8 +1446,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                 chatHeaderUsername.textContent = '';
                                 chatHeaderProfilePicture.src = '';
                                 toggleChatScreen(false);
-                            }
-                        } else {
+                    }
+                } else {
                             console.error(`Failed to delete database for chat with ${username}:`, data.message);
                             alert('Failed to delete chat.');
                         }
