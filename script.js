@@ -530,6 +530,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function handleFileUpload(file) {
+        if (!activeReceiver) {
+            alert('Please select a chat before uploading a file.');
+            return;
+        }
+
+        // Validate file size
+        if (file.size > 10 * 1024 * 1024) { // 10MB limit
+            alert('File size must be less than 10MB');
+            return;
+        }
+
         // Create and display the message element with upload status
         const messageElement = document.createElement('div');
         messageElement.className = 'message sent';
@@ -550,63 +561,84 @@ document.addEventListener('DOMContentLoaded', () => {
         messagesContainer.appendChild(messageElement);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
-        // Create FormData
+        // Create FormData and append necessary information
         const formData = new FormData();
         formData.append('file', file);
+        formData.append('sender', username);
+        formData.append('receiver', activeReceiver);
 
         // Send file to server
         fetch('http://localhost:3000/upload', {
             method: 'POST',
             body: formData
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                const fileData = {
-                    name: file.name,
-                    type: file.type,
-                    size: file.size,
-                    url: `http://localhost:3000${data.url}`
-                };
-
-                // Create message data
-                const messageData = {
-                    type: 'file',
-                    fileData: fileData,
-                    sender: username,
-                    receiver: activeReceiver,
-                    timestamp: Date.now()
-                };
-
-                // Emit socket message
-                socket.emit('sendMessage', messageData);
-
-                // Update the message element
-                statusContainer.innerHTML = `
-                    <div class="file-icon">${getFileIcon(fileData.type)}</div>
-                    <div class="file-info">
-                        <div class="file-name">${fileData.name}</div>
-                        <div class="file-size">${formatFileSize(fileData.size)}</div>
-                    </div>
-                    <a href="${fileData.url}" class="download-button" download="${fileData.name}" target="_blank">⬇️</a>
-                `;
-
-                // Add timestamp
-                const timestamp = document.createElement('span');
-                timestamp.className = 'timestamp';
-                timestamp.textContent = new Date(messageData.timestamp).toLocaleTimeString();
-                messageElement.appendChild(timestamp);
-
-                // Update sidebar
-                updateLastMessageInSidebar(activeReceiver, `[${file.name}]`, "You", messageData.timestamp);
-
-                // Store file info
-                const files = JSON.parse(localStorage.getItem(`files_${activeReceiver}`) || '[]');
-                files.push(file.name);
-                localStorage.setItem(`files_${activeReceiver}`, JSON.stringify(files));
-            } else {
-                throw new Error(data.error || 'Upload failed');
+        .then(async response => {
+            let jsonResponse;
+            try {
+                const text = await response.text();
+                try {
+                    jsonResponse = JSON.parse(text);
+                } catch (e) {
+                    console.error('Server response was not JSON:', text);
+                    throw new Error('Server response was not JSON');
+                }
+            } catch (e) {
+                throw new Error('Error parsing server response');
             }
+
+            if (!response.ok) {
+                throw new Error(jsonResponse.message || `HTTP error! status: ${response.status}`);
+            }
+
+            return jsonResponse;
+        })
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.message || 'Upload failed');
+            }
+
+            const fileData = {
+                name: file.name,
+                type: file.type,
+                size: file.size,
+                url: `http://localhost:3000${data.url}`
+            };
+
+            // Create message data
+            const messageData = {
+                type: 'file',
+                fileData: fileData,
+                sender: username,
+                receiver: activeReceiver,
+                timestamp: Date.now()
+            };
+
+            // Emit socket message
+            socket.emit('sendMessage', messageData);
+
+            // Update the message element
+            statusContainer.innerHTML = `
+                <div class="file-icon">${getFileIcon(fileData.type)}</div>
+                <div class="file-info">
+                    <div class="file-name">${fileData.name}</div>
+                    <div class="file-size">${formatFileSize(fileData.size)}</div>
+                </div>
+                <a href="${fileData.url}" class="download-button" download="${fileData.name}" target="_blank">⬇️</a>
+            `;
+
+            // Add timestamp
+            const timestamp = document.createElement('span');
+            timestamp.className = 'timestamp';
+            timestamp.textContent = new Date(messageData.timestamp).toLocaleTimeString();
+            messageElement.appendChild(timestamp);
+
+            // Update sidebar
+            updateLastMessageInSidebar(activeReceiver, `[${file.name}]`, "You", messageData.timestamp);
+
+            // Store file info
+            const files = JSON.parse(localStorage.getItem(`files_${activeReceiver}`) || '[]');
+            files.push(file.name);
+            localStorage.setItem(`files_${activeReceiver}`, JSON.stringify(files));
         })
         .catch(error => {
             console.error('Upload error:', error);

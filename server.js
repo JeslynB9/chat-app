@@ -20,7 +20,12 @@ const io = new Server(server, {
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
+    try {
+        fs.mkdirSync(uploadsDir, { recursive: true, mode: 0o777 });
+        console.log('Created uploads directory:', uploadsDir);
+    } catch (error) {
+        console.error('Error creating uploads directory:', error);
+    }
 }
 
 function saveFile(base64Data, fileType) {
@@ -127,18 +132,27 @@ io.on('connection', (socket) => {
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        const uploadDir = path.join(__dirname, 'uploads');
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
+    destination: function(req, file, cb) {
+        // Ensure the uploads directory exists before saving
+        if (!fs.existsSync(uploadsDir)) {
+            try {
+                fs.mkdirSync(uploadsDir, { recursive: true, mode: 0o777 });
+                console.log('Created uploads directory:', uploadsDir);
+            } catch (error) {
+                console.error('Error creating uploads directory:', error);
+                return cb(error);
+            }
         }
-        console.log('Saving file to:', uploadDir);
-        cb(null, uploadDir);
+        console.log('Saving file to:', uploadsDir);
+        cb(null, uploadsDir);
     },
-    filename: function (req, file, cb) {
+    filename: function(req, file, cb) {
+        // Generate a unique filename with original extension
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         const ext = path.extname(file.originalname);
-        cb(null, file.fieldname + '-' + uniqueSuffix + ext);
+        const filename = `${uniqueSuffix}${ext}`;
+        console.log('Generated filename:', filename);
+        cb(null, filename);
     }
 });
 
@@ -147,7 +161,7 @@ const upload = multer({
     limits: {
         fileSize: 10 * 1024 * 1024 // 10MB limit
     }
-});
+}).single('file'); // Configure multer to expect a single file with field name 'file'
 
 // Apply CORS middleware
 app.use(cors());
@@ -156,36 +170,62 @@ app.use(express.json());
 // Serve static files from uploads directory
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// File upload endpoint
-app.post('/upload', upload.single('file'), (req, res) => {
-    console.log('File upload request received');
-    
-    if (!req.file) {
-        console.error('No file received');
-        return res.status(400).json({
-            success: false,
-            error: 'No file received'
-        });
-    }
+// File upload endpoint with better error handling
+app.post('/upload', (req, res) => {
+    // Set response headers to ensure JSON response
+    res.setHeader('Content-Type', 'application/json');
 
-    try {
-        console.log('File saved:', req.file);
-        
-        // Return the file URL and details
-        res.json({
-            success: true,
-            url: `/uploads/${req.file.filename}`,
-            name: req.file.originalname,
-            type: req.file.mimetype,
-            size: req.file.size
-        });
-    } catch (error) {
-        console.error('Error handling file upload:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Error saving file'
-        });
-    }
+    // Handle file upload
+    upload(req, res, function(err) {
+        if (err instanceof multer.MulterError) {
+            // A Multer error occurred when uploading
+            console.error('Multer error:', err);
+            return res.status(400).json({
+                success: false,
+                message: `Upload error: ${err.message}`
+            });
+        } else if (err) {
+            // An unknown error occurred
+            console.error('Unknown upload error:', err);
+            return res.status(500).json({
+                success: false,
+                message: 'Error uploading file'
+            });
+        }
+
+        // Check if file exists
+        if (!req.file) {
+            console.error('No file received');
+            return res.status(400).json({
+                success: false,
+                message: 'No file uploaded'
+            });
+        }
+
+        try {
+            // Log successful upload
+            console.log('File uploaded successfully:', req.file);
+
+            // Return success response with file details
+            return res.status(200).json({
+                success: true,
+                message: 'File uploaded successfully',
+                url: `/uploads/${req.file.filename}`,
+                file: {
+                    filename: req.file.filename,
+                    originalname: req.file.originalname,
+                    mimetype: req.file.mimetype,
+                    size: req.file.size
+                }
+            });
+        } catch (error) {
+            console.error('Error processing upload:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Error processing upload'
+            });
+        }
+    });
 });
 
 // Add endpoint to toggle message pin status
