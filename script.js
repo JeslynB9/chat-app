@@ -1095,6 +1095,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Fetch the last message for this chat
         fetchLastMessage(username, chatItem);
+
+        chatItem.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            showContextMenu(e.pageX, e.pageY, username);
+        });
+    }
+
+    function showContextMenu(x, y, username) {
+        const menu = document.getElementById('chat-context-menu');
+        menu.style.left = `${x}px`;
+        menu.style.top = `${y}px`;
+        menu.classList.remove('hidden');
+        menu.dataset.username = username;
     }
 
     function fetchLastMessage(username, chatItem) {
@@ -1498,5 +1511,33 @@ document.addEventListener('DOMContentLoaded', () => {
             const matches = username.includes(query) || lastMessage.includes(query);
             chatItem.style.display = matches ? 'flex' : 'none';
         });
+    });
+
+    document.querySelectorAll('.context-menu-option').forEach(option => {
+        option.addEventListener('click', (e) => {
+            const action = e.target.dataset.action;
+            const username = document.getElementById('chat-context-menu').dataset.username;
+            if (!username) return;
+    
+            const chatItem = Array.from(chatList.children).find(c =>
+                c.querySelector('div > div:first-child')?.textContent.trim() === username
+            );
+    
+            if (!chatItem) return;
+    
+            if (action === 'pin') {
+                chatList.prepend(chatItem);
+            } else if (action === 'archive') {
+                alert(`Archived chat with ${username}`);
+            } else if (action === 'delete') {
+                chatItem.remove();
+            }
+    
+            document.getElementById('chat-context-menu').classList.add('hidden');
+        });
+    });
+
+    document.addEventListener('click', () => {
+        document.getElementById('chat-context-menu')?.classList.add('hidden');
     });
 });
