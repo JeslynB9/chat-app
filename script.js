@@ -289,6 +289,65 @@ function displayPinMessagesPopup(pinId, messages) {
     });
 }
 
+// Add CSS for the popup
+const pinMessagesPopupStyle = document.createElement('style');
+pinMessagesPopupStyle.textContent = `
+    .pin-messages-popup {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background-color: var(--bg-color);
+        color: var(--text-color);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        z-index: 1001;
+        padding: 20px;
+        width: 400px;
+        max-height: 80%;
+        overflow-y: auto;
+    }
+
+    .pin-messages-popup .popup-content {
+        position: relative;
+    }
+
+    .pin-messages-popup .close-button {
+        position: absolute;
+        top: -100px; /* Position at the top */
+        right: 10px; /* Position at the right */
+        background: none;
+        border: none;
+        font-size: 1.2rem;
+        cursor: pointer;
+        color: var(--text-color);
+    }
+
+    .pin-messages-popup .messages-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .pin-messages-popup .messages-list li {
+        margin-bottom: 10px;
+        padding: 5px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .popup-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+    }
+`;
+document.head.appendChild(pinMessagesPopupStyle);
+
 document.addEventListener('DOMContentLoaded', () => {
     // ==========================
     // 👤 USERNAME SETUP
@@ -901,8 +960,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         .pin-messages-popup .close-button {
             position: absolute;
-            top: 10px;
-            right: 10px;
+            top: 10px; /* Position at the top */
+            right: 10px; /* Position at the right */
             background: none;
             border: none;
             font-size: 1.2rem;
