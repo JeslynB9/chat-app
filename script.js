@@ -985,30 +985,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function fetchTasks(userA, userB) {
-        if (!userA || !userB) {
-            console.error('Cannot fetch tasks. Missing users:', { userA, userB });
-            return Promise.reject(new Error('Missing users'));
-        }
-
-        return fetch(`http://localhost:3000/chatDB/tasks?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`)
+        fetch(`http://localhost:3000/chatDB/tasks?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`)
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    console.log('Tasks fetched successfully:', data.tasks);
+                    console.log('Tasks fetched successfully:', data.tasks); // Debugging log
                     const taskList = document.getElementById('task-items');
-                    if (!taskList) {
-                        console.error('Task list element not found');
-                        return;
-                    }
-
-                    taskList.innerHTML = ''; // Clear existing tasks
-                    tasks = data.tasks; // Update global tasks array
-                    completedTasks = tasks.filter(task => task.status === 'completed').length;
+                    taskList.innerHTML = ''; // Clear the existing task list
+                    tasks = data.tasks; // Update the global tasks array
+                    completedTasks = tasks.filter(task => task.status === 'completed').length; // Count completed tasks
+                    updateProgress(); // Update the progress percentage
 
                     data.tasks.forEach(task => {
                         const taskItem = document.createElement('li');
-                        taskItem.classList.add('task-item');
-                        taskItem.dataset.taskId = task.id;
+                        taskItem.classList.add('task-item'); // Add a class for styling
                         taskItem.textContent = task.task;
 
                         // Add checkbox
@@ -1016,55 +1006,43 @@ document.addEventListener('DOMContentLoaded', () => {
                         checkbox.type = 'checkbox';
                         checkbox.checked = task.status === 'completed';
                         checkbox.style.position = 'absolute';
-                        checkbox.style.right = '40px';
-                        
-                        // Update checkbox event listener
+                        checkbox.style.right = '40px'; // Position the checkbox to the right of the task name
                         checkbox.addEventListener('change', () => {
-                            const newStatus = checkbox.checked ? 'completed' : 'not complete';
-                            const currentUser = localStorage.getItem('username');
-                            
-                            if (!currentUser || !activeReceiver) {
-                                console.error('Missing user information:', { currentUser, activeReceiver });
-                                alert('Cannot update task: Missing user information');
-                                checkbox.checked = !checkbox.checked; // Revert checkbox
-                                return;
-                            }
-                            
-                            updateTaskStatus(currentUser, activeReceiver, task.id, newStatus)
-                                .catch(error => {
-                                    console.error('Failed to update task:', error);
-                                    checkbox.checked = !checkbox.checked; // Revert checkbox on error
-                                    alert(error.message);
-                                });
+                            task.status = checkbox.checked ? 'completed' : 'not complete';
+                            completedTasks = tasks.filter(t => t.status === 'completed').length;
+                            updateProgress();
+
+                            // Update the task status in the database
+                            updateTaskStatus(task.id, task.status);
                         });
 
+                        // Add delete button
+                        const deleteButton = document.createElement('button');
+                        deleteButton.innerHTML = '&times;'; // "x" symbol
+                        deleteButton.classList.add('delete-task-button');
+                        deleteButton.style.width = '20px'; // Smaller width
+                        deleteButton.style.height = '20px'; // Smaller height
+                        deleteButton.style.fontSize = '12px'; // Smaller font size
+                        deleteButton.addEventListener('click', () => deleteTask(userA, userB, task.id, taskItem));
+
                         taskItem.appendChild(checkbox);
+                        taskItem.appendChild(deleteButton);
+                        taskItem.style.position = 'relative'; // Ensure proper positioning
                         taskList.appendChild(taskItem);
                     });
-
-                    updateProgress();
                 } else {
-                    console.error('Failed to fetch tasks:', data.message);
-                    throw new Error(data.message);
+                    console.error('Failed to fetch tasks:', data.message); // Debugging log
+                    alert('Failed to fetch tasks.');
                 }
-            });
+            })
+            .catch(error => console.error('Error fetching tasks:', error));
     }
 
     function updateProgress() {
-        if (!tasks || tasks.length === 0) {
-            progressPercentage.textContent = '0%';
-            progressCircle.style.background = `conic-gradient(var(--sent-bg) 0% 0%, var(--received-bg) 0% 100%)`;
-            return;
-        }
-
-        const completedCount = tasks.filter(task => task.status === 'completed').length;
-        const progress = Math.round((completedCount / tasks.length) * 100);
-        
+        const progress = tasks.length ? Math.round((completedTasks / tasks.length) * 100) : 0;
         progressPercentage.textContent = `${progress}%`;
         progressCircle.style.background = `conic-gradient(var(--sent-bg) 0% ${progress}%, var(--received-bg) ${progress}% 100%)`;
         progressCircle.style.transition = 'background 0.3s ease-in-out';
-        
-        console.log('Progress updated:', { total: tasks.length, completed: completedCount, progress });
     }
 
     function deleteTask(userA, userB, taskId, taskElement) {
@@ -1125,33 +1103,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    socket.on('taskStatusChanged', (data) => {
-        console.log('Received task status update:', data);
-        const currentUser = localStorage.getItem('username');
-        
-        // Check if this update is relevant to the current user
-        if ((currentUser === data.userA && activeReceiver === data.userB) || 
-            (currentUser === data.userB && activeReceiver === data.userA)) {
-            
-            // Find and update the task in the tasks array
-            const task = tasks.find(t => t.id === data.taskId);
-            if (task) {
-                task.status = data.status;
-                
-                // Update the checkbox in the UI
-                const taskItem = document.querySelector(`[data-task-id="${data.taskId}"]`);
-                if (taskItem) {
-                    const checkbox = taskItem.querySelector('input[type="checkbox"]');
-                    if (checkbox) {
-                        checkbox.checked = data.status === 'completed';
-                    }
-                }
-                
-                // Update completed tasks count and progress
-                completedTasks = tasks.filter(t => t.status === 'completed').length;
-                updateProgress();
+    socket.on('taskStatusUpdated', (data) => {
+        const { taskId, status } = data;
+        const taskList = document.getElementById('task-items');
+        const taskItems = taskList.getElementsByTagName('li');
+        for (let item of taskItems) {
+            if (item.querySelector('input').dataset.taskId == taskId) {
+                item.querySelector('input').checked = (status === 'completed');
+                break;
             }
         }
+    });
+
+    socket.on('fetchTasks', ({ userA, userB }) => {
+        fetchTasks(userA, userB);
     });
 
     // Emit joinChat event when a chat is opened
@@ -1795,535 +1760,77 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('chat-context-menu')?.classList.add('hidden');
     });
 
-    // Add message context menu HTML
-    const messageContextMenu = document.createElement('div');
-    messageContextMenu.id = 'message-context-menu';
-    messageContextMenu.className = 'context-menu hidden';
-    messageContextMenu.innerHTML = `
-        <div class="context-menu-option" data-action="pin">
-            <span class="icon">📌</span> Pin Message
-        </div>
-        <div class="context-menu-option" data-action="copy">
-            <span class="icon">📋</span> Copy Text
-        </div>
-        <div class="context-menu-option" data-action="delete">
-            <span class="icon">🗑️</span> Delete Message
-        </div>
-    `;
-    document.body.appendChild(messageContextMenu);
-
-    // Add pin selection popup
-    const pinSelectionPopup = document.createElement('div');
-    pinSelectionPopup.id = 'pin-selection-popup';
-    pinSelectionPopup.className = 'modal hidden';
-    pinSelectionPopup.innerHTML = `
-        <div class="modal-content">
-            <span class="close-button">&times;</span>
-            <h3>Select a Pin</h3>
-            <ul id="available-pins"></ul>
-        </div>
-    `;
-    document.body.appendChild(pinSelectionPopup);
-
-    // Add CSS for pin selection popup
-    const pinSelectionPopupStyle = document.createElement('style');
-    pinSelectionPopupStyle.textContent = `
-        #pin-selection-popup {
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.4);
-            display: none;
-        }
-
-        #pin-selection-popup .modal-content {
-            background-color: var(--bg-color, #ffffff);
-            color: var(--text-color, #000000);
-            margin: 10% auto;
-            padding: 20px;
-            border-radius: 8px;
-            width: 40%;
-            text-align: center;
-        }
-
-        #pin-selection-popup .close-button {
-            float: right;
-            font-size: 24px;
-            cursor: pointer;
-        }
-
-        #available-pins {
-            list-style: none;
-            padding: 0;
-        }
-
-        #available-pins li {
-            padding: 10px;
-            cursor: pointer;
-            border: 1px solid var(--border-color, #ddd);
-            margin-bottom: 5px;
-            border-radius: 5px;
-            transition: background-color 0.2s;
-        }
-
-        #available-pins li:hover {
-            background-color: var(--hover-color, #f5f5f5);
-        }
-    `;
-    document.head.appendChild(pinSelectionPopupStyle);
-
-    // Handle pin selection popup logic
-    document.getElementById('pin-selection-popup').addEventListener('click', (e) => {
-        if (e.target.classList.contains('close-button') || e.target === pinSelectionPopup) {
-            pinSelectionPopup.style.display = 'none';
-        }
-    });
-
-    document.getElementById('message-context-menu').addEventListener('click', (e) => {
-        const option = e.target.closest('.context-menu-option');
-        if (!option) return;
-
-        const action = option.dataset.action;
-        const messageId = parseInt(messageContextMenu.dataset.messageId, 10); // Ensure message_id is an integer
-
-        if (action === 'pin') {
-            // Show the pin selection popup
-            const availablePinsList = document.getElementById('available-pins');
-            availablePinsList.innerHTML = ''; // Clear existing pins
-
-            // Fetch available pins dynamically
-            const userA = localStorage.getItem('username');
-            const userB = activeReceiver;
-
-            if (userA && userB) {
-                fetch(`http://localhost:3000/chatDB/pins?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`)
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.success) {
-                            data.pins.forEach(pin => {
-                                const pinItem = document.createElement('li');
-                                pinItem.textContent = pin.id; // Display the pin name
-                                pinItem.addEventListener('click', () => {
-                                    // Attach the message_id to the selected pin
-                                    fetch(`http://localhost:3000/chatDB/pins/assign`, {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ userA, userB, messageId, pinId: pin.id })
-                                    })
-                                    .then(res => res.json())
-                                    .then(response => {
-                                        if (response.success) {
-                                            alert(`Message successfully attached to pin "${pin.id}".`);
-                                        } else {
-                                            alert(response.message || 'Failed to attach the message to the pin.');
-                                        }
-                                    })
-                                    .catch(error => console.error('Error attaching message to pin:', error));
-
-                                    pinSelectionPopup.style.display = 'none';
-                                });
-                                availablePinsList.appendChild(pinItem);
-                            });
-                            pinSelectionPopup.style.display = 'block';
-                        } else {
-                            alert('Failed to fetch pins.');
-                        }
-                    })
-                    .catch(error => console.error('Error fetching pins:', error));
-            }
-        }
-    });
-
-    // Add CSS for message context menu
-    const messageContextMenuStyle = document.createElement('style');
-    messageContextMenuStyle.textContent = `
-        #message-context-menu {
-            position: fixed;
-            background: var(--bg-color, #ffffff);
-            border: 1px solid var(--border-color, #ddd);
-            border-radius: 4px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            z-index: 1000;
-            min-width: 150px;
-            display: none;
-        }
-
-        #message-context-menu.hidden {
-            display: none;
-        }
-
-        #message-context-menu .context-menu-option {
-            padding: 8px 12px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            transition: background-color 0.2s;
-        }
-
-        #message-context-menu .context-menu-option:hover {
-            background-color: var(--hover-color, #f5f5f5);
-        }
-
-        #message-context-menu .icon {
-            font-size: 16px;
-        }
-
-        .message {
-            user-select: text;
-            position: relative;
-        }
-    `;
-    document.head.appendChild(messageContextMenuStyle);
-
-    // Add context menu event listeners
-    document.addEventListener('click', (e) => {
-        const contextMenu = document.getElementById('message-context-menu');
-        if (!e.target.closest('#message-context-menu')) {
-            contextMenu.style.display = 'none';
-            contextMenu.classList.add('hidden');
-        }
-    });
-
-    document.getElementById('message-context-menu').addEventListener('click', (e) => {
-        const option = e.target.closest('.context-menu-option');
-        if (!option) return;
-
-        const action = option.dataset.action;
-        const messageId = e.currentTarget.dataset.messageId;
-        const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
-
-        if (!messageElement) {
-            console.error('Message element not found');
-            return;
-        }
-
-        switch (action) {
-            case 'pin':
-                toggleMessagePin(messageId, messageElement);
-                break;
-            case 'copy':
-                const messageText = messageElement.querySelector('.message-bubble')?.textContent;
-                if (messageText) {
-                    navigator.clipboard.writeText(messageText).then(() => {
-                        alert('Message copied to clipboard!');
-                    });
-                }
-                break;
-            case 'delete':
-                if (confirm('Are you sure you want to delete this message?')) {
-                    deleteMessage(messageId);
-                }
-                break;
-        }
-
-        // Hide the context menu
-        e.currentTarget.style.display = 'none';
-        e.currentTarget.classList.add('hidden');
-    });
-
-    function toggleMessagePin(messageId, messageElement) {
-        console.log('Toggling pin for message:', { messageId, messageElement }); // Debug log
+    // Function to update task status
+    async function updateTaskStatus(taskId, newStatus) {
+        console.log('Updating task status:', { taskId, newStatus, currentUser, currentChat });
         
-        const isCurrentlyPinned = messageElement.parentElement.classList.contains('pinned-messages-content');
-        const sender = localStorage.getItem('username');
-        const receiver = activeReceiver;
-        
-        console.log('Pin toggle details:', { sender, receiver, isCurrentlyPinned }); // Debug log
-        
-        if (!sender || !receiver) {
-            console.error('Missing sender or receiver:', { sender, receiver });
-            alert('Error: Missing user information');
-            return;
-        }
-        
-        fetch(`http://localhost:3000/messages/${messageId}/pin`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                isPinned: !isCurrentlyPinned,
-                sender: sender,
-                receiver: receiver
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            console.log('Pin toggle response:', data); // Debug log
-            if (data.success) {
-                const messagesContainer = document.querySelector('.messages');
-                const pinnedSection = messagesContainer.querySelector('.pinned-messages-section');
-                
-                if (!isCurrentlyPinned) {
-                    if (!pinnedSection) {
-                        createPinnedSection();
-                    }
-                    const pinnedContent = messagesContainer.querySelector('.pinned-messages-content');
-                    pinnedContent.appendChild(messageElement);
-                    
-                    const pinOption = document.querySelector('[data-action="pin"]');
-                    if (pinOption) {
-                        pinOption.innerHTML = '<span class="icon">📌</span> Unpin Message';
-                    }
-                } else {
-                    messagesContainer.appendChild(messageElement);
-                    
-                    const pinOption = document.querySelector('[data-action="pin"]');
-                    if (pinOption) {
-                        pinOption.innerHTML = '<span class="icon">📌</span> Pin Message';
-                    }
-                    
-                    const pinnedContent = pinnedSection.querySelector('.pinned-messages-content');
-                    if (pinnedContent && pinnedContent.children.length === 0) {
-                        pinnedSection.remove();
-                    }
-                }
-            } else {
-                console.error('Failed to update pin status:', data.message);
-                alert('Failed to update pin status');
-            }
-        });
-    }
-
-    function deleteMessage(messageId) {
-        console.log('Deleting message:', { messageId }); // Debug log
-        
-        const sender = localStorage.getItem('username');
-        const receiver = activeReceiver;
-        
-        console.log('Delete message details:', { sender, receiver }); // Debug log
-        
-        if (!sender || !receiver) {
-            console.error('Missing sender or receiver:', { sender, receiver });
-            alert('Error: Missing user information');
-            return;
-        }
-        
-        fetch(`http://localhost:3000/messages/${messageId}?sender=${encodeURIComponent(sender)}&receiver=${encodeURIComponent(receiver)}`, {
-            method: 'DELETE'
-        })
-        .then(response => response.json())
-        .then(data => {
-            console.log('Delete message response:', data); // Debug log
-            if (data.success) {
-                const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
-                if (messageElement) {
-                    messageElement.remove();
-                }
-            } else {
-                console.error('Failed to delete message:', data.message);
-                alert('Failed to delete message');
-            }
-        })
-        .catch(error => {
-            console.error('Error deleting message:', error);
-            alert('Error deleting message');
-        });
-    }
-
-    function fetchAndRenderPins() {
-        const userA = localStorage.getItem('username'); // Current logged-in user
-        const userB = activeReceiver; // The user currently being chatted with
-
-        if (!userA || !userB) {
-            console.error('Cannot fetch pins. Missing users:', { userA, userB });
-            return;
+        if (!taskId || !currentUser || !currentChat) {
+            console.error('Missing required parameters:', { taskId, currentUser, currentChat });
+            throw new Error('Missing required parameters');
         }
 
-        fetch(`http://localhost:3000/chatDB/pins?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`)
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    const pinsContainer = document.querySelector(".pins-container");
-                    pinsContainer.innerHTML = ''; // Clear existing pins
-
-                    data.pins.forEach(pin => {
-                        const pinElement = document.createElement("div");
-                        pinElement.className = "pin";
-                        pinElement.innerHTML = `
-                            <span class="pin-text">${pin.id}</span>
-                            <button class="remove-pin-button">&times;</button>
-                        `;
-                        pinsContainer.appendChild(pinElement);
-
-                        // Attach delete event listener
-                        pinElement.querySelector(".remove-pin-button").addEventListener("click", () => {
-                            deletePin(userA, userB, pin.id);
-                        });
-                    });
-
-                    // Add the "Add Pin" button at the end
-                    const addPinButton = document.createElement("button");
-                    addPinButton.id = "add-pin-button";
-                    addPinButton.textContent = "+";
-                    pinsContainer.appendChild(addPinButton);
-
-                }
-            })
-            .catch(error => console.error('Error deleting pin:', error));
-    }
-
-    function handleAddPin() {
-        const pinText = prompt("Enter the text for the new pin:");
-        if (pinText) {
-            const userA = localStorage.getItem('username'); // Current logged-in user
-            const userB = activeReceiver; // The user currently being chatted with
-
-            if (userA && userB) {
-                fetch('http://localhost:3000/chatDB/pins', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userA, userB, pinName: pinText })
+        try {
+            const response = await fetch(`http://localhost:3000/chatDB/tasks/${taskId}/status`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    status: newStatus,
+                    userA: currentUser,
+                    userB: currentChat
                 })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        console.log('Pin added successfully:', data);
-                        fetchAndRenderPins(); // Refresh the pins to include the new one
-                    } else {
-                        console.error('Failed to add pin:', data.message);
-                        alert('Failed to add pin.');
-                    }
-                })
-                .catch(error => console.error('Error adding pin:', error));
-            } else {
-                console.error('Missing userA or userB:', { userA, userB });
-            }
-        }
-    }
-
-    // Add event listener for right-click on messages
-    document.querySelector('.messages').addEventListener('contextmenu', (e) => {
-        e.preventDefault(); // Prevent the default browser context menu
-
-        // Find the closest message element
-        const messageElement = e.target.closest('.message');
-        if (!messageElement) return;
-
-        // Retrieve the message ID from the data attribute
-        const messageId = messageElement.dataset.messageId;
-        if (!messageId) {
-            console.error('Message ID is undefined. Ensure data-message-id is set on the message element.');
-            return;
-        }
-
-        // Show the context menu
-        const contextMenu = document.getElementById('message-context-menu');
-        if (!contextMenu) {
-            console.error('Context menu element not found');
-            return;
-        }
-
-        // Set the message ID in the context menu dataset
-        contextMenu.dataset.messageId = messageId;
-
-        // Position the context menu at the mouse click location
-        contextMenu.style.left = `${e.pageX}px`;
-        contextMenu.style.top = `${e.pageY}px`;
-        contextMenu.style.display = 'block';
-        contextMenu.classList.remove('hidden');
-    });
-
-    // Hide the context menu when clicking outside
-    document.addEventListener('click', (e) => {
-        const contextMenu = document.getElementById('message-context-menu');
-        if (contextMenu && !e.target.closest('#message-context-menu')) {
-            contextMenu.style.display = 'none';
-            contextMenu.classList.add('hidden');
-        }
-    });
-
-    // Add socket event listeners for task updates
-    socket.on('taskStatusChanged', ({ userA, userB, taskId, status }) => {
-        console.log('Received task status update:', { userA, userB, taskId, status });
-        const currentUser = localStorage.getItem('username');
-        const currentChat = activeReceiver;
-        
-        if ((currentUser === userA && currentChat === userB) || 
-            (currentUser === userB && currentChat === userA)) {
-            
-            // Update the task in the tasks array
-            const task = tasks.find(t => t.id === taskId);
-            if (task) {
-                task.status = status;
-                completedTasks = tasks.filter(t => t.status === 'completed').length;
-                updateProgress();
-                
-                // Update the checkbox in the UI
-                const taskItem = document.querySelector(`[data-task-id="${taskId}"]`);
-                if (taskItem) {
-                    const checkbox = taskItem.querySelector('input[type="checkbox"]');
-                    if (checkbox) {
-                        checkbox.checked = status === 'completed';
-                    }
-                }
-            }
-        }
-        
-        // Refresh tasks to ensure consistency
-        fetchTasks(userA, userB);
-    });
-
-    socket.on('taskUpdated', ({ userA, userB, task }) => {
-        const currentUser = localStorage.getItem('username');
-        const currentChat = activeReceiver;
-        
-        if ((currentUser === userA && currentChat === userB) || 
-            (currentUser === userB && currentChat === userA)) {
-            fetchTasks(userA, userB); // Refresh the task list
-        }
-    });
-
-    socket.on('taskDeleted', ({ userA, userB, taskId }) => {
-        const currentUser = localStorage.getItem('username');
-        const currentChat = activeReceiver;
-        
-        if ((currentUser === userA && currentChat === userB) || 
-            (currentUser === userB && currentChat === userA)) {
-            const taskItem = document.querySelector(`[data-task-id="${taskId}"]`);
-            if (taskItem) {
-                taskItem.remove();
-                tasks = tasks.filter(t => t.id !== taskId);
-                completedTasks = tasks.filter(t => t.status === 'completed').length;
-                updateProgress();
-            }
-        }
-    });
-
-    // Update the task status handling function
-    function updateTaskStatus(userA, userB, taskId, newStatus) {
-        console.log('Updating task status:', { userA, userB, taskId, newStatus });
-        
-        if (!userA || !userB || !taskId) {
-            console.error('Missing required parameters:', { userA, userB, taskId });
-            return Promise.reject(new Error('Missing required parameters'));
-        }
-
-    return fetch(`http://localhost:3000/chatDB/tasks/${taskId}/status`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            userA: userA,
-            userB: userB,
-            status: newStatus
-        })
-    })
-    .then(response => {
-        if (!response.ok) {
-            return response.json().then(data => {
-                throw new Error(data.message || `HTTP error! status: ${response.status}`);
             });
+
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.message || 'Failed to update task status');
+            }
+
+            console.log('Task status updated successfully:', data);
+            return data;
+        } catch (error) {
+            console.error('Error updating task status:', error);
+            throw error;
         }
-        return response.json();
-    })
-    .then(data => {
-        if (!data.success) {
-            throw new Error(data.message || 'Failed to update task status');
+    }
+
+    // Function to create task element
+    function createTaskElement(task) {
+        const taskElement = document.createElement('div');
+        taskElement.className = 'task';
+        taskElement.dataset.taskId = task.id;
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = task.status === 'complete';
+        checkbox.addEventListener('change', async (event) => {
+            const taskId = task.id;
+            const newStatus = event.target.checked ? 'complete' : 'not complete';
+            
+            try {
+                await updateTaskStatus(taskId, newStatus);
+                // Update the task text style
+                const taskText = taskElement.querySelector('span');
+                if (taskText) {
+                    taskText.style.textDecoration = newStatus === 'complete' ? 'line-through' : 'none';
+                }
+            } catch (error) {
+                // Revert checkbox state if update fails
+                event.target.checked = !event.target.checked;
+                alert('Failed to update task status: ' + error.message);
+            }
+        });
+
+        const taskText = document.createElement('span');
+        taskText.textContent = task.task;
+        if (task.status === 'complete') {
+            taskText.style.textDecoration = 'line-through';
         }
-        return data;
-    });
-}
+
+        taskElement.appendChild(checkbox);
+        taskElement.appendChild(taskText);
+        return taskElement;
+    }
+});
