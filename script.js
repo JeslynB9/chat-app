@@ -2137,29 +2137,33 @@ document.addEventListener('DOMContentLoaded', () => {
                     .then(res => res.json())
                     .then(data => {
                         if (data.success) {
+                            const uniquePins = new Set(); // Use a Set to filter duplicates
                             data.pins.forEach(pin => {
-                                const pinItem = document.createElement('li');
-                                pinItem.textContent = pin.id; // Display the pin name
-                                pinItem.addEventListener('click', () => {
-                                    // Attach the message_id to the selected pin
-                                    fetch(`http://localhost:3000/chatDB/pins/assign`, {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ userA, userB, messageId, pinId: pin.id })
-                                    })
-                                    .then(res => res.json())
-                                    .then(response => {
-                                        if (response.success) {
-                                            alert(`Message successfully attached to pin "${pin.id}".`);
-                                        } else {
-                                            alert(response.message || 'Failed to attach the message to the pin.');
-                                        }
-                                    })
-                                    .catch(error => console.error('Error attaching message to pin:', error));
+                                if (!uniquePins.has(pin.id)) {
+                                    uniquePins.add(pin.id);
+                                    const pinItem = document.createElement('li');
+                                    pinItem.textContent = pin.id; // Display the pin name
+                                    pinItem.addEventListener('click', () => {
+                                        // Attach the message_id to the selected pin
+                                        fetch(`http://localhost:3000/chatDB/pins/assign`, {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ userA, userB, messageId, pinId: pin.id })
+                                        })
+                                        .then(res => res.json())
+                                        .then(response => {
+                                            if (response.success) {
+                                                alert(`Message successfully attached to pin "${pin.id}".`);
+                                            } else {
+                                                alert(response.message || 'Failed to attach the message to the pin.');
+                                            }
+                                        })
+                                        .catch(error => console.error('Error attaching message to pin:', error));
 
-                                    pinSelectionPopup.style.display = 'none';
-                                });
-                                availablePinsList.appendChild(pinItem);
+                                        pinSelectionPopup.style.display = 'none';
+                                    });
+                                    availablePinsList.appendChild(pinItem);
+                                }
                             });
                             pinSelectionPopup.style.display = 'block';
                         } else {
