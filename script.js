@@ -246,12 +246,105 @@ function openInfoPopup(username, profilePicture, files) {
 }
 
 function closeInfoPopup() {
-    const popup = document.getElementById('info-popup');
-    const overlay = document.getElementById('popup-overlay');
-
-    popup.style.display = 'none';
-    overlay.style.display = 'none'; // Hide the overlay
+    const popup = document.querySelector('.info-popup');
+    const overlay = document.querySelector('.popup-overlay');
+    if (popup) popup.remove();
+    if (overlay) overlay.remove();
 }
+
+function displayPinMessagesPopup(pinId, messages) {
+    const overlay = document.createElement('div');
+    overlay.className = 'popup-overlay';
+    document.body.appendChild(overlay);
+
+    const popup = document.createElement('div');
+    popup.className = 'pin-messages-popup';
+    popup.innerHTML = `
+        <div class="popup-content">
+            <button class="close-button">&times;</button>
+            <h3>Messages for Pin: ${pinId}</h3>
+            <ul class="messages-list">
+                ${messages.map(msg => `
+                    <li>
+                        <strong>${msg.sender}:</strong> ${msg.message}
+                    </li>
+                `).join('')}
+            </ul>
+        </div>
+    `;
+    document.body.appendChild(popup);
+
+    // Add event listener to close the popup
+    popup.querySelector('.close-button').addEventListener('click', () => {
+        popup.remove();
+        overlay.remove();
+    });
+
+    // Close the popup when clicking on the overlay
+    overlay.addEventListener('click', () => {
+        popup.remove();
+        overlay.remove();
+    });
+}
+
+// Add CSS for the popup
+const pinMessagesPopupStyle = document.createElement('style');
+pinMessagesPopupStyle.textContent = `
+    .pin-messages-popup {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background-color: var(--bg-color);
+        color: var(--text-color);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        z-index: 1001;
+        padding: 20px;
+        width: 400px;
+        max-height: 80%;
+        overflow-y: auto;
+    }
+
+    .pin-messages-popup .popup-content {
+        position: relative;
+    }
+
+    .pin-messages-popup .close-button {
+        position: absolute;
+        top: -100px; /* Position at the top */
+        right: 10px; /* Position at the right */
+        background: none;
+        border: none;
+        font-size: 1.2rem;
+        cursor: pointer;
+        color: var(--text-color);
+    }
+
+    .pin-messages-popup .messages-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .pin-messages-popup .messages-list li {
+        margin-bottom: 10px;
+        padding: 5px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .popup-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+    }
+`;
+document.head.appendChild(pinMessagesPopupStyle);
 
 document.addEventListener('DOMContentLoaded', () => {
     // ==========================
@@ -747,6 +840,129 @@ document.addEventListener('DOMContentLoaded', () => {
             event.target.parentElement.remove();
         }
     });
+
+    // Add event listener for pin clicks
+    document.querySelector('.pins-container').addEventListener('click', (event) => {
+        const pinElement = event.target.closest('.pin');
+        if (!pinElement) return;
+
+        const pinId = pinElement.querySelector('.pin-text').textContent.trim();
+        const userA = localStorage.getItem('username'); // Current logged-in user
+        const userB = activeReceiver; // The user currently being chatted with
+
+        if (!userA || !userB || !pinId) {
+            console.error('Missing userA, userB, or pinId:', { userA, userB, pinId });
+            return;
+        }
+
+        // Fetch messages attached to the pin
+        fetch(`http://localhost:3000/chatDB/pins/messages?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}&pinId=${encodeURIComponent(pinId)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    displayPinMessagesPopup(pinId, data.messages);
+                } else {
+                    console.error('Failed to fetch messages for pin:', data.message);
+                    alert('Failed to fetch messages for this pin.');
+                }
+            })
+            .catch(error => console.error('Error fetching messages for pin:', error));
+    });
+
+    // Function to display the popup with messages
+    function displayPinMessagesPopup(pinId, messages) {
+        const overlay = document.createElement('div');
+        overlay.className = 'popup-overlay';
+        document.body.appendChild(overlay);
+
+        const popup = document.createElement('div');
+        popup.className = 'pin-messages-popup';
+        popup.innerHTML = `
+            <div class="popup-content">
+                <button class="close-button">&times;</button>
+                <h3>Messages for Pin: ${pinId}</h3>
+                <ul class="messages-list">
+                    ${messages.map(msg => `
+                        <li>
+                            <strong>${msg.sender}:</strong> ${msg.message}
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+        `;
+        document.body.appendChild(popup);
+
+        // Add event listener to close the popup
+        popup.querySelector('.close-button').addEventListener('click', () => {
+            popup.remove();
+            overlay.remove();
+        });
+
+        // Close the popup when clicking on the overlay
+        overlay.addEventListener('click', () => {
+            popup.remove();
+            overlay.remove();
+        });
+    }
+
+    // Add CSS for the popup
+    const pinMessagesPopupStyle = document.createElement('style');
+    pinMessagesPopupStyle.textContent = `
+        .pin-messages-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            z-index: 1001;
+            padding: 20px;
+            width: 400px;
+            max-height: 80%;
+            overflow-y: auto;
+        }
+
+        .pin-messages-popup .popup-content {
+            position: relative;
+        }
+
+        .pin-messages-popup .close-button {
+            position: absolute;
+            top: 10px; /* Position at the top */
+            right: 10px; /* Position at the right */
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            cursor: pointer;
+            color: var(--text-color);
+        }
+
+        .pin-messages-popup .messages-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .pin-messages-popup .messages-list li {
+            margin-bottom: 10px;
+            padding: 5px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+    `;
+    document.head.appendChild(pinMessagesPopupStyle);
 
     // ==========================
     // 📌 PINS (SIDEBAR)
