@@ -201,55 +201,56 @@ function updateInfoPanel(user, file) {
     infoFile.textContent = file || 'N/A';
 }
 
-function openInfoPopup(user, file) {
-    const popup = document.getElementById('info-popup');
-    const popupUser = document.getElementById('popup-info-user');
-    const popupFile = document.getElementById('popup-info-file');
+function openInfoPopup(username, profilePicture, files) {
+    // Remove any existing popups first
+    const existingPopup = document.querySelector('.info-popup');
+    const existingOverlay = document.querySelector('.popup-overlay');
+    if (existingPopup) existingPopup.remove();
+    if (existingOverlay) existingOverlay.remove();
 
-    popupUser.textContent = user || 'N/A';
-    popupFile.textContent = file || 'N/A';
+    // Create new overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'popup-overlay';
+    document.body.appendChild(overlay);
 
-    popup.style.display = 'block';
+    // Create new popup
+    const popup = document.createElement('div');
+    popup.className = 'info-popup';
+    popup.innerHTML = `
+        <div class="popup-content">
+            <button class="close-button">&times;</button>
+            <div class="user-info">
+                <img id="popup-profile-picture" src="${profilePicture || 'default-avatar.jpg'}" alt="Profile Picture">
+                <h3 id="popup-username">${username || 'N/A'}</h3>
+            </div>
+            <div class="files-section">
+                <h4>Files Sent</h4>
+                <ul id="popup-files">
+                    ${files && files.length > 0 
+                        ? files.map(file => `<li>${file}</li>`).join('') 
+                        : '<li>No files sent.</li>'}
+                </ul>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(popup);
+
+    // Add event listeners
+    const closeButton = popup.querySelector('.close-button');
+    closeButton.addEventListener('click', () => {
+        popup.remove();
+        overlay.remove();
+    });
+
+    overlay.addEventListener('click', () => {
+        popup.remove();
+        overlay.remove();
+    });
 }
 
 function closeInfoPopup() {
     const popup = document.getElementById('info-popup');
     popup.style.display = 'none';
-}
-
-function openInfoPopup(username, profilePicture, files) {
-    const popup = document.getElementById('info-popup');
-    const overlay = document.getElementById('popup-overlay');
-    const popupUsername = document.getElementById('popup-username');
-    const popupProfilePicture = document.getElementById('popup-profile-picture');
-    const popupFiles = document.getElementById('popup-files');
-
-    popupUsername.textContent = username || 'N/A';
-    popupProfilePicture.src = profilePicture || 'default-avatar.jpg';
-
-    // Clear and populate the files list
-    popupFiles.innerHTML = '';
-    if (files && files.length > 0) {
-        files.forEach(file => {
-            const fileItem = document.createElement('li');
-            fileItem.textContent = file;
-            popupFiles.appendChild(fileItem);
-        });
-    } else {
-        const noFilesItem = document.createElement('li');
-        noFilesItem.textContent = 'No files sent.';
-        popupFiles.appendChild(noFilesItem);
-    }
-
-    popup.style.display = 'block';
-    overlay.style.display = 'block'; // Show the overlay
-}
-
-function closeInfoPopup() {
-    const popup = document.querySelector('.info-popup');
-    const overlay = document.querySelector('.popup-overlay');
-    if (popup) popup.remove();
-    if (overlay) overlay.remove();
 }
 
 function displayPinMessagesPopup(pinId, messages) {
@@ -725,16 +726,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function displayMessage(message, isSent = false) {
-        console.log('Displaying message:', {
-            ...message,
-            fileData: message.fileData ? {
-                ...message.fileData,
-                data: message.fileData.data.substring(0, 100) + '...' // Log truncated data
-            } : undefined
-        });
-
         const messageContainer = document.createElement('div');
         messageContainer.className = `message ${isSent ? 'sent' : 'received'}`;
+        messageContainer.dataset.messageId = message.id;
 
         try {
             if (message.type === 'file') {
@@ -798,19 +792,185 @@ document.addEventListener('DOMContentLoaded', () => {
             timestamp.textContent = new Date(message.timestamp).toLocaleTimeString();
             messageContainer.appendChild(timestamp);
 
+            // Add context menu event listener
+            messageContainer.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                showMessageContextMenu(e, messageContainer, message);
+            });
+
             // Add to messages container
             const messagesContainer = document.querySelector('.messages');
             if (messagesContainer) {
                 messagesContainer.appendChild(messageContainer);
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
-            } else {
-                console.error('Messages container not found');
             }
         } catch (error) {
             console.error('Error displaying message:', error);
-            alert('Error displaying message. Please try again.');
         }
     }
+
+    // Function to show message context menu
+    function showMessageContextMenu(event, messageContainer, message) {
+        // Remove any existing context menu
+        const existingMenu = document.querySelector('.message-context-menu');
+        if (existingMenu) {
+            existingMenu.remove();
+        }
+
+        // Create context menu
+        const contextMenu = document.createElement('div');
+        contextMenu.className = 'message-context-menu';
+        contextMenu.innerHTML = `
+            <div class="context-menu-option" data-action="pin">📌 Pin Message</div>
+            <div class="context-menu-option" data-action="copy">📋 Copy Message</div>
+            <div class="context-menu-option" data-action="delete">🗑️ Delete Message</div>
+        `;
+
+        // Position the menu at the cursor position
+        contextMenu.style.position = 'fixed';
+        contextMenu.style.left = `${event.clientX}px`;
+        contextMenu.style.top = `${event.clientY}px`;
+        contextMenu.style.zIndex = '1000';
+        document.body.appendChild(contextMenu);
+
+        // Add event listeners for menu options
+        contextMenu.querySelectorAll('.context-menu-option').forEach(option => {
+            option.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const action = e.target.dataset.action;
+                handleMessageAction(action, message, messageContainer);
+                contextMenu.remove();
+            });
+        });
+
+        // Close menu when clicking outside
+        const closeMenu = (e) => {
+            if (!contextMenu.contains(e.target) && e.target !== messageContainer) {
+                contextMenu.remove();
+                document.removeEventListener('click', closeMenu);
+            }
+        };
+        document.addEventListener('click', closeMenu);
+    }
+
+    // Function to handle message actions
+    function handleMessageAction(action, message, messageContainer) {
+        switch (action) {
+            case 'pin':
+                pinMessage(message);
+                break;
+            case 'copy':
+                copyMessage(message.message);
+                break;
+            case 'delete':
+                deleteMessage(message, messageContainer);
+                break;
+        }
+    }
+
+    // Function to pin a message
+    function pinMessage(message) {
+        const userA = localStorage.getItem('username');
+        const userB = activeReceiver;
+        const pinId = prompt('Enter a name for this pin:');
+        
+        if (pinId) {
+            fetch('http://localhost:3000/chatDB/pins', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    pinId,
+                    messageId: message.id,
+                    userA,
+                    userB
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Message pinned successfully!');
+                } else {
+                    alert('Failed to pin message: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error pinning message:', error);
+                alert('Failed to pin message');
+            });
+        }
+    }
+
+    // Function to copy message text
+    function copyMessage(text) {
+        navigator.clipboard.writeText(text)
+            .then(() => {
+                alert('Message copied to clipboard!');
+            })
+            .catch(error => {
+                console.error('Error copying message:', error);
+                alert('Failed to copy message');
+            });
+    }
+
+    // Function to delete a message
+    function deleteMessage(message, messageContainer) {
+        if (confirm('Are you sure you want to delete this message?')) {
+            fetch(`http://localhost:3000/messages/${message.id}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    messageContainer.remove();
+                    // Emit socket event to notify other users
+                    socket.emit('messageDeleted', {
+                        messageId: message.id,
+                        userA: localStorage.getItem('username'),
+                        userB: activeReceiver
+                    });
+                } else {
+                    alert('Failed to delete message: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting message:', error);
+                alert('Failed to delete message');
+            });
+        }
+    }
+
+    // Add CSS for the message context menu
+    const messageContextMenuStyle = document.createElement('style');
+    messageContextMenuStyle.textContent = `
+        .message-context-menu {
+            position: fixed;
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 1000;
+            min-width: 150px;
+            padding: 4px 0;
+        }
+
+        .message-context-menu .context-menu-option {
+            padding: 8px 12px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            color: var(--text-color);
+        }
+
+        .message-context-menu .context-menu-option:hover {
+            background-color: var(--hover-color);
+        }
+
+        .message {
+            cursor: context-menu;
+            user-select: none;
+        }
+    `;
+    document.head.appendChild(messageContextMenuStyle);
 
     plusButton.addEventListener('click', openCalendar);
 
@@ -904,65 +1064,6 @@ document.addEventListener('DOMContentLoaded', () => {
             overlay.remove();
         });
     }
-
-    // Add CSS for the popup
-    const pinMessagesPopupStyle = document.createElement('style');
-    pinMessagesPopupStyle.textContent = `
-        .pin-messages-popup {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            z-index: 1001;
-            padding: 20px;
-            width: 400px;
-            max-height: 80%;
-            overflow-y: auto;
-        }
-
-        .pin-messages-popup .popup-content {
-            position: relative;
-        }
-
-        .pin-messages-popup .close-button {
-            position: absolute;
-            top: 10px; /* Position at the top */
-            right: 10px; /* Position at the right */
-            background: none;
-            border: none;
-            font-size: 1.2rem;
-            cursor: pointer;
-            color: var(--text-color);
-        }
-
-        .pin-messages-popup .messages-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-
-        .pin-messages-popup .messages-list li {
-            margin-bottom: 10px;
-            padding: 5px;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .popup-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            z-index: 1000;
-        }
-    `;
-    document.head.appendChild(pinMessagesPopupStyle);
 
     // ==========================
     // 📌 PINS (SIDEBAR)
