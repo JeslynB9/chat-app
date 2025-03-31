@@ -137,7 +137,7 @@ io.on('connection', (socket) => {
     socket.on('taskStatusUpdate', ({ userA, userB, taskId, status }) => {
         console.log('Task status update received:', { userA, userB, taskId, status });
         
-        // Broadcast the update to all connected clients
+        // Broadcast the update to all connected clients immediately
         io.emit('taskStatusChanged', { 
             userA, 
             userB, 
@@ -462,10 +462,105 @@ app.get('/user-chats', (req, res) => {
     }
 });
 
-// Update the task status endpoint
-app.put('/chatDB/tasks/:taskId/status', (req, res) => {
-    const { taskId } = req.params;
-    const { status, userA, userB } = req.body;
+// Add task database initialization
+function initializeTaskDatabase(userA, userB) {
+    const dbName = `chat_${userA}_${userB}.db`;
+    const db = new sqlite3.Database(dbName);
+    
+    db.serialize(() => {
+        db.run(`CREATE TABLE IF NOT EXISTS tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task TEXT NOT NULL,
+            status TEXT DEFAULT 'not complete',
+            created_by TEXT,
+            created_at INTEGER
+        )`);
+    });
+    
+    db.close();
+}
+
+// Add task endpoint
+app.post('/chatDB/tasks', (req, res) => {
+    const { task, userA, userB } = req.body;
+    const loggedInUser = req.headers['x-logged-in-user'];
+
+    if (!task || !userA || !userB) {
+        return res.status(400).json({
+            success: false,
+            message: 'Missing required fields'
+        });
+    }
+
+    try {
+        // Initialize databases if they don't exist
+        initializeTaskDatabase(userA, userB);
+        initializeTaskDatabase(userB, userA);
+
+        // Add task to both users' databases
+        const dbNameA = `chat_${userA}_${userB}.db`;
+        const dbNameB = `chat_${userB}_${userA}.db`;
+        const timestamp = Date.now();
+
+        const addTaskToDb = (dbName) => {
+            return new Promise((resolve, reject) => {
+                const db = new sqlite3.Database(dbName);
+                db.run(
+                    'INSERT INTO tasks (task, created_by, created_at) VALUES (?, ?, ?)',
+                    [task, loggedInUser, timestamp],
+                    function(err) {
+                        db.close();
+                        if (err) reject(err);
+                        else resolve(this.lastID);
+                    }
+                );
+            });
+        };
+
+        Promise.all([
+            addTaskToDb(dbNameA),
+            addTaskToDb(dbNameB)
+        ]).then(([taskIdA]) => {
+            // Emit socket event to notify clients
+            io.emit('taskAdded', {
+                userA,
+                userB,
+                task: {
+                    id: taskIdA,
+                    task,
+                    status: 'not complete',
+                    created_by: loggedInUser,
+                    created_at: timestamp
+                }
+            });
+
+            res.json({
+                success: true,
+                task: {
+                    id: taskIdA,
+                    task,
+                    status: 'not complete'
+                }
+            });
+        }).catch(error => {
+            console.error('Error adding task:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Error adding task'
+            });
+        });
+    } catch (error) {
+        console.error('Error adding task:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error adding task'
+        });
+    }
+});
+
+// Get tasks endpoint
+app.get('/chatDB/tasks', (req, res) => {
+    const { userA, userB } = req.query;
 
     if (!userA || !userB) {
         return res.status(400).json({
@@ -477,32 +572,169 @@ app.put('/chatDB/tasks/:taskId/status', (req, res) => {
     const dbName = `chat_${userA}_${userB}.db`;
     const db = new sqlite3.Database(dbName);
 
-    db.run('UPDATE tasks SET status = ? WHERE id = ?', [status, taskId], function(err) {
+    db.all('SELECT * FROM tasks ORDER BY created_at DESC', [], (err, tasks) => {
+        db.close();
+        
         if (err) {
-            console.error('Error updating task status:', err);
-            res.status(500).json({
+            console.error('Error fetching tasks:', err);
+            return res.status(500).json({
                 success: false,
-                message: 'Error updating task status'
+                message: 'Error fetching tasks'
             });
-            return;
         }
-
-        // Broadcast the update to all connected clients
-        io.emit('taskStatusChanged', { 
-            userA, 
-            userB, 
-            taskId, 
-            status,
-            timestamp: Date.now()
-        });
 
         res.json({
             success: true,
-            message: 'Task status updated successfully'
+            tasks: tasks || []
         });
     });
+});
 
-    db.close();
+// Update task status endpoint
+app.put('/chatDB/tasks/:taskId/status', async (req, res) => {
+    const taskId = req.params.taskId;
+    const { status, userA, userB } = req.body;
+    
+    console.log('Received task status update:', { taskId, status, userA, userB });
+
+    if (!userA || !userB || !status) {
+        console.error('Missing required parameters:', { userA, userB, status });
+        return res.status(400).json({ 
+            success: false, 
+            message: 'Missing required parameters: userA, userB, or status' 
+        });
+    }
+
+    try {
+        const dbNameA = `chat_${userA}_${userB}.db`;
+        const dbNameB = `chat_${userB}_${userA}.db`;
+        
+        // Create tasks table if it doesn't exist in both databases
+        const createTableQuery = `
+            CREATE TABLE IF NOT EXISTS tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task TEXT NOT NULL,
+                status TEXT DEFAULT 'not complete',
+                created_by TEXT,
+                created_at INTEGER
+            )
+        `;
+
+        const dbA = new sqlite3.Database(dbNameA);
+        const dbB = new sqlite3.Database(dbNameB);
+
+        await Promise.all([
+            dbA.run(createTableQuery),
+            dbB.run(createTableQuery)
+        ]);
+
+        // Update task status in both databases
+        const updateQuery = `
+            UPDATE tasks 
+            SET status = ? 
+            WHERE id = ?
+        `;
+
+        const [resultA, resultB] = await Promise.all([
+            dbA.run(updateQuery, [status, taskId]),
+            dbB.run(updateQuery, [status, taskId])
+        ]);
+
+        if (resultA.changes === 0 && resultB.changes === 0) {
+            console.error('Task not found:', taskId);
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Task not found' 
+            });
+        }
+
+        // Fetch updated task to verify the change
+        const getTaskQuery = `SELECT * FROM tasks WHERE id = ?`;
+        const taskA = await dbA.get(getTaskQuery, [taskId]);
+        const taskB = await dbB.get(getTaskQuery, [taskId]);
+        
+        if (!taskA || !taskB) {
+            console.error('Failed to fetch updated task:', taskId);
+            return res.status(500).json({ 
+                success: false, 
+                message: 'Failed to verify task update' 
+            });
+        }
+
+        // Broadcast the update to all connected clients
+        io.emit('taskStatusChanged', {
+            taskId,
+            status,
+            userA,
+            userB
+        });
+
+        console.log('Task status updated successfully:', { taskId, status });
+        res.json({ 
+            success: true, 
+            message: 'Task status updated successfully',
+            task: taskA || taskB 
+        });
+
+    } catch (error) {
+        console.error('Error updating task status:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: `Error updating task status: ${error.message}` 
+        });
+    }
+});
+
+// Delete task endpoint
+app.delete('/chatDB/tasks/:taskId', (req, res) => {
+    const { taskId } = req.params;
+    const { userA, userB } = req.query;
+
+    if (!userA || !userB) {
+        return res.status(400).json({
+            success: false,
+            message: 'Missing userA or userB'
+        });
+    }
+
+    const dbNameA = `chat_${userA}_${userB}.db`;
+    const dbNameB = `chat_${userB}_${userA}.db`;
+
+    const deleteFromDb = (dbName) => {
+        return new Promise((resolve, reject) => {
+            const db = new sqlite3.Database(dbName);
+            db.run('DELETE FROM tasks WHERE id = ?', [taskId], function(err) {
+                db.close();
+                if (err) reject(err);
+                else resolve(this.changes);
+            });
+        });
+    };
+
+    Promise.all([deleteFromDb(dbNameA), deleteFromDb(dbNameB)])
+        .then(([changesA, changesB]) => {
+            if (changesA > 0 || changesB > 0) {
+                // Broadcast the deletion to all connected clients
+                io.emit('taskDeleted', { userA, userB, taskId });
+
+                res.json({
+                    success: true,
+                    message: 'Task deleted successfully'
+                });
+            } else {
+                res.status(404).json({
+                    success: false,
+                    message: 'Task not found'
+                });
+            }
+        })
+        .catch(err => {
+            console.error('Error deleting task:', err);
+            res.status(500).json({
+                success: false,
+                message: 'Error deleting task'
+            });
+        });
 });
 
 // Start the server
