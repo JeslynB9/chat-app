@@ -254,9 +254,8 @@ function getPinnedMessages(userA, userB, callback) {
   const db = getChatDB(userA, userB);
 
   const query = `
-    SELECT messages.*
+    SELECT DISTINCT pins.id, pins.name
     FROM pins
-    JOIN messages ON pins.message_id = messages.id
   `;
   db.all(query, [], (err, rows) => {
     if (err) {
