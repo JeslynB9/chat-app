@@ -1455,9 +1455,9 @@ body {
     align-items: center; /* Vertically align the title */
 }
 
-.pin-messages-popup .close-button {
+.pin-messages-popup .popup-content .close-button {
     position: absolute;
-    top: 0;
+    top: -40px;
     right: 0;
     background: none;
     border: none;

@@ -273,6 +273,7 @@ function displayPinMessagesPopup(pinId, messages) {
                 `).join('')}
             </ul>
         </div>
+
     `;
     document.body.appendChild(popup);
 
