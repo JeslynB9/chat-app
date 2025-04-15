@@ -319,6 +319,44 @@ app.get('/messages', (req, res) => {
     db.close();
 });
 
+app.post('/messages', (req, res) => {
+    const { sender, receiver, message } = req.body;
+
+    if (!sender || !receiver || !message) {
+        return res.status(400).json({ success: false, message: 'Sender, receiver, and message are required' });
+    }
+
+    const dbName = `chat_${sender}_${receiver}.db`;
+    const db = new sqlite3.Database(dbName);
+
+    // Check for duplicates before inserting
+    db.get(`SELECT id FROM messages WHERE sender = ? AND receiver = ? AND message = ? ORDER BY timestamp DESC LIMIT 1`,
+        [sender, receiver, message],
+        (err, row) => {
+            if (err) {
+                console.error('Error checking for duplicates:', err);
+                return res.status(500).json({ success: false, message: 'Error checking for duplicates' });
+            }
+
+            if (row) {
+                return res.status(409).json({ success: false, message: 'Duplicate message detected.' });
+            }
+
+            db.run(`INSERT INTO messages (sender, receiver, message, timestamp) VALUES (?, ?, ?, datetime('now'))`,
+                [sender, receiver, message],
+                function(err) {
+                    if (err) {
+                        console.error('Error inserting message:', err);
+                        return res.status(500).json({ success: false, message: 'Failed to save message' });
+                    }
+                    res.json({ success: true, id: this.lastID });
+                });
+        });
+
+    db.close();
+});
+
+
 // Add endpoint to delete a message
 app.delete('/messages/:messageId', (req, res) => {
     const messageId = req.params.messageId;

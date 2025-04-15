@@ -409,24 +409,11 @@ document.addEventListener('DOMContentLoaded', () => {
             // Emit the message via Socket.IO
             socket.emit('sendMessage', messageData);
 
-            // Save the message to the database
-            fetch('http://localhost:3000/messages', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(messageData)
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        console.log('Message saved:', data);
-                        // Removed immediate UI update so the socket event on receiveMessage will handle it
-                    } else {
-                        console.error('Error saving message:', data.message);
-                    }
-                })
-                .catch(error => console.error('Error sending message:', error));
+            // Update the last message in the sidebar
+            updateLastMessageInSidebar(activeReceiver, messageText, "You", messageData.timestamp);
 
-            inputField.value = ''; // Clear the input field
+            // Clear the input field
+            inputField.value = '';
         } else if (!activeReceiver) {
             alert('Please select a user to chat with.');
         }
@@ -1044,7 +1031,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <ul class="messages-list">
                     ${messages.map(msg => `
                         <li>
-                            <strong>${msg.sender}:</strong> ${msg.message}
+<strong>${msg.sender}:</strong> ${msg.message}
                         </li>
                     `).join('')}
                 </ul>
@@ -1831,25 +1818,25 @@ document.addEventListener('DOMContentLoaded', () => {
         fetch(`http://localhost:3000/messages?sender=${encodeURIComponent(sender)}&receiver=${encodeURIComponent(receiver)}`)
             .then(response => response.json())
             .then(data => {
+                console.log('Messages received from server:', data.messages);
                 if (data.success) {
                     const messagesContainer = document.getElementById('messages-container');
                     const isAtBottom = messagesContainer.scrollHeight - messagesContainer.scrollTop === messagesContainer.clientHeight;
-
+            
                     messagesContainer.innerHTML = ''; // Clear existing messages
-
+            
                     data.messages.forEach(message => {
                         const messageElement = document.createElement('div');
                         messageElement.classList.add('message', message.sender === sender ? 'sent' : 'received');
-
+            
                         const messageBubble = document.createElement('div');
                         messageBubble.classList.add('message-bubble');
                         messageBubble.textContent = message.message;
-
+            
                         messageElement.appendChild(messageBubble);
                         messagesContainer.appendChild(messageElement);
                     });
-
-                    // Only scroll to the bottom if the user is already at the bottom
+            
                     if (isAtBottom) {
                         messagesContainer.scrollTop = messagesContainer.scrollHeight;
                     }
@@ -1857,6 +1844,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error('Failed to load messages:', data.message);
                 }
             })
+            
             .catch(error => console.error('Error loading messages:', error));
     }
 
