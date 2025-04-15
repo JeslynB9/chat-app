@@ -1322,15 +1322,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         const checkbox = document.createElement('input');
                         checkbox.type = 'checkbox';
                         checkbox.checked = task.status === 'completed';
+                        checkbox.dataset.taskId = task.id; // Add task ID for reference
                         checkbox.style.position = 'absolute';
                         checkbox.style.right = '40px'; // Position the checkbox to the right of the task name
                         checkbox.addEventListener('change', () => {
-                            task.status = checkbox.checked ? 'completed' : 'not complete';
-                            completedTasks = tasks.filter(t => t.status === 'completed').length;
-                            updateProgress();
-
-                            // Update the task status in the database and notify other users
-                            updateTaskStatus(task.id, task.status, userA, userB);
+                            const newStatus = checkbox.checked ? 'completed' : 'not complete';
+                            updateTaskStatus(task.id, newStatus, userA, userB); // Update task status for all users
                         });
 
                         // Add delete button
@@ -1421,15 +1418,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    socket.on('taskStatusUpdated', (data) => {
-        const { taskId, status } = data;
-        const taskList = document.getElementById('task-items');
-        const taskItems = taskList.getElementsByTagName('li');
-        for (let item of taskItems) {
-            if (item.querySelector('input').dataset.taskId == taskId) {
-                item.querySelector('input').checked = (status === 'completed');
-                break;
-            }
+    socket.on('taskStatusUpdated', ({ taskId, status }) => {
+        const taskItem = Array.from(document.querySelectorAll('.task-item')).find(item =>
+            item.querySelector('input[type="checkbox"]').dataset.taskId == taskId
+        );
+        if (taskItem) {
+            const checkbox = taskItem.querySelector('input[type="checkbox"]');
+            checkbox.checked = (status === 'completed');
+            const task = tasks.find(t => t.id == taskId);
+            if (task) task.status = status;
+            completedTasks = tasks.filter(t => t.status === 'completed').length;
+            updateProgress();
         }
     });
 
@@ -2079,35 +2078,38 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Function to update task status
-    async function updateTaskStatus(taskId, newStatus, userA, userB) {
-        console.log('Updating task status:', { taskId, newStatus, userA, userB });
-        
-        if (!taskId || !userA || !userB) {
-            console.error('Missing required parameters:', { taskId, userA, userB });
-            throw new Error('Missing required parameters');
+    async function updateTaskStatus(taskId, status, userA, userB) {
+        console.log('Updating task status:', { taskId, status, userA, userB });
+
+        // Validate required parameters
+        if (!taskId || !status || !userA || !userB) {
+            console.error('Missing required parameters:', { taskId, status, userA, userB });
+            throw new Error('userA, userB, taskId, and status are required');
         }
 
         try {
-            const response = await fetch(`http://localhost:3000/chatDB/tasks/${taskId}/status`, {
+            const url = `http://localhost:3000/chatDB/tasks/${encodeURIComponent(taskId)}/status?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`;
+            const payload = { status };
+
+            console.log('Sending request to server:', { url, payload }); // Debugging log
+
+            const response = await fetch(url, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    status: newStatus,
-                    userA,
-                    userB
-                })
+                body: JSON.stringify(payload)
             });
 
             const data = await response.json();
-            
+
             if (!response.ok) {
+                console.error('Server responded with error:', data.message || 'Unknown error');
                 throw new Error(data.message || 'Failed to update task status');
             }
 
             console.log('Task status updated successfully:', data);
-            socket.emit('taskStatusUpdated', { taskId, status: newStatus, userA, userB });
+            socket.emit('taskStatusUpdated', { taskId, status, userA, userB });
             return data;
         } catch (error) {
             console.error('Error updating task status:', error);

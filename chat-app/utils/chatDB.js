@@ -376,6 +376,13 @@ function getChatsInCategory(categoryId, callback) {
 }
 
 function updateTaskStatus(userA, userB, taskId, status, callback) {
+  console.log('Updating task status in database:', { userA, userB, taskId, status }); // Debugging log
+
+  if (!userA || !userB || !taskId || !status) {
+    console.error('Missing required parameters:', { userA, userB, taskId, status });
+    return callback(new Error('userA, userB, taskId, and status are required'));
+  }
+
   const db = getChatDB(userA, userB);
   const query = `
     UPDATE tasks
