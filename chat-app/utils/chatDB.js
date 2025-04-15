@@ -375,6 +375,39 @@ function getChatsInCategory(categoryId, callback) {
   });
 }
 
+function updateTaskStatus(userA, userB, taskId, status, callback) {
+  const db = getChatDB(userA, userB);
+  const query = `
+    UPDATE tasks
+    SET status = ?
+    WHERE id = ?
+  `;
+  db.run(query, [status, taskId], function (err) {
+    if (err) {
+      console.error('Error updating task status:', err);
+      return callback(err);
+    }
+    console.log('Task status updated successfully:', { taskId, status });
+    callback(null, { id: taskId, status });
+  });
+}
+
+function deleteTask(userA, userB, taskId, callback) {
+  const db = getChatDB(userA, userB);
+  const query = `
+    DELETE FROM tasks
+    WHERE id = ?
+  `;
+  db.run(query, [taskId], function (err) {
+    if (err) {
+      console.error('Error deleting task:', err);
+      return callback(err);
+    }
+    console.log('Task deleted successfully:', { taskId });
+    callback(null, { id: taskId });
+  });
+}
+
 module.exports = {
   getChatDB,
   addEvent,
@@ -392,4 +425,6 @@ module.exports = {
   assignChatToCategory,
   getCategories,
   getChatsInCategory,
+  updateTaskStatus,
+  deleteTask,
 };
