@@ -47,6 +47,42 @@ db.serialize(() => {
     });
 });
 
+// Create the `pins` table
+db.serialize(() => {
+    db.run(`
+        CREATE TABLE IF NOT EXISTS pins (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user TEXT NOT NULL,
+            category TEXT NOT NULL,
+            UNIQUE(user, category)
+        )
+    `, (err) => {
+        if (err) {
+            console.error('Error creating pins table:', err.message);
+        } else {
+            console.log('Pins table created or already exists.');
+        }
+    });
+});
+
+// Create the `pinned_chats` table
+db.serialize(() => {
+    db.run(`
+        CREATE TABLE IF NOT EXISTS pinned_chats (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pin_id INTEGER NOT NULL,
+            chat_username TEXT NOT NULL,
+            FOREIGN KEY(pin_id) REFERENCES pins(id),
+            UNIQUE(pin_id, chat_username)
+        )
+    `, (err) => {
+        if (err) {
+            console.error('Error creating pinned_chats table:', err.message);
+        } else {
+            console.log('Pinned chats table created or already exists.');
+        }
+    });
+});
 
 // Register new user
 function registerUser(username, hashedPassword, callback) {
@@ -308,6 +344,93 @@ function deleteEvent(eventId, callback) {
     });
 }
 
+// Add a new pin for a user
+function addPin(user, category, callback) {
+    const query = `INSERT INTO pins (user, category) VALUES (?, ?)`;
+    db.run(query, [user, category], function (err) {
+        if (err) {
+            console.error('Error adding pin:', err.message);
+            callback(err);
+        } else {
+            callback(null, { id: this.lastID, user, category });
+        }
+    });
+}
+
+// Get all pins for a user
+function getPins(user, callback) {
+    const query = `SELECT * FROM pins WHERE user = ?`;
+    db.all(query, [user], (err, rows) => {
+        if (err) {
+            console.error('Error fetching pins:', err.message);
+            callback(err);
+        } else {
+            callback(null, rows);
+        }
+    });
+}
+
+// Add a chat to a pin
+function addChatToPin(pinId, chatUsername, callback) {
+    const query = `INSERT INTO pinned_chats (pin_id, chat_username) VALUES (?, ?)`;
+    db.run(query, [pinId, chatUsername], function (err) {
+        if (err) {
+            console.error('Error adding chat to pin:', err.message);
+            callback(err);
+        } else {
+            callback(null, { id: this.lastID, pinId, chatUsername });
+        }
+    });
+}
+
+// Get all chats for a specific pin
+function getChatsForPin(pinId, callback) {
+    const query = `SELECT chat_username FROM pinned_chats WHERE pin_id = ?`;
+    db.all(query, [pinId], (err, rows) => {
+        if (err) {
+            console.error('Error fetching chats for pin:', err.message);
+            callback(err);
+        } else {
+            callback(null, rows.map(row => row.chat_username));
+        }
+    });
+}
+
+// Remove a chat from a pin
+function removeChatFromPin(pinId, chatUsername, callback) {
+    const query = `DELETE FROM pinned_chats WHERE pin_id = ? AND chat_username = ?`;
+    db.run(query, [pinId, chatUsername], function (err) {
+        if (err) {
+            console.error('Error removing chat from pin:', err.message);
+            callback(err);
+        } else {
+            callback(null, { pinId, chatUsername });
+        }
+    });
+}
+
+// Remove a pin and all associated chats
+function removePin(pinId, callback) {
+    const deleteChatsQuery = `DELETE FROM pinned_chats WHERE pin_id = ?`;
+    const deletePinQuery = `DELETE FROM pins WHERE id = ?`;
+
+    db.run(deleteChatsQuery, [pinId], (err) => {
+        if (err) {
+            console.error('Error removing chats for pin:', err.message);
+            callback(err);
+        } else {
+            db.run(deletePinQuery, [pinId], (err) => {
+                if (err) {
+                    console.error('Error removing pin:', err.message);
+                    callback(err);
+                } else {
+                    callback(null, { pinId });
+                }
+            });
+        }
+    });
+}
+
 module.exports = {
     db,
     registerUser,
@@ -324,6 +447,12 @@ module.exports = {
     addCalendarEventForUsers,
     getEventsForUsers,
     addEvent,
-    deleteEvent
+    deleteEvent,
+    addPin,
+    getPins,
+    addChatToPin,
+    getChatsForPin,
+    removeChatFromPin,
+    removePin
 };
 

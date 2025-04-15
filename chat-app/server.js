@@ -508,6 +508,91 @@ app.get('/chatDB/pins/messages', (req, res) => {
     });
 });
 
+app.get('/get-pins', (req, res) => {
+    const { user } = req.query;
+    if (!user) {
+        return res.status(400).json({ success: false, message: 'User is required.' });
+    }
+
+    const query = `SELECT id, category FROM pins WHERE user = ?`;
+    db.all(query, [user], (err, rows) => {
+        if (err) {
+            console.error('Error fetching pins:', err.message);
+            return res.status(500).json({ success: false, message: 'Failed to fetch pins.' });
+        }
+        res.json({ success: true, pins: rows });
+    });
+});
+
+app.post('/add-chat-to-pin', (req, res) => {
+    const { pinId, chatUsername } = req.body;
+    if (!pinId || !chatUsername) {
+        return res.status(400).json({ success: false, message: 'Pin ID and chat username are required.' });
+    }
+
+    db.addChatToPin(pinId, chatUsername, (err, result) => {
+        if (err) {
+            console.error('Error adding chat to pin:', err.message);
+            return res.status(500).json({ success: false, message: 'Failed to add chat to pin.' });
+        }
+        res.json({ success: true, result });
+    });
+});
+
+app.get('/get-messages-for-pin', (req, res) => {
+    const { pinId } = req.query;
+    if (!pinId) {
+        return res.status(400).json({ success: false, message: 'Pin ID is required.' });
+    }
+
+    db.getChatsForPin(pinId, (err, chats) => {
+        if (err) {
+            console.error('Error fetching chats for pin:', err.message);
+            return res.status(500).json({ success: false, message: 'Failed to fetch chats for pin.' });
+        }
+
+        const messagesPromises = chats.map(chatUsername => {
+            return new Promise((resolve, reject) => {
+                db.getMessagesBetweenUsers(req.user, chatUsername, (err, messages) => {
+                    if (err) reject(err);
+                    else resolve(messages);
+                });
+            });
+        });
+
+        Promise.all(messagesPromises)
+            .then(results => {
+                const allMessages = results.flat();
+                res.json({ success: true, messages: allMessages });
+            })
+            .catch(error => {
+                console.error('Error fetching messages for pin:', error.message);
+                res.status(500).json({ success: false, message: 'Failed to fetch messages for pin.' });
+            });
+    });
+});
+
+app.get('/get-chats-for-category', (req, res) => {
+    const { user, category } = req.query;
+    if (!user || !category) {
+        return res.status(400).json({ success: false, message: 'User and category are required.' });
+    }
+
+    const query = `
+        SELECT chat_username FROM pinned_chats
+        INNER JOIN pins ON pinned_chats.pin_id = pins.id
+        WHERE pins.user = ? AND pins.category = ?
+    `;
+    db.all(query, [user, category], (err, rows) => {
+        if (err) {
+            console.error('Error fetching chats for category:', err.message);
+            return res.status(500).json({ success: false, message: 'Failed to fetch chats for category.' });
+        }
+        const chats = rows.map(row => row.chat_username);
+        res.json({ success: true, chats });
+    });
+});
+
 // ========== Socket.IO ==========
 io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
@@ -641,6 +726,45 @@ app.get('/calendar/events', (req, res) => {
         res.json({ success: true, events });
     });
 });
+
+app.post('/add-pin', (req, res) => {
+    const { user, category } = req.body;
+    if (!user || !category) {
+        return res.status(400).json({ success: false, message: 'User and category are required.' });
+    }
+
+    db.addPin(user, category, (err, result) => {
+        if (err) {
+            console.error('Error adding pin:', err.message);
+            return res.status(500).json({ success: false, message: 'Failed to add pin.' });
+        }
+        res.json({ success: true, pin: result });
+    });
+});
+
+app.delete('/remove-pin/:pinId', (req, res) => {
+    const { pinId } = req.params;
+
+    const deleteChatsQuery = `DELETE FROM pinned_chats WHERE pin_id = ?`;
+    const deletePinQuery = `DELETE FROM pins WHERE id = ?`;
+
+    db.run(deleteChatsQuery, [pinId], (err) => {
+        if (err) {
+            console.error('Error removing chats for pin:', err.message);
+            return res.status(500).json({ success: false, message: 'Failed to remove chats for pin.' });
+        }
+
+        db.run(deletePinQuery, [pinId], (err) => {
+            if (err) {
+                console.error('Error removing pin:', err.message);
+                return res.status(500).json({ success: false, message: 'Failed to remove pin.' });
+            }
+
+            res.json({ success: true, message: 'Pin removed successfully.' });
+        });
+    });
+});
+
 server.listen(3000, () => {
     console.log('Server running on http://localhost:3000');
 });

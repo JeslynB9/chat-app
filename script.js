@@ -1058,16 +1058,42 @@ document.addEventListener('DOMContentLoaded', () => {
     const sidebarPinsContainer = document.querySelector(".pins-container-sidebar");
     const addSidebarPinButton = document.getElementById("add-pin-button-sidebar");
 
+    function addSidebarPin(pinText) {
+        const username = localStorage.getItem('username'); // Get the logged-in user
+        if (!username) {
+            alert('You are not logged in.');
+            return;
+        }
+    
+        fetch('http://localhost:3000/add-pin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user: username, category: pinText })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const pin = document.createElement("div");
+                pin.className = "pin-sidebar";
+                pin.innerHTML = `
+                    <span class="pin-text-sidebar">${pinText}</span>
+                    <button class="remove-pin-button-sidebar">&times;</button>
+                `;
+                sidebarPinsContainer.insertBefore(pin, addSidebarPinButton);
+            } else {
+                alert('Failed to add pin: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error adding pin:', error);
+            alert('Failed to add pin.');
+        });
+    }
+    
     addSidebarPinButton.addEventListener("click", () => {
         const pinText = prompt("Enter the text for the new pin:");
         if (pinText) {
-            const pin = document.createElement("div");
-            pin.className = "pin-sidebar";
-            pin.innerHTML = `
-                <span class="pin-text-sidebar">${pinText}</span>
-                <button class="remove-pin-button-sidebar">&times;</button>
-            `;
-            sidebarPinsContainer.insertBefore(pin, addSidebarPinButton);
+            addSidebarPin(pinText);
         }
     });
 
@@ -1084,6 +1110,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
             pinElement.remove();
         }
+    });
+
+    // Add event listener for pin clicks in the sidebar
+    sidebarPinsContainer.addEventListener('click', (event) => {
+        const pinElement = event.target.closest('.pin-sidebar');
+        if (!pinElement) return;
+
+        const pinId = pinElement.querySelector('.pin-text-sidebar').textContent.trim();
+        displayMessagesForPin(pinId);
     });
 
     // ==========================
@@ -1724,6 +1759,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     })
                     .catch(error => console.error('Error deleting chat database:', error));
                 }
+            } else if (action === 'categorise') {
+                showCategorisePopup(username);
             }
 
             // Hide context menu after action
@@ -2170,3 +2207,438 @@ document.addEventListener('DOMContentLoaded', () => {
     // Refresh the progress bar and percentage every second
     setInterval(refreshProgressBar, 500);
 });
+
+// ...existing code...
+
+function pinChatToCategory(chatUsername) {
+    const category = prompt('Enter a category to pin this chat to:');
+    if (category) {
+        const pinnedChats = JSON.parse(localStorage.getItem('pinnedChats') || '{}');
+        if (!pinnedChats[category]) {
+            pinnedChats[category] = [];
+        }
+
+        if (!pinnedChats[category].includes(chatUsername)) {
+            pinnedChats[category].push(chatUsername);
+            localStorage.setItem('pinnedChats', JSON.stringify(pinnedChats));
+            alert(`Chat with ${chatUsername} pinned to category "${category}".`);
+        } else {
+            alert(`Chat with ${chatUsername} is already pinned to category "${category}".`);
+        }
+    }
+}
+
+function displayPinnedChats() {
+    const pinnedChats = JSON.parse(localStorage.getItem('pinnedChats') || '{}');
+    const pinnedChatsContainer = document.getElementById('pinned-chats-container');
+    pinnedChatsContainer.innerHTML = ''; // Clear existing content
+
+    Object.keys(pinnedChats).forEach(category => {
+        const categoryElement = document.createElement('div');
+        categoryElement.className = 'pinned-category';
+        categoryElement.innerHTML = `<h4>${category}</h4>`;
+
+        const chatList = document.createElement('ul');
+        pinnedChats[category].forEach(chatUsername => {
+            const chatItem = document.createElement('li');
+            chatItem.textContent = chatUsername;
+
+            // Add unpin button
+            const unpinButton = document.createElement('button');
+            unpinButton.textContent = 'Unpin';
+            unpinButton.addEventListener('click', () => unpinChatFromCategory(chatUsername, category));
+            chatItem.appendChild(unpinButton);
+
+            chatList.appendChild(chatItem);
+        });
+
+        categoryElement.appendChild(chatList);
+        pinnedChatsContainer.appendChild(categoryElement);
+    });
+}
+
+function unpinChatFromCategory(chatUsername, category) {
+    const pinnedChats = JSON.parse(localStorage.getItem('pinnedChats') || '{}');
+    if (pinnedChats[category]) {
+        pinnedChats[category] = pinnedChats[category].filter(chat => chat !== chatUsername);
+        if (pinnedChats[category].length === 0) {
+            delete pinnedChats[category];
+        }
+        localStorage.setItem('pinnedChats', JSON.stringify(pinnedChats));
+        alert(`Chat with ${chatUsername} unpinned from category "${category}".`);
+        displayPinnedChats();
+    }
+}
+
+// Add context menu option for pinning chats
+document.querySelectorAll('.context-menu-option').forEach(option => {
+    option.addEventListener('click', (e) => {
+        const action = e.target.dataset.action;
+        const username = contextMenu.dataset.username;
+
+        if (action === 'categorise') {
+            pinChatToCategory(username);
+        }
+        // ...existing code...
+    });
+});
+
+// Update context menu to include "Pin to Category" option
+const pinToCategoryOption = document.createElement('div');
+pinToCategoryOption.className = 'context-menu-option';
+pinToCategoryOption.dataset.action = 'pinToCategory';
+pinToCategoryOption.textContent = '📌 Pin to Category';
+contextMenu.appendChild(pinToCategoryOption);
+
+// Call displayPinnedChats on page load to show pinned chats
+document.addEventListener('DOMContentLoaded', () => {
+    displayPinnedChats();
+});
+
+// ...existing code...
+
+function categorizeChat(chatUsername) {
+    const category = prompt('Enter a category to assign this chat to:');
+    if (category) {
+        const categorizedChats = JSON.parse(localStorage.getItem('categorizedChats') || '{}');
+        if (!categorizedChats[category]) {
+            categorizedChats[category] = [];
+        }
+
+        if (!categorizedChats[category].includes(chatUsername)) {
+            categorizedChats[category].push(chatUsername);
+            localStorage.setItem('categorizedChats', JSON.stringify(categorizedChats));
+            alert(`Chat with ${chatUsername} categorized under "${category}".`);
+        } else {
+            alert(`Chat with ${chatUsername} is already categorized under "${category}".`);
+        }
+    }
+}
+
+function displayCategorizedChats() {
+    const categorizedChats = JSON.parse(localStorage.getItem('categorizedChats') || '{}');
+    const categorizedChatsContainer = document.getElementById('categorized-chats-container');
+    categorizedChatsContainer.innerHTML = ''; // Clear existing content
+
+    Object.keys(categorizedChats).forEach(category => {
+        const categoryElement = document.createElement('div');
+        categoryElement.className = 'categorized-category';
+        categoryElement.innerHTML = `<h4>${category}</h4>`;
+
+        const chatList = document.createElement('ul');
+        categorizedChats[category].forEach(chatUsername => {
+            const chatItem = document.createElement('li');
+            chatItem.textContent = chatUsername;
+
+            // Add remove button
+            const removeButton = document.createElement('button');
+            removeButton.textContent = 'Remove';
+        })
+    })
+}
+
+function removeChatFromCategory(chatUsername, category) {
+    const categorizedChats = JSON.parse(localStorage.getItem('categorizedChats') || '{}');
+    if (categorizedChats[category]) {
+        categorizedChats[category] = categorizedChats[category].filter(chat => chat !== chatUsername);
+        if (categorizedChats[category].length === 0) {
+            delete categorizedChats[category];
+        }
+        localStorage.setItem('categorizedChats', JSON.stringify(categorizedChats));
+        alert(`Chat with ${chatUsername} removed from category "${category}".`);
+        displayCategorizedChats();
+    }
+}
+
+// Add context menu option for categorizing chats
+document.querySelectorAll('.context-menu-option').forEach(option => {
+    option.addEventListener('click', (e) => {
+        const action = e.target.dataset.action;
+        const username = contextMenu.dataset.username;
+
+        if (action === 'categorise') {
+            showCategorisePopup(username);
+        }
+        // ...existing code...
+    });
+});
+
+// Call displayCategorizedChats on page load to show categorized chats
+document.addEventListener('DOMContentLoaded', () => {
+    displayCategorizedChats();
+});
+
+// ...existing code...
+
+function showCategorisePopup(chatUsername) {
+    const username = localStorage.getItem('username'); // Get the logged-in user
+    if (!username) {
+        alert('You are not logged in.');
+        return;
+    }
+
+    // Fetch pins from the database
+    fetch(`http://localhost:3000/get-pins?user=${encodeURIComponent(username)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const pins = data.pins;
+
+                // Create overlay
+                const overlay = document.createElement('div');
+                overlay.className = 'popup-overlay';
+                document.body.appendChild(overlay);
+
+                // Create popup
+                const popup = document.createElement('div');
+                popup.className = 'categorise-popup';
+                popup.innerHTML = `
+                    <div class="popup-content">
+                        <button class="close-button">&times;</button>
+                        <h3>Select a Category</h3>
+                        <ul class="categories-list">
+                            ${pins.length > 0 
+                                ? pins.map(pin => `<li class="category-item" data-pin-id="${pin.id}">${pin.category}</li>`).join('')
+                                : '<li>No categories available.</li>'}
+                        </ul>
+                    </div>
+                `;
+                document.body.appendChild(popup);
+
+                // Add event listeners
+                const closeButton = popup.querySelector('.close-button');
+                closeButton.addEventListener('click', () => {
+                    popup.remove();
+                    overlay.remove();
+                });
+
+                overlay.addEventListener('click', () => {
+                    popup.remove();
+                    overlay.remove();
+                });
+
+                const categoriesList = popup.querySelector('.categories-list');
+                categoriesList.addEventListener('click', (event) => {
+                    if (event.target.classList.contains('category-item')) {
+                        const selectedPinId = event.target.dataset.pinId;
+                        addChatToCategory(chatUsername, selectedPinId);
+                        popup.remove();
+                        overlay.remove();
+                    }
+                });
+            } else {
+                alert('Failed to fetch categories: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching categories:', error);
+            alert('Failed to fetch categories.');
+        });
+}
+
+function addChatToCategory(chatUsername, pinId) {
+    fetch('http://localhost:3000/add-chat-to-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pinId, chatUsername })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`Chat with ${chatUsername} added to the selected category.`);
+        } else {
+            alert('Failed to add chat to category: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error adding chat to category:', error);
+        alert('Failed to add chat to category.');
+    });
+}
+
+// Add context menu option for categorizing chats
+document.querySelectorAll('.context-menu-option').forEach(option => {
+    option.addEventListener('click', (e) => {
+        const action = e.target.dataset.action;
+        const username = contextMenu.dataset.username;
+
+        if (action === 'categorise') {
+            showCategorisePopup(username);
+        }
+        // ...existing code...
+    });
+});
+
+// ...existing code...
+
+function loadPinsToSidebar() {
+    const username = localStorage.getItem('username'); // Get the logged-in user
+    if (!username) {
+        console.error('User is not logged in.');
+        return;
+    }
+
+    fetch(`http://localhost:3000/get-pins?user=${encodeURIComponent(username)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const pins = data.pins;
+                const sidebarPinsContainer = document.querySelector(".pins-container-sidebar");
+
+                // Clear existing pins
+                sidebarPinsContainer.innerHTML = `
+                    <div class="pin-sidebar">
+                        <span class="pin-text-sidebar">All</span>
+                    </div>
+                    <div class="pin-sidebar">
+                        <span class="pin-text-sidebar">Unread</span>
+                    </div>
+                    <button id="add-pin-button-sidebar">+</button>
+                `;
+
+                // Add pins from the database
+                pins.forEach(pin => {
+                    const pinElement = document.createElement("div");
+                    pinElement.className = "pin-sidebar";
+                    pinElement.innerHTML = `
+                        <span class="pin-text-sidebar">${pin.category}</span>
+                        <button class="remove-pin-button-sidebar" data-pin-id="${pin.id}">&times;</button>
+                    `;
+                    sidebarPinsContainer.insertBefore(pinElement, sidebarPinsContainer.querySelector("#add-pin-button-sidebar"));
+                });
+
+                // Reattach event listeners for adding and removing pins
+                attachSidebarPinListeners();
+            } else {
+                console.error('Failed to load pins:', data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading pins:', error);
+        });
+}
+
+function attachSidebarPinListeners() {
+    const addSidebarPinButton = document.getElementById("add-pin-button-sidebar");
+    const sidebarPinsContainer = document.querySelector(".pins-container-sidebar");
+
+    addSidebarPinButton.addEventListener("click", () => {
+        const pinText = prompt("Enter the text for the new pin:");
+        if (pinText) {
+            addSidebarPin(pinText);
+        }
+    });
+
+    sidebarPinsContainer.addEventListener("click", (event) => {
+        if (event.target.classList.contains("remove-pin-button-sidebar")) {
+            const pinElement = event.target.parentElement;
+            const pinText = pinElement.querySelector('.pin-text-sidebar').textContent;
+            const pinId = event.target.dataset.pinId;
+
+            // Prevent deletion of "All" and "Unread" pins
+            if (pinText === "All" || pinText === "Unread") {
+                alert("This pin cannot be deleted.");
+                return;
+            }
+
+            // Remove pin from the database
+            fetch(`http://localhost:3000/remove-pin/${pinId}`, {
+                method: 'DELETE'
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        pinElement.remove();
+                        alert('Pin deleted successfully.');
+                    } else {
+                        alert('Failed to delete pin: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error deleting pin:', error);
+                    alert('Failed to delete pin.');
+                });
+        }
+    });
+
+    sidebarPinsContainer.addEventListener("click", (event) => {
+        const pinElement = event.target.closest('.pin-sidebar');
+        if (!pinElement) return;
+
+        const category = pinElement.querySelector('.pin-text-sidebar').textContent.trim();
+        if (category === 'All') {
+            fetchChatList(); // Show all chats
+        } else if (category === 'Unread') {
+            filterChatsByUnread(); // Show unread chats
+        } else {
+            filterChatsByCategory(category); // Show chats for the selected category
+        }
+    });
+}
+
+// Call loadPinsToSidebar on page load
+document.addEventListener('DOMContentLoaded', () => {
+    loadPinsToSidebar();
+});
+
+// ...existing code...
+
+function filterChatsByCategory(category) {
+    const username = localStorage.getItem('username'); // Get the logged-in user
+    if (!username) {
+        console.error('User is not logged in.');
+        return;
+    }
+
+    fetch(`http://localhost:3000/get-chats-for-category?user=${encodeURIComponent(username)}&category=${encodeURIComponent(category)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const chatList = document.getElementById('chat-list');
+                chatList.innerHTML = ''; // Clear the existing chat list
+
+                // Add chats pinned to the selected category
+                data.chats.forEach(chatUsername => {
+                    const chatItem = document.createElement('div');
+                    chatItem.className = 'chat-list-item';
+                    chatItem.innerHTML = `
+                        <img src="${getOrGenerateProfilePicture(chatUsername)}" alt="User" width="40" height="40">
+                        <div>
+                            <div>${chatUsername}</div>
+                            <div class="last-message">Loading...</div>
+                        </div>
+                        <div class="last-message-time">Loading...</div>
+                    `;
+                    chatItem.addEventListener('click', () => {
+                        highlightSelectedChat(chatItem);
+                        activeReceiver = chatUsername;
+                        loadMessages(chatUsername);
+                    });
+                    chatList.appendChild(chatItem);
+                    fetchLastMessage(chatUsername, chatItem);
+                });
+            } else {
+                console.error('Failed to fetch chats for category:', data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching chats for category:', error);
+        });
+}
+
+// Update event listeners for category pins
+document.querySelector('.pins-container-sidebar').addEventListener('click', (event) => {
+    const pinElement = event.target.closest('.pin-sidebar');
+    if (!pinElement) return;
+
+    const category = pinElement.querySelector('.pin-text-sidebar').textContent.trim();
+    if (category === 'All') {
+        fetchChatList(); // Show all chats
+    } else if (category === 'Unread') {
+        filterChatsByUnread(); // Show unread chats
+    } else {
+        filterChatsByCategory(category); // Show chats for the selected category
+    }
+});
+
+// ...existing code...
