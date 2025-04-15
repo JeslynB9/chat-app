@@ -2160,4 +2160,25 @@ document.addEventListener('DOMContentLoaded', () => {
         taskElement.appendChild(taskText);
         return taskElement;
     }
+
+    function refreshProgressBar() {
+        const progress = tasks.length ? Math.round((completedTasks / tasks.length) * 100) : 0;
+        progressPercentage.textContent = `${progress}%`;
+        progressCircle.style.background = `conic-gradient(var(--sent-bg) 0% ${progress}%, var(--received-bg) ${progress}% 100%)`;
+        progressCircle.style.transition = 'background 0.3s ease-in-out';
+    }
+
+    // Automatically refresh the progress bar and percentage every second
+    setInterval(() => {
+        const userA = localStorage.getItem('username'); // Current logged-in user
+        const userB = activeReceiver; // The user currently being chatted with
+
+        if (userA && userB) {
+            fetchTasks(userA, userB); // Refresh tasks from the database
+        }
+        refreshProgressBar();
+    }, 1000);
+
+    // Refresh the progress bar and percentage every second
+    setInterval(refreshProgressBar, 500);
 });
