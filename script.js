@@ -2080,19 +2080,22 @@ document.addEventListener('DOMContentLoaded', () => {
     // Function to update task status
     async function updateTaskStatus(taskId, status, userA, userB) {
         console.log('Updating task status:', { taskId, status, userA, userB });
-
+    
         // Validate required parameters
         if (!taskId || !status || !userA || !userB) {
             console.error('Missing required parameters:', { taskId, status, userA, userB });
             throw new Error('userA, userB, taskId, and status are required');
         }
-
+    
         try {
-            const url = `http://localhost:3000/chatDB/tasks/${encodeURIComponent(taskId)}/status?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`;
+            // 🟢 userA and userB must go into the query string — not the body!
+            const url = `http://localhost:3000/chat-app/utils/chatDB/tasks/${encodeURIComponent(taskId)}/status?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`;
+    
+            // 🟢 Only status goes in the body
             const payload = { status };
-
-            console.log('Sending request to server:', { url, payload }); // Debugging log
-
+    
+            console.log('Sending payload to server:', payload); // Should log only { status: '...' }
+    
             const response = await fetch(url, {
                 method: 'PUT',
                 headers: {
@@ -2100,23 +2103,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 body: JSON.stringify(payload)
             });
-
+    
             const data = await response.json();
-
+    
             if (!response.ok) {
                 console.error('Server responded with error:', data.message || 'Unknown error');
                 throw new Error(data.message || 'Failed to update task status');
             }
-
+    
             console.log('Task status updated successfully:', data);
+    
             socket.emit('taskStatusUpdated', { taskId, status, userA, userB });
             return data;
+    
         } catch (error) {
             console.error('Error updating task status:', error);
             throw error;
         }
     }
-
+    
+    
     // Function to create task element
     function createTaskElement(task) {
         const taskElement = document.createElement('div');

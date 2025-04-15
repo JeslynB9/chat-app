@@ -344,7 +344,7 @@ app.delete('/chatDB/tasks/:taskId', (req, res) => {
 });
 
 // ========== Update Task Status ==========
-app.put('/chatDB/tasks/:taskId/status', (req, res) => {
+app.put('/chat-app/utils/chatDB/tasks/:taskId/status', (req, res) => {
     const { userA, userB } = req.query;
     const { taskId } = req.params;
     const { status } = req.body;
