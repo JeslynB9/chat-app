@@ -857,7 +857,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleMessageAction(action, message, messageContainer) {
         switch (action) {
             case 'pin':
-                pinMessage(message);
+                showAvailablePinsPopup(message); // Ensure this function is called
                 break;
             case 'copy':
                 copyMessage(message.message);
@@ -867,6 +867,160 @@ document.addEventListener('DOMContentLoaded', () => {
                 break;
         }
     }
+
+    function showAvailablePinsPopup(message) {
+        // Fetch available pins from the server
+        const userA = localStorage.getItem('username');
+        const userB = activeReceiver;
+
+        if (!userA || !userB) {
+            alert('Cannot fetch pins. Please ensure both users are selected.');
+            return;
+        }
+
+        fetch(`http://localhost:3000/chatDB/pins?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    // Create the popup overlay
+                    const overlay = document.createElement('div');
+                    overlay.className = 'popup-overlay';
+                    document.body.appendChild(overlay);
+
+                    // Create the popup container
+                    const popup = document.createElement('div');
+                    popup.className = 'pins-popup';
+                    popup.innerHTML = `
+                        <div class="popup-content">
+                            <button class="close-button">&times;</button>
+                            <h3>Select a Pin</h3>
+                            <ul class="pins-list">
+                                ${data.pins.map(pin => `
+                                    <li class="pin-item" data-pin-id="${pin.id}">
+                                        ${pin.name}
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    `;
+                    document.body.appendChild(popup);
+
+                    // Add event listener to close the popup
+                    popup.querySelector('.close-button').addEventListener('click', () => {
+                        popup.remove();
+                        overlay.remove();
+                    });
+
+                    // Close the popup when clicking on the overlay
+                    overlay.addEventListener('click', () => {
+                        popup.remove();
+                        overlay.remove();
+                    });
+
+                    // Add event listeners to pin items
+                    popup.querySelectorAll('.pin-item').forEach(pinItem => {
+                        pinItem.addEventListener('click', () => {
+                            const pinId = pinItem.dataset.pinId;
+
+                            // Associate the message with the selected pin
+                            fetch('http://localhost:3000/chatDB/pins/messages', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    pinId,
+                                    messageId: message.id,
+                                    userA,
+                                    userB
+                                })
+                            })
+                                .then(res => res.json())
+                                .then(data => {
+                                    if (data.success) {
+                                        alert('Message successfully pinned!');
+                                        popup.remove();
+                                        overlay.remove();
+                                    } else {
+                                        alert('Failed to pin message: ' + data.message);
+                                    }
+                                })
+                                .catch(error => {
+                                    console.error('Error pinning message:', error);
+                                    alert('Failed to pin message.');
+                                });
+                        });
+                    });
+                } else {
+                    alert('Failed to fetch pins: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching pins:', error);
+                alert('Failed to fetch pins.');
+            });
+    }
+
+    // Add CSS for the pins popup
+    const pinsPopupStyle = document.createElement('style');
+    pinsPopupStyle.textContent = `
+        .pins-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            z-index: 1001;
+            padding: 20px;
+            width: 400px;
+            max-height: 80%;
+            overflow-y: auto;
+        }
+
+        .pins-popup .popup-content {
+            position: relative;
+        }
+
+        .pins-popup .close-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            cursor: pointer;
+            color: var(--text-color);
+        }
+
+        .pins-popup .pins-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .pins-popup .pins-list .pin-item {
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .pins-popup .pins-list .pin-item:hover {
+            background-color: var(--hover-color);
+        }
+
+        .popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+    `;
+    document.head.appendChild(pinsPopupStyle);
 
     // Function to pin a message
     function pinMessage(message) {
@@ -2150,4 +2304,49 @@ document.addEventListener('DOMContentLoaded', () => {
         taskElement.appendChild(taskText);
         return taskElement;
     }
+
+    const chatContextMenu = document.getElementById('chat-context-menu');
+
+    messagesContainer.addEventListener('contextmenu', (event) => {
+        const messageElement = event.target.closest('.message');
+        if (messageElement) {
+            event.preventDefault();
+
+            // Position the context menu near the cursor
+            chatContextMenu.style.display = 'block';
+            chatContextMenu.style.left = `${event.pageX}px`;
+            chatContextMenu.style.top = `${event.pageY}px`;
+
+            // Store the message ID or reference in the context menu for further actions
+            chatContextMenu.dataset.messageId = messageElement.dataset.messageId;
+
+            // Ensure the menu is visible
+            chatContextMenu.classList.remove('hidden');
+        }
+    });
+
+    // Add event listener for "Pin Message" option
+    chatContextMenu.addEventListener('click', (event) => {
+        const action = event.target.dataset.action;
+        if (action === 'pin') {
+            const messageId = chatContextMenu.dataset.messageId;
+            const messageElement = document.querySelector(`.message[data-message-id="${messageId}"]`);
+            if (messageElement) {
+                const message = {
+                    id: messageId,
+                    message: messageElement.querySelector('.message-bubble')?.textContent || '',
+                };
+                showAvailablePinsPopup(message);
+            }
+            chatContextMenu.style.display = 'none';
+        }
+    });
+
+    // Hide the context menu when clicking outside
+    document.addEventListener('click', (event) => {
+        if (!chatContextMenu.contains(event.target)) {
+            chatContextMenu.style.display = 'none';
+            chatContextMenu.classList.add('hidden');
+        }
+    });
 });
