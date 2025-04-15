@@ -419,19 +419,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(data => {
                     if (data.success) {
                         console.log('Message saved:', data);
-
-                        // Append the sent message to the UI immediately
-                        const messageElement = document.createElement('div');
-                        messageElement.classList.add('message', 'sent');
-                        const messageBubble = document.createElement('div');
-                        messageBubble.classList.add('message-bubble');
-                        messageBubble.textContent = messageText;
-                        messageElement.appendChild(messageBubble);
-                        messagesContainer.appendChild(messageElement);
-                        messagesContainer.scrollTop = messagesContainer.scrollHeight; // Scroll to the bottom
-
-                        // Dynamically update the last message in the sidebar
-                        updateLastMessageInSidebar(activeReceiver, messageText, "You", messageData.timestamp);
+                        // Removed immediate UI update so the socket event on receiveMessage will handle it
                     } else {
                         console.error('Error saving message:', data.message);
                     }
@@ -444,11 +432,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    inputField.addEventListener('keypress', (event) => {
+    // Remove duplicate event listeners
+    inputField.removeEventListener('keypress', handleKeyPress);
+    inputField.addEventListener('keypress', handleKeyPress);
+
+    function handleKeyPress(event) {
         if (event.key === 'Enter') {
             sendMessage();
         }
-    });
+    }
 
     inputField.addEventListener('input', () => {
         socket.emit('typing', username);
@@ -691,6 +683,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 size.className = 'file-size';
                 size.textContent = formatFileSize(fileData.size);
                 info.appendChild(size);
+
+                fileContainer.appendChild(info);
+
+                // Add download link
+                const downloadSize = document.createElement('div');
+                downloadSize.className = 'file-size';
+                downloadSize.textContent = formatFileSize(fileData.size);
+                info.appendChild(downloadSize);
     
                 fileContainer.appendChild(info);
     
