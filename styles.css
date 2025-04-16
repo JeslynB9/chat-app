@@ -1457,7 +1457,7 @@ body {
 
 .pin-messages-popup .popup-content .close-button {
     position: absolute;
-    top: -40px;
+    top: -20px;
     right: 0;
     background: none;
     border: none;
