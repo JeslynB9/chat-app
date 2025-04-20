@@ -75,9 +75,6 @@ app.post('/upload', upload.single('file'), (req, res) => {
         return res.status(400).json({ success: false, message: 'Missing file or user info' });
     }
 
-    // Read the file as base64
-    const fileData = fs.readFileSync(path.join(__dirname, 'uploads', req.file.filename), { encoding: 'base64' });
-
     // Save to chat-specific DB
     const db = getChatDB(uploader, receiver);
     ensureUploadsTable(db); // Ensure the uploads table exists
@@ -93,9 +90,9 @@ app.post('/upload', upload.single('file'), (req, res) => {
             console.log(`📎 Upload saved to chat DB: ${filepath}`);
             res.json({ 
                 success: true, 
-                imageUrl: filepath, 
+                imageUrl: filepath, // Provide the file URL
                 filetype, 
-                fileData: `data:${filetype};base64,${fileData}` // Include base64 data
+                filename: req.file.originalname // Include the original filename
             });
         }
     );
