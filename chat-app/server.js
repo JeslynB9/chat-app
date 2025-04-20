@@ -56,7 +56,22 @@ app.use((req, res, next) => {
     next();
 });
 
+// Serve static files from the root directory
+app.use(express.static(path.join(__dirname, '../')));
 
+// Serve the login page for the root URL
+app.get('/', (req, res) => {
+    res.redirect('/login.html');
+});
+
+// Alternatively, serve a static HTML file (if you have one)
+const publicDir = path.join(__dirname, 'public');
+if (fs.existsSync(publicDir)) {
+    app.use(express.static(publicDir));
+    app.get('/', (req, res) => {
+        res.sendFile(path.join(publicDir, 'index.html'));
+    });
+}
 
 // ========== Auth: Register ==========
 app.post('/register', async (req, res) => {
