@@ -36,12 +36,73 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-app.post('/upload', upload.single('image'), (req, res) => {
-  const imageUrl = `http://localhost:3000/uploads/${req.file.filename}`;
-  res.json({ success: true, imageUrl });
+// Ensure the uploads table includes a column for file type
+const ensureUploadsTable = (db) => {
+    db.serialize(() => {
+        db.run(`
+            CREATE TABLE IF NOT EXISTS uploads (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                filename TEXT NOT NULL,
+                filepath TEXT NOT NULL,
+                filetype TEXT, -- Add filetype column
+                uploader TEXT NOT NULL,
+                timestamp INTEGER NOT NULL
+            )
+        `, (err) => {
+            if (err) {
+                console.error('Error ensuring uploads table exists:', err.message);
+            }
+        });
+
+        // Add the filetype column if it doesn't exist
+        db.run(`ALTER TABLE uploads ADD COLUMN filetype TEXT`, (err) => {
+            if (err && !err.message.includes('duplicate column name')) {
+                console.error('Error adding filetype column to uploads table:', err.message);
+            }
+        });
+    });
+};
+
+// Update the file upload endpoint
+app.post('/upload', upload.single('file'), (req, res) => {
+    const uploader = req.body.username;
+    const receiver = req.body.receiver;
+    const timestamp = Date.now();
+    const filepath = `/uploads/${req.file.filename}`;
+    const filetype = req.file.mimetype; // Extract the file type
+
+    if (!uploader || !receiver || !req.file) {
+        return res.status(400).json({ success: false, message: 'Missing file or user info' });
+    }
+
+    // Read the file as base64
+    const fileData = fs.readFileSync(path.join(__dirname, 'uploads', req.file.filename), { encoding: 'base64' });
+
+    // Save to chat-specific DB
+    const db = getChatDB(uploader, receiver);
+    ensureUploadsTable(db); // Ensure the uploads table exists
+
+    db.run(
+        `INSERT INTO uploads (filename, filepath, filetype, uploader, timestamp) VALUES (?, ?, ?, ?, ?)`,
+        [req.file.originalname, filepath, filetype, uploader, timestamp],
+        (err) => {
+            if (err) {
+                console.error('❌ Upload save error:', err.message);
+                return res.status(500).json({ success: false, message: 'Failed to save upload' });
+            }
+            console.log(`📎 Upload saved to chat DB: ${filepath}`);
+            res.json({ 
+                success: true, 
+                imageUrl: filepath, 
+                filetype, 
+                fileData: `data:${filetype};base64,${fileData}` // Include base64 data
+            });
+        }
+    );
 });
 
-app.use('/uploads', express.static('uploads'));
+// Serve static files from the uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Properly configure and apply CORS middleware
 app.use((req, res, next) => {
@@ -125,24 +186,24 @@ app.post('/upload', upload.single('image'), (req, res) => {
     const filepath = `/uploads/${req.file.filename}`;
   
     if (!uploader || !receiver || !req.file) {
-      return res.status(400).json({ error: 'Missing file or user info' });
+        return res.status(400).json({ error: 'Missing file or user info' });
     }
   
     // Save to chat-specific DB
     const db = getChatDB(uploader, receiver);
     db.run(
-      `INSERT INTO uploads (filename, filepath, uploader, timestamp) VALUES (?, ?, ?, ?)`,
-      [req.file.originalname, filepath, uploader, timestamp],
-      (err) => {
-        if (err) {
-          console.error('❌ Upload save error:', err.message);
-          return res.status(500).json({ error: 'Failed to save upload' });
+        `INSERT INTO uploads (filename, filepath, uploader, timestamp) VALUES (?, ?, ?, ?)`,
+        [req.file.originalname, filepath, uploader, timestamp],
+        (err) => {
+            if (err) {
+                console.error('❌ Upload save error:', err.message);
+                return res.status(500).json({ error: 'Failed to save upload' });
+            }
+            console.log(`📎 Upload saved to chat DB: ${filepath}`);
+            res.json({ imageUrl: filepath });
         }
-        console.log(`📎 Upload saved to chat DB: ${filepath}`);
-        res.json({ imageUrl: filepath });
-      }
     );
-  });
+});
 
 app.get('/chat/history', (req, res) => {
     const { user1, user2 } = req.query;
