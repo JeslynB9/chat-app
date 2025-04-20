@@ -69,7 +69,7 @@ app.post('/upload', upload.single('file'), (req, res) => {
     const receiver = req.body.receiver;
     const timestamp = Date.now();
     const filepath = `/uploads/${req.file.filename}`;
-    const filetype = req.file.mimetype; // Extract the file type
+    const filetype = req.file.mimetype; // Ensure the correct file type is saved
 
     if (!uploader || !receiver || !req.file) {
         return res.status(400).json({ success: false, message: 'Missing file or user info' });
@@ -77,8 +77,6 @@ app.post('/upload', upload.single('file'), (req, res) => {
 
     // Save to chat-specific DB
     const db = getChatDB(uploader, receiver);
-    ensureUploadsTable(db); // Ensure the uploads table exists
-
     db.run(
         `INSERT INTO uploads (filename, filepath, filetype, uploader, timestamp) VALUES (?, ?, ?, ?, ?)`,
         [req.file.originalname, filepath, filetype, uploader, timestamp],
@@ -92,7 +90,7 @@ app.post('/upload', upload.single('file'), (req, res) => {
                 success: true, 
                 imageUrl: filepath, // Provide the file URL
                 filetype, 
-                filename: req.file.originalname // Include the original filename
+                name: req.file.originalname // Ensure the correct file name is returned
             });
         }
     );
@@ -133,7 +131,7 @@ if (fs.existsSync(publicDir)) {
 
 // ========== Auth: Register ==========
 app.post('/register', async (req, res) => {
-    const { username, password } = req.body;
+    const { username, password } = req.body;ß
 
     if (!username || !password) {
         return res.status(400).json({ success: false, message: 'Username and password required' });
@@ -698,6 +696,7 @@ io.on('connection', (socket) => {
                     // Broadcast to the specific chat room
                     io.to(room).emit('receiveMessage', {
                         ...data,
+                        fileData: type === 'file' ? fileData : undefined, // Ensure fileData is sent as an object
                         timestamp: timestamp || Date.now()
                     });
                 }
