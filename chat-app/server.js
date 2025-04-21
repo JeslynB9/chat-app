@@ -23,94 +23,101 @@ const io = new Server(server, {
 const calendarRoutes = require('./routes/calendar');
 app.use('/calendar', calendarRoutes);
 
-
-// Setup storage
-const storage = multer.diskStorage({
-  destination: 'uploads/',
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    const name = Date.now() + ext;
-    cb(null, name);
-  }
+// Ensure CORS middleware is applied only once
+app.use((req, res, next) => {
+    if (!res.headersSent) {
+        console.log('CORS middleware applied'); // Debugging log
+        res.header('Access-Control-Allow-Origin', '*'); // Allow all origins
+        res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS'); // Allow specific HTTP methods
+        res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization'); // Allow specific headers
+        if (req.method === 'OPTIONS') {
+            return res.sendStatus(200); // Handle preflight requests
+        }
+    }
+    next();
 });
 
-const upload = multer({ storage });
-
-// Ensure the uploads table includes a column for file type
-const ensureUploadsTable = (db) => {
-    db.serialize(() => {
-        db.run(`
-            CREATE TABLE IF NOT EXISTS uploads (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                filename TEXT NOT NULL,
-                filepath TEXT NOT NULL,
-                filetype TEXT, -- Add filetype column
-                uploader TEXT NOT NULL,
-                timestamp INTEGER NOT NULL
-            )
-        `, (err) => {
-            if (err) {
-                console.error('Error ensuring uploads table exists:', err.message);
-            }
-        });
-
-        // Add the filetype column if it doesn't exist
-        db.run(`ALTER TABLE uploads ADD COLUMN filetype TEXT`, (err) => {
-            if (err && !err.message.includes('duplicate column name')) {
-                console.error('Error adding filetype column to uploads table:', err.message);
-            }
-        });
-    });
-};
-
-// Update the file upload endpoint
-app.post('/upload', upload.single('file'), (req, res) => {
-    const uploader = req.body.username;
-    const receiver = req.body.receiver;
-    const timestamp = Date.now();
-    const filepath = `/uploads/${req.file.filename}`;
-    const filetype = req.file.mimetype; // Ensure the correct file type is saved
-
-    if (!uploader || !receiver || !req.file) {
-        return res.status(400).json({ success: false, message: 'Missing file or user info' });
-    }
-
-    // Save to chat-specific DB
-    const db = getChatDB(uploader, receiver);
-    db.run(
-        `INSERT INTO uploads (filename, filepath, filetype, uploader, timestamp) VALUES (?, ?, ?, ?, ?)`,
-        [req.file.originalname, filepath, filetype, uploader, timestamp],
-        (err) => {
-            if (err) {
-                console.error('❌ Upload save error:', err.message);
-                return res.status(500).json({ success: false, message: 'Failed to save upload' });
-            }
-            console.log(`📎 Upload saved to chat DB: ${filepath}`);
-            res.json({ 
-                success: true, 
-                imageUrl: filepath, // Provide the file URL
-                filetype, 
-                name: req.file.originalname // Ensure the correct file name is returned
-            });
+// Fix multer configuration and ensure `upload` is defined
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const uploadDir = path.join(__dirname, 'uploads');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+            console.log('✅ Created uploads directory:', uploadDir);
         }
-    );
+        cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        cb(null, `${uniqueSuffix}${path.extname(file.originalname)}`);
+    }
+});
+
+const upload = multer({ storage }).single('file');
+
+// Fix the file upload endpoint
+app.post('/upload', (req, res) => {
+    console.log('📤 File upload request received:', req.body); // Debugging log
+
+    upload(req, res, function (err) {
+        if (err instanceof multer.MulterError) {
+            console.error('❌ Multer error:', err.message);
+            return res.status(400).json({ success: false, message: `Multer error: ${err.message}` });
+        } else if (err) {
+            console.error('❌ Unknown upload error:', err.message);
+            return res.status(500).json({ success: false, message: 'Unknown error during file upload' });
+        }
+
+        if (!req.file) {
+            console.error('❌ No file uploaded');
+            return res.status(400).json({ success: false, message: 'No file uploaded' });
+        }
+
+        const uploader = req.body.username;
+        const receiver = req.body.receiver;
+
+        if (!uploader || !receiver) {
+            console.error('❌ Missing uploader or receiver:', { uploader, receiver });
+            return res.status(400).json({ success: false, message: 'Missing uploader or receiver' });
+        }
+
+        const filepath = `/uploads/${req.file.filename}`;
+        const filetype = req.file.mimetype;
+        const timestamp = Date.now();
+
+        console.log('✅ File uploaded successfully:', {
+            filename: req.file.originalname,
+            filepath,
+            filetype,
+            uploader,
+            receiver,
+            timestamp
+        });
+
+        // Save to chat-specific DB
+        const db = getChatDB(uploader, receiver);
+        db.run(
+            `INSERT INTO uploads (filename, filepath, filetype, uploader, timestamp) VALUES (?, ?, ?, ?, ?)`,
+            [req.file.originalname, filepath, filetype, uploader, timestamp],
+            (err) => {
+                if (err) {
+                    console.error('❌ Upload save error:', err.message);
+                    return res.status(500).json({ success: false, message: 'Failed to save upload' });
+                }
+                console.log(`📎 Upload saved to chat DB: ${filepath}`);
+                res.json({
+                    success: true,
+                    imageUrl: filepath, // Provide the file URL
+                    filetype,
+                    name: req.file.originalname // Ensure the correct file name is returned
+                });
+            }
+        );
+    });
 });
 
 // Serve static files from the uploads directory
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-// Properly configure and apply CORS middleware
-app.use((req, res, next) => {
-    console.log('CORS middleware applied'); // Debugging log
-    res.header('Access-Control-Allow-Origin', '*'); // Allow all origins
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS'); // Allow specific HTTP methods
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization'); // Allow specific headers
-    if (req.method === 'OPTIONS') {
-        console.log('Handling preflight request'); // Debugging log
-        return res.sendStatus(200); // Handle preflight requests
-    }
-    next();
-});
 
 // Serve static files from the root directory
 app.use(express.static(path.join(__dirname, '../')));
@@ -131,7 +138,7 @@ if (fs.existsSync(publicDir)) {
 
 // ========== Auth: Register ==========
 app.post('/register', async (req, res) => {
-    const { username, password } = req.body;ß
+    const { username, password } = req.body;
 
     if (!username || !password) {
         return res.status(400).json({ success: false, message: 'Username and password required' });
@@ -171,33 +178,6 @@ app.post('/login', (req, res) => {
 
         res.status(200).json({ success: true, message: 'Login successful', user: { id: user.id, username: user.username } });
     });
-});
-
-// ========== Image Upload ==========
-app.post('/upload', upload.single('image'), (req, res) => {
-    const uploader = req.body.username;
-    const receiver = req.body.receiver;
-    const timestamp = Date.now();
-    const filepath = `/uploads/${req.file.filename}`;
-  
-    if (!uploader || !receiver || !req.file) {
-        return res.status(400).json({ error: 'Missing file or user info' });
-    }
-  
-    // Save to chat-specific DB
-    const db = getChatDB(uploader, receiver);
-    db.run(
-        `INSERT INTO uploads (filename, filepath, uploader, timestamp) VALUES (?, ?, ?, ?)`,
-        [req.file.originalname, filepath, uploader, timestamp],
-        (err) => {
-            if (err) {
-                console.error('❌ Upload save error:', err.message);
-                return res.status(500).json({ error: 'Failed to save upload' });
-            }
-            console.log(`📎 Upload saved to chat DB: ${filepath}`);
-            res.json({ imageUrl: filepath });
-        }
-    );
 });
 
 app.get('/chat/history', (req, res) => {
