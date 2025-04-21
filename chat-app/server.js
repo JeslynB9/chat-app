@@ -269,6 +269,33 @@ app.post('/messages', (req, res) => {
     });
 });
 
+// ========== ✅ Fetch Sent Files ==========
+app.get('/get-sent-files', (req, res) => {
+    console.log('🔥 /get-sent-files hit with:', req.query);
+
+    const { sender, receiver } = req.query;
+
+    if (!sender || !receiver) {
+        console.error('❌ Missing sender or receiver:', { sender, receiver });
+        return res.status(400).json({ success: false, message: 'Sender and receiver are required.' });
+    }
+
+    const db = getChatDB(sender, receiver);
+    const query = `SELECT filename, filepath AS url, filetype, uploader, timestamp FROM uploads WHERE uploader = ? ORDER BY timestamp DESC`;
+
+    console.log('📂 Querying database with:', { sender, query }); // Debugging log
+
+    db.all(query, [sender], (err, rows) => {
+        if (err) {
+            console.error('❌ Error fetching sent files:', err.message);
+            return res.status(500).json({ success: false, message: 'Failed to fetch sent files.' });
+        }
+
+        console.log('✅ Files fetched successfully:', rows); // Debugging log
+        res.json({ success: true, files: rows });
+    });
+});
+
 // ========== Add a Chat for Both Users ==========
 app.post('/add-chat', (req, res) => {
     const { sender, receiver } = req.body;
