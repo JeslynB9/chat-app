@@ -288,6 +288,64 @@ function displayPinMessagesPopup(pinId, messages) {
     });
 }
 
+// Add CSS for the popup
+const pinMessagesPopupStyle = document.createElement('style');
+pinMessagesPopupStyle.textContent = `
+    .pin-messages-popup {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background-color: var(--bg-color);
+        color: var(--text-color);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        z-index: 1001;
+        padding: 20px;
+        width: 400px;
+        max-height: 80%;
+        overflow-y: auto;
+    }
+
+    .pin-messages-popup .popup-content {
+        position: relative;
+    }
+
+    .pin-messages-popup .close-button {
+        position: absolute;
+        top: -100px; /* Position at the top */
+        right: 10px; /* Position at the right */
+        background: none;
+        border: none;
+        font-size: 1.2rem;
+        cursor: pointer;
+        color: var(--text-color);
+    }
+
+    .pin-messages-popup .messages-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .pin-messages-popup .messages-list li {
+        margin-bottom: 10px;
+        padding: 5px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .popup-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+    }
+`;
+document.head.appendChild(pinMessagesPopupStyle);
 
 document.addEventListener('DOMContentLoaded', () => {
     // ==========================
@@ -351,25 +409,46 @@ document.addEventListener('DOMContentLoaded', () => {
             // Emit the message via Socket.IO
             socket.emit('sendMessage', messageData);
 
-            // Update the last message in the sidebar
-            updateLastMessageInSidebar(activeReceiver, messageText, "You", messageData.timestamp);
+            // Save the message to the database
+            fetch('http://localhost:3000/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(messageData)
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log('Message saved:', data);
 
-            // Clear the input field
-            inputField.value = '';
+                        // Append the sent message to the UI immediately
+                        const messageElement = document.createElement('div');
+                        messageElement.classList.add('message', 'sent');
+                        const messageBubble = document.createElement('div');
+                        messageBubble.classList.add('message-bubble');
+                        messageBubble.textContent = messageText;
+                        messageElement.appendChild(messageBubble);
+                        messagesContainer.appendChild(messageElement);
+                        messagesContainer.scrollTop = messagesContainer.scrollHeight; // Scroll to the bottom
+
+                        // Dynamically update the last message in the sidebar
+                        updateLastMessageInSidebar(activeReceiver, messageText, "You", messageData.timestamp);
+                    } else {
+                        console.error('Error saving message:', data.message);
+                    }
+                })
+                .catch(error => console.error('Error sending message:', error));
+
+            inputField.value = ''; // Clear the input field
         } else if (!activeReceiver) {
             alert('Please select a user to chat with.');
         }
     }
 
-    // Remove duplicate event listeners
-    inputField.removeEventListener('keypress', handleKeyPress);
-    inputField.addEventListener('keypress', handleKeyPress);
-
-    function handleKeyPress(event) {
+    inputField.addEventListener('keypress', (event) => {
         if (event.key === 'Enter') {
             sendMessage();
         }
-    }
+    });
 
     inputField.addEventListener('input', () => {
         socket.emit('typing', username);
@@ -560,8 +639,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
     
-        const formData = new FormData();
-        formData.append('file', file);
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('uploader', username);
+            formData.append('receiver', activeReceiver);
     
         fetch('http://localhost:3000/upload', {
             method: 'POST',
@@ -612,14 +693,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 size.className = 'file-size';
                 size.textContent = formatFileSize(fileData.size);
                 info.appendChild(size);
-
-                fileContainer.appendChild(info);
-
-                // Add download link
-                const downloadSize = document.createElement('div');
-                downloadSize.className = 'file-size';
-                downloadSize.textContent = formatFileSize(fileData.size);
-                info.appendChild(downloadSize);
     
                 fileContainer.appendChild(info);
     
@@ -973,7 +1046,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <ul class="messages-list">
                     ${messages.map(msg => `
                         <li>
-<strong>${msg.sender}:</strong> ${msg.message}
+                            <strong>${msg.sender}:</strong> ${msg.message}
                         </li>
                     `).join('')}
                 </ul>
@@ -1000,42 +1073,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const sidebarPinsContainer = document.querySelector(".pins-container-sidebar");
     const addSidebarPinButton = document.getElementById("add-pin-button-sidebar");
 
-    function addSidebarPin(pinText) {
-        const username = localStorage.getItem('username'); // Get the logged-in user
-        if (!username) {
-            alert('You are not logged in.');
-            return;
-        }
-    
-        fetch('http://localhost:3000/add-pin', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user: username, category: pinText })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                const pin = document.createElement("div");
-                pin.className = "pin-sidebar";
-                pin.innerHTML = `
-                    <span class="pin-text-sidebar">${pinText}</span>
-                    <button class="remove-pin-button-sidebar">&times;</button>
-                `;
-                sidebarPinsContainer.insertBefore(pin, addSidebarPinButton);
-            } else {
-                alert('Failed to add pin: ' + data.message);
-            }
-        })
-        .catch(error => {
-            console.error('Error adding pin:', error);
-            alert('Failed to add pin.');
-        });
-    }
-    
     addSidebarPinButton.addEventListener("click", () => {
         const pinText = prompt("Enter the text for the new pin:");
         if (pinText) {
-            addSidebarPin(pinText);
+            const pin = document.createElement("div");
+            pin.className = "pin-sidebar";
+            pin.innerHTML = `
+                <span class="pin-text-sidebar">${pinText}</span>
+                <button class="remove-pin-button-sidebar">&times;</button>
+            `;
+            sidebarPinsContainer.insertBefore(pin, addSidebarPinButton);
         }
     });
 
@@ -1052,15 +1099,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             pinElement.remove();
         }
-    });
-
-    // Add event listener for pin clicks in the sidebar
-    sidebarPinsContainer.addEventListener('click', (event) => {
-        const pinElement = event.target.closest('.pin-sidebar');
-        if (!pinElement) return;
-
-        const pinId = pinElement.querySelector('.pin-text-sidebar').textContent.trim();
-        displayMessagesForPin(pinId);
     });
 
     // ==========================
@@ -1286,12 +1324,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         const checkbox = document.createElement('input');
                         checkbox.type = 'checkbox';
                         checkbox.checked = task.status === 'completed';
-                        checkbox.dataset.taskId = task.id; // Add task ID for reference
                         checkbox.style.position = 'absolute';
                         checkbox.style.right = '40px'; // Position the checkbox to the right of the task name
                         checkbox.addEventListener('change', () => {
-                            const newStatus = checkbox.checked ? 'completed' : 'not complete';
-                            updateTaskStatus(task.id, newStatus, userA, userB); // Update task status for all users
+                            task.status = checkbox.checked ? 'completed' : 'not complete';
+                            completedTasks = tasks.filter(t => t.status === 'completed').length;
+                            updateProgress();
+
+                            // Update the task status in the database and notify other users
+                            updateTaskStatus(task.id, task.status, userA, userB);
                         });
 
                         // Add delete button
@@ -1382,17 +1423,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    socket.on('taskStatusUpdated', ({ taskId, status }) => {
-        const taskItem = Array.from(document.querySelectorAll('.task-item')).find(item =>
-            item.querySelector('input[type="checkbox"]').dataset.taskId == taskId
-        );
-        if (taskItem) {
-            const checkbox = taskItem.querySelector('input[type="checkbox"]');
-            checkbox.checked = (status === 'completed');
-            const task = tasks.find(t => t.id == taskId);
-            if (task) task.status = status;
-            completedTasks = tasks.filter(t => t.status === 'completed').length;
-            updateProgress();
+    socket.on('taskStatusUpdated', (data) => {
+        const { taskId, status } = data;
+        const taskList = document.getElementById('task-items');
+        const taskItems = taskList.getElementsByTagName('li');
+        for (let item of taskItems) {
+            if (item.querySelector('input').dataset.taskId == taskId) {
+                item.querySelector('input').checked = (status === 'completed');
+                break;
+            }
         }
     });
 
@@ -1701,8 +1740,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     })
                     .catch(error => console.error('Error deleting chat database:', error));
                 }
-            } else if (action === 'categorise') {
-                showCategorisePopup(username);
             }
 
             // Hide context menu after action
@@ -1797,25 +1834,25 @@ document.addEventListener('DOMContentLoaded', () => {
         fetch(`http://localhost:3000/messages?sender=${encodeURIComponent(sender)}&receiver=${encodeURIComponent(receiver)}`)
             .then(response => response.json())
             .then(data => {
-                console.log('Messages received from server:', data.messages);
                 if (data.success) {
                     const messagesContainer = document.getElementById('messages-container');
                     const isAtBottom = messagesContainer.scrollHeight - messagesContainer.scrollTop === messagesContainer.clientHeight;
-            
+
                     messagesContainer.innerHTML = ''; // Clear existing messages
-            
+
                     data.messages.forEach(message => {
                         const messageElement = document.createElement('div');
                         messageElement.classList.add('message', message.sender === sender ? 'sent' : 'received');
-            
+
                         const messageBubble = document.createElement('div');
                         messageBubble.classList.add('message-bubble');
                         messageBubble.textContent = message.message;
-            
+
                         messageElement.appendChild(messageBubble);
                         messagesContainer.appendChild(messageElement);
                     });
-            
+
+                    // Only scroll to the bottom if the user is already at the bottom
                     if (isAtBottom) {
                         messagesContainer.scrollTop = messagesContainer.scrollHeight;
                     }
@@ -1823,7 +1860,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error('Failed to load messages:', data.message);
                 }
             })
-            
             .catch(error => console.error('Error loading messages:', error));
     }
 
@@ -2045,51 +2081,42 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Function to update task status
-    async function updateTaskStatus(taskId, status, userA, userB) {
-        console.log('Updating task status:', { taskId, status, userA, userB });
-    
-        // Validate required parameters
-        if (!taskId || !status || !userA || !userB) {
-            console.error('Missing required parameters:', { taskId, status, userA, userB });
-            throw new Error('userA, userB, taskId, and status are required');
+    async function updateTaskStatus(taskId, newStatus, userA, userB) {
+        console.log('Updating task status:', { taskId, newStatus, userA, userB });
+        
+        if (!taskId || !userA || !userB) {
+            console.error('Missing required parameters:', { taskId, userA, userB });
+            throw new Error('Missing required parameters');
         }
-    
+
         try {
-            // 🟢 userA and userB must go into the query string — not the body!
-            const url = `http://localhost:3000/chat-app/utils/chatDB/tasks/${encodeURIComponent(taskId)}/status?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`;
-    
-            // 🟢 Only status goes in the body
-            const payload = { status };
-    
-            console.log('Sending payload to server:', payload); // Should log only { status: '...' }
-    
-            const response = await fetch(url, {
+            const response = await fetch(`http://localhost:3000/chatDB/tasks/${taskId}/status`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(payload)
+                body: JSON.stringify({
+                    status: newStatus,
+                    userA,
+                    userB
+                })
             });
-    
+
             const data = await response.json();
-    
+            
             if (!response.ok) {
-                console.error('Server responded with error:', data.message || 'Unknown error');
                 throw new Error(data.message || 'Failed to update task status');
             }
-    
+
             console.log('Task status updated successfully:', data);
-    
-            socket.emit('taskStatusUpdated', { taskId, status, userA, userB });
+            socket.emit('taskStatusUpdated', { taskId, status: newStatus, userA, userB });
             return data;
-    
         } catch (error) {
             console.error('Error updating task status:', error);
             throw error;
         }
     }
-    
-    
+
     // Function to create task element
     function createTaskElement(task) {
         const taskElement = document.createElement('div');
@@ -2127,460 +2154,4 @@ document.addEventListener('DOMContentLoaded', () => {
         taskElement.appendChild(taskText);
         return taskElement;
     }
-
-    function refreshProgressBar() {
-        const progress = tasks.length ? Math.round((completedTasks / tasks.length) * 100) : 0;
-        progressPercentage.textContent = `${progress}%`;
-        progressCircle.style.background = `conic-gradient(var(--sent-bg) 0% ${progress}%, var(--received-bg) ${progress}% 100%)`;
-        progressCircle.style.transition = 'background 0.3s ease-in-out';
-    }
-
-    // Automatically refresh the progress bar and percentage every second
-    setInterval(() => {
-        const userA = localStorage.getItem('username'); // Current logged-in user
-        const userB = activeReceiver; // The user currently being chatted with
-
-        if (userA && userB) {
-            fetchTasks(userA, userB); // Refresh tasks from the database
-        }
-        refreshProgressBar();
-    }, 1000);
-
-    // Refresh the progress bar and percentage every second
-    setInterval(refreshProgressBar, 500);
 });
-
-// ...existing code...
-
-function pinChatToCategory(chatUsername) {
-    const category = prompt('Enter a category to pin this chat to:');
-    if (category) {
-        const pinnedChats = JSON.parse(localStorage.getItem('pinnedChats') || '{}');
-        if (!pinnedChats[category]) {
-            pinnedChats[category] = [];
-        }
-
-        if (!pinnedChats[category].includes(chatUsername)) {
-            pinnedChats[category].push(chatUsername);
-            localStorage.setItem('pinnedChats', JSON.stringify(pinnedChats));
-            alert(`Chat with ${chatUsername} pinned to category "${category}".`);
-        } else {
-            alert(`Chat with ${chatUsername} is already pinned to category "${category}".`);
-        }
-    }
-}
-
-function displayPinnedChats() {
-    const pinnedChats = JSON.parse(localStorage.getItem('pinnedChats') || '{}');
-    const pinnedChatsContainer = document.getElementById('pinned-chats-container');
-    pinnedChatsContainer.innerHTML = ''; // Clear existing content
-
-    Object.keys(pinnedChats).forEach(category => {
-        const categoryElement = document.createElement('div');
-        categoryElement.className = 'pinned-category';
-        categoryElement.innerHTML = `<h4>${category}</h4>`;
-
-        const chatList = document.createElement('ul');
-        pinnedChats[category].forEach(chatUsername => {
-            const chatItem = document.createElement('li');
-            chatItem.textContent = chatUsername;
-
-            // Add unpin button
-            const unpinButton = document.createElement('button');
-            unpinButton.textContent = 'Unpin';
-            unpinButton.addEventListener('click', () => unpinChatFromCategory(chatUsername, category));
-            chatItem.appendChild(unpinButton);
-
-            chatList.appendChild(chatItem);
-        });
-
-        categoryElement.appendChild(chatList);
-        pinnedChatsContainer.appendChild(categoryElement);
-    });
-}
-
-function unpinChatFromCategory(chatUsername, category) {
-    const pinnedChats = JSON.parse(localStorage.getItem('pinnedChats') || '{}');
-    if (pinnedChats[category]) {
-        pinnedChats[category] = pinnedChats[category].filter(chat => chat !== chatUsername);
-        if (pinnedChats[category].length === 0) {
-            delete pinnedChats[category];
-        }
-        localStorage.setItem('pinnedChats', JSON.stringify(pinnedChats));
-        alert(`Chat with ${chatUsername} unpinned from category "${category}".`);
-        displayPinnedChats();
-    }
-}
-
-// Add context menu option for pinning chats
-document.querySelectorAll('.context-menu-option').forEach(option => {
-    option.addEventListener('click', (e) => {
-        const action = e.target.dataset.action;
-        const username = contextMenu.dataset.username;
-
-        if (action === 'categorise') {
-            pinChatToCategory(username);
-        }
-        // ...existing code...
-    });
-});
-
-// Update context menu to include "Pin to Category" option
-const pinToCategoryOption = document.createElement('div');
-pinToCategoryOption.className = 'context-menu-option';
-pinToCategoryOption.dataset.action = 'pinToCategory';
-pinToCategoryOption.textContent = '📌 Pin to Category';
-contextMenu.appendChild(pinToCategoryOption);
-
-// Call displayPinnedChats on page load to show pinned chats
-document.addEventListener('DOMContentLoaded', () => {
-    displayPinnedChats();
-});
-
-// ...existing code...
-
-function categorizeChat(chatUsername) {
-    const category = prompt('Enter a category to assign this chat to:');
-    if (category) {
-        const categorizedChats = JSON.parse(localStorage.getItem('categorizedChats') || '{}');
-        if (!categorizedChats[category]) {
-            categorizedChats[category] = [];
-        }
-
-        if (!categorizedChats[category].includes(chatUsername)) {
-            categorizedChats[category].push(chatUsername);
-            localStorage.setItem('categorizedChats', JSON.stringify(categorizedChats));
-            alert(`Chat with ${chatUsername} categorized under "${category}".`);
-        } else {
-            alert(`Chat with ${chatUsername} is already categorized under "${category}".`);
-        }
-    }
-}
-
-function displayCategorizedChats() {
-    const categorizedChats = JSON.parse(localStorage.getItem('categorizedChats') || '{}');
-    const categorizedChatsContainer = document.getElementById('categorized-chats-container');
-    categorizedChatsContainer.innerHTML = ''; // Clear existing content
-
-    Object.keys(categorizedChats).forEach(category => {
-        const categoryElement = document.createElement('div');
-        categoryElement.className = 'categorized-category';
-        categoryElement.innerHTML = `<h4>${category}</h4>`;
-
-        const chatList = document.createElement('ul');
-        categorizedChats[category].forEach(chatUsername => {
-            const chatItem = document.createElement('li');
-            chatItem.textContent = chatUsername;
-
-            // Add remove button
-            const removeButton = document.createElement('button');
-            removeButton.textContent = 'Remove';
-        })
-    })
-}
-
-function removeChatFromCategory(chatUsername, category) {
-    const categorizedChats = JSON.parse(localStorage.getItem('categorizedChats') || '{}');
-    if (categorizedChats[category]) {
-        categorizedChats[category] = categorizedChats[category].filter(chat => chat !== chatUsername);
-        if (categorizedChats[category].length === 0) {
-            delete categorizedChats[category];
-        }
-        localStorage.setItem('categorizedChats', JSON.stringify(categorizedChats));
-        alert(`Chat with ${chatUsername} removed from category "${category}".`);
-        displayCategorizedChats();
-    }
-}
-
-// Add context menu option for categorizing chats
-document.querySelectorAll('.context-menu-option').forEach(option => {
-    option.addEventListener('click', (e) => {
-        const action = e.target.dataset.action;
-        const username = contextMenu.dataset.username;
-
-        if (action === 'categorise') {
-            showCategorisePopup(username);
-        }
-        // ...existing code...
-    });
-});
-
-// Call displayCategorizedChats on page load to show categorized chats
-document.addEventListener('DOMContentLoaded', () => {
-    displayCategorizedChats();
-});
-
-// ...existing code...
-
-function showCategorisePopup(chatUsername) {
-    const username = localStorage.getItem('username'); // Get the logged-in user
-    if (!username) {
-        alert('You are not logged in.');
-        return;
-    }
-
-    // Fetch pins from the database
-    fetch(`http://localhost:3000/get-pins?user=${encodeURIComponent(username)}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                const pins = data.pins;
-
-                // Create overlay
-                const overlay = document.createElement('div');
-                overlay.className = 'popup-overlay';
-                document.body.appendChild(overlay);
-
-                // Create popup
-                const popup = document.createElement('div');
-                popup.className = 'categorise-popup';
-                popup.innerHTML = `
-                    <div class="popup-content">
-                        <button class="close-button">&times;</button>
-                        <h3>Select a Category</h3>
-                        <ul class="categories-list">
-                            ${pins.length > 0 
-                                ? pins.map(pin => `<li class="category-item" data-pin-id="${pin.id}">${pin.category}</li>`).join('')
-                                : '<li>No categories available.</li>'}
-                        </ul>
-                    </div>
-                `;
-                document.body.appendChild(popup);
-
-                // Add event listeners
-                const closeButton = popup.querySelector('.close-button');
-                closeButton.addEventListener('click', () => {
-                    popup.remove();
-                    overlay.remove();
-                });
-
-                overlay.addEventListener('click', () => {
-                    popup.remove();
-                    overlay.remove();
-                });
-
-                const categoriesList = popup.querySelector('.categories-list');
-                categoriesList.addEventListener('click', (event) => {
-                    if (event.target.classList.contains('category-item')) {
-                        const selectedPinId = event.target.dataset.pinId;
-                        addChatToCategory(chatUsername, selectedPinId);
-                        popup.remove();
-                        overlay.remove();
-                    }
-                });
-            } else {
-                alert('Failed to fetch categories: ' + data.message);
-            }
-        })
-        .catch(error => {
-            console.error('Error fetching categories:', error);
-            alert('Failed to fetch categories.');
-        });
-}
-
-function addChatToCategory(chatUsername, pinId) {
-    fetch('http://localhost:3000/add-chat-to-pin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pinId, chatUsername })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert(`Chat with ${chatUsername} added to the selected category.`);
-        } else {
-            alert('Failed to add chat to category: ' + data.message);
-        }
-    })
-    .catch(error => {
-        console.error('Error adding chat to category:', error);
-        alert('Failed to add chat to category.');
-    });
-}
-
-// Add context menu option for categorizing chats
-document.querySelectorAll('.context-menu-option').forEach(option => {
-    option.addEventListener('click', (e) => {
-        const action = e.target.dataset.action;
-        const username = contextMenu.dataset.username;
-
-        if (action === 'categorise') {
-            showCategorisePopup(username);
-        }
-        // ...existing code...
-    });
-});
-
-// ...existing code...
-
-function loadPinsToSidebar() {
-    const username = localStorage.getItem('username'); // Get the logged-in user
-    if (!username) {
-        console.error('User is not logged in.');
-        return;
-    }
-
-    fetch(`http://localhost:3000/get-pins?user=${encodeURIComponent(username)}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                const pins = data.pins;
-                const sidebarPinsContainer = document.querySelector(".pins-container-sidebar");
-
-                // Clear existing pins
-                sidebarPinsContainer.innerHTML = `
-                    <div class="pin-sidebar">
-                        <span class="pin-text-sidebar">All</span>
-                    </div>
-                    <div class="pin-sidebar">
-                        <span class="pin-text-sidebar">Unread</span>
-                    </div>
-                    <button id="add-pin-button-sidebar">+</button>
-                `;
-
-                // Add pins from the database
-                pins.forEach(pin => {
-                    const pinElement = document.createElement("div");
-                    pinElement.className = "pin-sidebar";
-                    pinElement.innerHTML = `
-                        <span class="pin-text-sidebar">${pin.category}</span>
-                        <button class="remove-pin-button-sidebar" data-pin-id="${pin.id}">&times;</button>
-                    `;
-                    sidebarPinsContainer.insertBefore(pinElement, sidebarPinsContainer.querySelector("#add-pin-button-sidebar"));
-                });
-
-                // Reattach event listeners for adding and removing pins
-                attachSidebarPinListeners();
-            } else {
-                console.error('Failed to load pins:', data.message);
-            }
-        })
-        .catch(error => {
-            console.error('Error loading pins:', error);
-        });
-}
-
-function attachSidebarPinListeners() {
-    const addSidebarPinButton = document.getElementById("add-pin-button-sidebar");
-    const sidebarPinsContainer = document.querySelector(".pins-container-sidebar");
-
-    addSidebarPinButton.addEventListener("click", () => {
-        const pinText = prompt("Enter the text for the new pin:");
-        if (pinText) {
-            addSidebarPin(pinText);
-        }
-    });
-
-    sidebarPinsContainer.addEventListener("click", (event) => {
-        if (event.target.classList.contains("remove-pin-button-sidebar")) {
-            const pinElement = event.target.parentElement;
-            const pinText = pinElement.querySelector('.pin-text-sidebar').textContent;
-            const pinId = event.target.dataset.pinId;
-
-            // Prevent deletion of "All" and "Unread" pins
-            if (pinText === "All" || pinText === "Unread") {
-                alert("This pin cannot be deleted.");
-                return;
-            }
-
-            // Remove pin from the database
-            fetch(`http://localhost:3000/remove-pin/${pinId}`, {
-                method: 'DELETE'
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        pinElement.remove();
-                        alert('Pin deleted successfully.');
-                    } else {
-                        alert('Failed to delete pin: ' + data.message);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error deleting pin:', error);
-                    alert('Failed to delete pin.');
-                });
-        }
-    });
-
-    sidebarPinsContainer.addEventListener("click", (event) => {
-        const pinElement = event.target.closest('.pin-sidebar');
-        if (!pinElement) return;
-
-        const category = pinElement.querySelector('.pin-text-sidebar').textContent.trim();
-        if (category === 'All') {
-            fetchChatList(); // Show all chats
-        } else if (category === 'Unread') {
-            filterChatsByUnread(); // Show unread chats
-        } else {
-            filterChatsByCategory(category); // Show chats for the selected category
-        }
-    });
-}
-
-// Call loadPinsToSidebar on page load
-document.addEventListener('DOMContentLoaded', () => {
-    loadPinsToSidebar();
-});
-
-// ...existing code...
-
-function filterChatsByCategory(category) {
-    const username = localStorage.getItem('username'); // Get the logged-in user
-    if (!username) {
-        console.error('User is not logged in.');
-        return;
-    }
-
-    fetch(`http://localhost:3000/get-chats-for-category?user=${encodeURIComponent(username)}&category=${encodeURIComponent(category)}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                const chatList = document.getElementById('chat-list');
-                chatList.innerHTML = ''; // Clear the existing chat list
-
-                // Add chats pinned to the selected category
-                data.chats.forEach(chatUsername => {
-                    const chatItem = document.createElement('div');
-                    chatItem.className = 'chat-list-item';
-                    chatItem.innerHTML = `
-                        <img src="${getOrGenerateProfilePicture(chatUsername)}" alt="User" width="40" height="40">
-                        <div>
-                            <div>${chatUsername}</div>
-                            <div class="last-message">Loading...</div>
-                        </div>
-                        <div class="last-message-time">Loading...</div>
-                    `;
-                    chatItem.addEventListener('click', () => {
-                        highlightSelectedChat(chatItem);
-                        activeReceiver = chatUsername;
-                        loadMessages(chatUsername);
-                    });
-                    chatList.appendChild(chatItem);
-                    fetchLastMessage(chatUsername, chatItem);
-                });
-            } else {
-                console.error('Failed to fetch chats for category:', data.message);
-            }
-        })
-        .catch(error => {
-            console.error('Error fetching chats for category:', error);
-        });
-}
-
-// Update event listeners for category pins
-document.querySelector('.pins-container-sidebar').addEventListener('click', (event) => {
-    const pinElement = event.target.closest('.pin-sidebar');
-    if (!pinElement) return;
-
-    const category = pinElement.querySelector('.pin-text-sidebar').textContent.trim();
-    if (category === 'All') {
-        fetchChatList(); // Show all chats
-    } else if (category === 'Unread') {
-        filterChatsByUnread(); // Show unread chats
-    } else {
-        filterChatsByCategory(category); // Show chats for the selected category
-    }
-});
-
-// ...existing code...

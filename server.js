@@ -7,7 +7,6 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const sqlite3 = require('sqlite3');
-const { hashPassword, verifyPassword } = require('./utils/passwordUtils');
 
 const app = express();
 const server = http.createServer(app);
@@ -187,10 +186,8 @@ const storage = multer.diskStorage({
 
 const upload = multer({
     storage: storage,
-    limits: {
-        fileSize: 10 * 1024 * 1024 // 10MB limit
-    }
-}).single('file'); // Configure multer to expect a single file with field name 'file'
+    limits: { fileSize: 10 * 1024 * 1024 }
+}).single('file');
 
 // Apply CORS middleware
 app.use(cors());
@@ -201,55 +198,77 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // File upload endpoint with better error handling
 app.post('/upload', (req, res) => {
-    // Set response headers
     res.setHeader('Content-Type', 'application/json');
 
-    upload(req, res, function(err) {
+    upload(req, res, function (err) {
         if (err instanceof multer.MulterError) {
             console.error('Multer error:', err);
-            return res.status(400).json({
-                success: false,
-                message: `Upload error: ${err.message}`
-            });
+            return res.status(400).json({ success: false, message: err.message });
         } else if (err) {
             console.error('Unknown upload error:', err);
-            return res.status(500).json({
-                success: false,
-                message: 'Error uploading file'
-            });
+            return res.status(500).json({ success: false, message: 'Unknown error' });
         }
 
-        if (!req.file) {
-            console.error('No file received');
+        const file = req.files?.file?.[0];
+        const uploader = req.body?.uploader;
+        const receiver = req.body?.receiver;
+
+        console.log('📤 File upload request received:', req.body);
+
+        if (!file || !uploader || !receiver) {
+            console.error('❌ Missing file, uploader, or receiver:', { file, uploader, receiver });
             return res.status(400).json({
                 success: false,
-                message: 'No file uploaded'
+                message: 'Missing file, uploader, or receiver'
             });
         }
 
-        try {
-            // Log successful upload
-            console.log('File uploaded successfully:', req.file);
+        // Create message record in DB
+        const fileData = {
+            name: file.originalname,
+            type: file.mimetype,
+            size: file.size,
+            url: `/uploads/${file.filename}`
+        };
 
-            // Return success response with file details
-            res.status(200).json({
-                success: true,
-                message: 'File uploaded successfully',
-                url: `/uploads/${req.file.filename}`,
-                file: {
-                    filename: req.file.filename,
-                    originalname: req.file.originalname,
-                    mimetype: req.file.mimetype,
-                    size: req.file.size
-                }
-            });
-        } catch (error) {
-            console.error('Error processing upload:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Error processing upload'
-            });
-        }
+        const dbName = `chat_${uploader}_${receiver}.db`;
+        const db = new sqlite3.Database(dbName);
+        const timestamp = Date.now();
+
+        db.serialize(() => {
+            db.run(`CREATE TABLE IF NOT EXISTS messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                type TEXT,
+                content TEXT,
+                sender TEXT,
+                receiver TEXT,
+                timestamp INTEGER,
+                fileData TEXT,
+                isPinned INTEGER DEFAULT 0
+            )`);
+
+            const stmt = db.prepare(`INSERT INTO messages (type, content, sender, receiver, timestamp, fileData)
+                VALUES (?, ?, ?, ?, ?, ?)`);
+            stmt.run(
+                'file',
+                null,
+                uploader,
+                receiver,
+                timestamp,
+                JSON.stringify(fileData)
+            );
+            stmt.finalize();
+        });
+
+        db.close();
+
+        // Respond with file URL
+        res.status(200).json({
+            success: true,
+            message: 'File uploaded and saved',
+            url: fileData.url,
+            file: fileData
+        });
     });
 });
 
@@ -831,49 +850,8 @@ app.delete('/chatDB/tasks/:taskId', (req, res) => {
         });
 });
 
-// Add user registration endpoint
-app.post('/register', async (req, res) => {
-    const { username, password } = req.body;
-    if (!username || !password) {
-        return res.status(400).json({ success: false, message: 'Username and password are required' });
-    }
-
-    try {
-        const hashedPassword = await hashPassword(password);
-        // Save `username` and `hashedPassword` to the database
-        console.log('User registered with hashed password:', hashedPassword);
-        res.json({ success: true, message: 'User registered successfully' });
-    } catch (error) {
-        console.error('Error hashing password:', error);
-        res.status(500).json({ success: false, message: 'Error registering user' });
-    }
-});
-
-// Add user login endpoint
-app.post('/login', async (req, res) => {
-    const { username, password } = req.body;
-    if (!username || !password) {
-        return res.status(400).json({ success: false, message: 'Username and password are required' });
-    }
-
-    try {
-        // Fetch the hashed password from the database for the given username
-        const hashedPassword = '...'; // Replace with actual database query
-        const isValid = await verifyPassword(password, hashedPassword);
-
-        if (isValid) {
-            res.json({ success: true, message: 'Login successful' });
-        } else {
-            res.status(401).json({ success: false, message: 'Invalid credentials' });
-        }
-    } catch (error) {
-        console.error('Error verifying password:', error);
-        res.status(500).json({ success: false, message: 'Error logging in' });
-    }
-});
-
 // Start the server
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
-});
+}); 
