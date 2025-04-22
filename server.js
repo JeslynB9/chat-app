@@ -7,6 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const sqlite3 = require('sqlite3');
+const { hashPassword, verifyPassword } = require('./utils/passwordUtils');
 
 const app = express();
 const server = http.createServer(app);
@@ -830,8 +831,49 @@ app.delete('/chatDB/tasks/:taskId', (req, res) => {
         });
 });
 
+// Add user registration endpoint
+app.post('/register', async (req, res) => {
+    const { username, password } = req.body;
+    if (!username || !password) {
+        return res.status(400).json({ success: false, message: 'Username and password are required' });
+    }
+
+    try {
+        const hashedPassword = await hashPassword(password);
+        // Save `username` and `hashedPassword` to the database
+        console.log('User registered with hashed password:', hashedPassword);
+        res.json({ success: true, message: 'User registered successfully' });
+    } catch (error) {
+        console.error('Error hashing password:', error);
+        res.status(500).json({ success: false, message: 'Error registering user' });
+    }
+});
+
+// Add user login endpoint
+app.post('/login', async (req, res) => {
+    const { username, password } = req.body;
+    if (!username || !password) {
+        return res.status(400).json({ success: false, message: 'Username and password are required' });
+    }
+
+    try {
+        // Fetch the hashed password from the database for the given username
+        const hashedPassword = '...'; // Replace with actual database query
+        const isValid = await verifyPassword(password, hashedPassword);
+
+        if (isValid) {
+            res.json({ success: true, message: 'Login successful' });
+        } else {
+            res.status(401).json({ success: false, message: 'Invalid credentials' });
+        }
+    } catch (error) {
+        console.error('Error verifying password:', error);
+        res.status(500).json({ success: false, message: 'Error logging in' });
+    }
+});
+
 // Start the server
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
-}); 
+});
