@@ -640,9 +640,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
     
             const formData = new FormData();
-            formData.append('file', file);
             formData.append('uploader', username);
             formData.append('receiver', activeReceiver);
+            formData.append('file', file); // ← move this last
     
         fetch('http://localhost:3000/upload', {
             method: 'POST',
