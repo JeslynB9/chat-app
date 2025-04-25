@@ -1836,25 +1836,25 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(data => {
                 if (data.success) {
                     const messagesContainer = document.getElementById('messages-container');
-                    const isAtBottom = messagesContainer.scrollHeight - messagesContainer.scrollTop === messagesContainer.clientHeight;
+                const isAtBottom = messagesContainer.scrollHeight - messagesContainer.scrollTop === messagesContainer.clientHeight;
 
-                    if (messagesContainer.children.length === data.messages.length) {
-                        return; // Skip rendering if nothing changed
-                    }
+                if (messagesContainer.children.length === data.messages.length) {
+                    return; // Skip rendering if nothing changed
+                }
 
-                    messagesContainer.innerHTML = ''; // Clear only if changed
+                messagesContainer.innerHTML = ''; // Clear only if changed
 
-                    data.messages.forEach(message => {
-                        const messageElement = document.createElement('div');
-                        messageElement.classList.add('message', message.sender === sender ? 'sent' : 'received');
+                data.messages.forEach(message => {
+                    const messageElement = document.createElement('div');
+                    messageElement.classList.add('message', message.sender === sender ? 'sent' : 'received');
 
-                        const messageBubble = document.createElement('div');
-                        messageBubble.classList.add('message-bubble');
-                        messageBubble.textContent = message.message;
+                    const messageBubble = document.createElement('div');
+                    messageBubble.classList.add('message-bubble');
+                    messageBubble.textContent = message.message;
 
-                        messageElement.appendChild(messageBubble);
-                        messagesContainer.appendChild(messageElement);
-                    });
+                    messageElement.appendChild(messageBubble);
+                    messagesContainer.appendChild(messageElement);
+                });
 
                     // Only scroll to the bottom if the user is already at the bottom
                     if (isAtBottom) {

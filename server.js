@@ -1,5 +1,5 @@
 const express = require('express');
-const http = require('http');
+const https = require('https');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const multer = require('multer');
@@ -10,6 +10,7 @@ const sqlite3 = require('sqlite3');
 const authRoutes = require('./authRoutes');
 const authenticate = require('./authMiddleware');
 const socket = io('http://localhost:3000'); // never omit the http!
+const bcrypt = require('bcrypt');
 
 app.get('/profile', authenticate, (req, res) => {
     res.json({ success: true, user: req.user });
