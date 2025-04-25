@@ -440,7 +440,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             inputField.value = ''; // Clear the input field
         } else if (!activeReceiver) {
-            alert('Please select a user to chat with.');
+            console.warn('activeReceiver missing during message send/receive.');
+            return;
         }
     }
 
@@ -667,7 +668,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
     
                 // Emit the message via Socket.IO
-                socket.emit('sendMessage', messageData);
+                // socket.emit('sendMessage', messageData);
     
                 // Display the message in UI
                 const messageElement = document.createElement('div');
@@ -1460,12 +1461,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Periodically fetch messages for the active chat
-    setInterval(() => {
-        if (activeReceiver) {
-            loadMessages(activeReceiver);
-        }
-    }, 500); // Fetch messages every 0.5 seconds
+
 
     // ==========================
     // ✉️ COMPOSE MESSAGE MODAL
@@ -1803,13 +1799,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function toggleChatScreen(show) {
         if (show) {
-            noChatPlaceholder.style.display = 'none';
-            chatScreen.classList.remove('hidden');
-            inputArea.style.display = 'flex'; // Ensure the input area is visible
+            if (chatScreen.classList.contains('hidden')) {
+                noChatPlaceholder.style.display = 'none';
+                chatScreen.classList.remove('hidden');
+                inputArea.style.display = 'flex'; // Ensure the input area is visible
+            }
         } else {
-            noChatPlaceholder.style.display = 'flex';
-            chatScreen.classList.add('hidden');
-            inputArea.style.display = 'none'; // Hide the input area when no chat is selected
+            if (!chatScreen.classList.contains('hidden')) {
+                noChatPlaceholder.style.display = 'flex';
+                chatScreen.classList.add('hidden');
+                inputArea.style.display = 'none'; // Hide the input area when no chat is selected
+            }
         }
     }
 
@@ -1838,7 +1838,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     const messagesContainer = document.getElementById('messages-container');
                     const isAtBottom = messagesContainer.scrollHeight - messagesContainer.scrollTop === messagesContainer.clientHeight;
 
-                    messagesContainer.innerHTML = ''; // Clear existing messages
+                    if (messagesContainer.children.length === data.messages.length) {
+                        return; // Skip rendering if nothing changed
+                    }
+
+                    messagesContainer.innerHTML = ''; // Clear only if changed
 
                     data.messages.forEach(message => {
                         const messageElement = document.createElement('div');

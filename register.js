@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        fetch('https://localhost:3000/register', { // Use HTTPS
+        fetch('http://localhost:3000/register', { // Use HTTPS
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password })
@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         })
         .catch(error => {
-            console.error('Error:', error);
+            console.error('Error during registration:', error);
             alert('Something went wrong. Try again later.');
         });
     });

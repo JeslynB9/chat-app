@@ -9,6 +9,7 @@ const crypto = require('crypto');
 const sqlite3 = require('sqlite3');
 const authRoutes = require('./authRoutes');
 const authenticate = require('./authMiddleware');
+const socket = io('http://localhost:3000'); // never omit the http!
 
 app.get('/profile', authenticate, (req, res) => {
     res.json({ success: true, user: req.user });
