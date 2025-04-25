@@ -7,6 +7,12 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const sqlite3 = require('sqlite3');
+const authRoutes = require('./authRoutes');
+const authenticate = require('./authMiddleware');
+
+app.get('/profile', authenticate, (req, res) => {
+    res.json({ success: true, user: req.user });
+});
 
 const app = express();
 const server = http.createServer(app);
@@ -192,6 +198,7 @@ const upload = multer({
 // Apply CORS middleware
 app.use(cors());
 app.use(express.json());
+app.use('/auth', authRoutes);
 
 // Serve static files from uploads directory
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
