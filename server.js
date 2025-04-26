@@ -12,6 +12,7 @@ const authenticate = require('./authMiddleware');
 const socket = io('http://localhost:3000'); // never omit the http!
 const bcrypt = require('bcrypt');
 
+
 app.get('/profile', authenticate, (req, res) => {
     res.json({ success: true, user: req.user });
 });

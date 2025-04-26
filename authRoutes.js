@@ -20,67 +20,79 @@ userDB.serialize(() => {
     `);
 });
 
-// REGISTER endpoint
 router.post('/register', async (req, res) => {
     const { username, password } = req.body;
 
     if (!username || !password) {
-        return res.status(400).json({ success: false, message: 'Username and password required' });
-    }
-
-    const check = isPasswordSecure(password);
-    if (!check.secure) {
-        return res.status(400).json({ success: false, message: check.message });
+        return res.status(400).json({ success: false, message: 'Missing username or password' });
     }
 
     try {
-        const hashed = await hashPassword(password);
-        userDB.run(
-            `INSERT INTO users (username, password) VALUES (?, ?)`,
-            [username, hashed],
-            function(err) {
-                if (err) {
-                    if (err.code === 'SQLITE_CONSTRAINT') {
-                        return res.status(409).json({ success: false, message: 'Username already exists' });
-                    }
-                    return res.status(500).json({ success: false, message: 'Database error' });
-                }
+        const hashedPassword = await bcrypt.hash(password, 10);
 
-                res.status(201).json({ success: true, message: 'User registered successfully' });
+        const db = new sqlite3.Database('users.db');
+
+        db.run('CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)', (err) => {
+            if (err) {
+                console.error('Error creating users table:', err);
+                return res.status(500).json({ success: false, message: 'Database error' });
             }
-        );
+        });
+
+        db.run('INSERT INTO users (username, password) VALUES (?, ?)', [username, hashedPassword], (err) => {
+            db.close();
+            if (err) {
+                console.error('Error inserting user:', err);
+                return res.status(500).json({ success: false, message: 'Registration failed (maybe username already exists)' });
+            }
+
+            return res.status(201).json({ success: true, message: 'Registration successful' });
+        });
     } catch (error) {
-        console.error('Registration error:', error);
-        res.status(500).json({ success: false, message: 'Internal server error' });
+        console.error('Error during registration:', error);
+        return res.status(500).json({ success: false, message: 'Server error' });
     }
 });
 
 // LOGIN endpoint
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
     const { username, password } = req.body;
 
     if (!username || !password) {
-        return res.status(400).json({ success: false, message: 'Username and password required' });
+        return res.status(400).json({ success: false, message: 'Missing username or password' });
     }
 
-    userDB.get(`SELECT * FROM users WHERE username = ?`, [username], async (err, row) => {
-        if (err) {
-            console.error('Login error:', err);
-            return res.status(500).json({ success: false, message: 'Database error' });
-        }
+    try {
+        const db = new sqlite3.Database('users.db');
 
-        if (!row) {
-            return res.status(401).json({ success: false, message: 'Invalid username or password' });
-        }
+        db.get('SELECT * FROM users WHERE username = ?', [username], async (err, user) => {
+            db.close();
 
-        const match = await verifyPassword(password, row.password);
-        if (!match) {
-            return res.status(401).json({ success: false, message: 'Invalid username or password' });
-        }
+            if (err) {
+                console.error('Database error during login:', err);
+                return res.status(500).json({ success: false, message: 'Database error' });
+            }
 
-        const token = generateToken({ username });
-        res.json({ success: true, token, message: 'Login successful' });
-    });
+            if (!user) {
+                // No such username found
+                return res.status(401).json({ success: false, message: 'Invalid username or password' });
+            }
+
+            // Now check password with bcrypt
+            const isPasswordCorrect = await bcrypt.compare(password, user.password);
+
+            if (!isPasswordCorrect) {
+                return res.status(401).json({ success: false, message: 'Invalid username or password' });
+            }
+
+            // If correct
+            return res.json({ success: true, message: 'Login successful' });
+        });
+
+    } catch (error) {
+        console.error('Error during login:', error);
+        return res.status(500).json({ success: false, message: 'Server error' });
+    }
 });
 
 module.exports = router;
