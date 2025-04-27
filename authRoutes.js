@@ -4,7 +4,7 @@ const sqlite3 = require('sqlite3');
 const { hashPassword, verifyPassword } = require('./passwordUtils');
 const { isPasswordSecure } = require('./passwordValidator');
 const { generateToken } = require('./jwtUtils');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs'); // Replace bcrypt with bcryptjs
 
 const router = express.Router();
 const userDB = new sqlite3.Database('users.db');

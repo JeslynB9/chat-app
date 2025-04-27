@@ -1,18 +1,25 @@
-const express = require('express');
 const https = require('https');
+const fs = require('fs');
+const express = require('express');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const bcrypt = require('bcrypt');
-const fs = require('fs');
 const db = require('./database'); // SQLite DB module
 const { getChatDB, addTask, saveMessage, getMessagesBetweenUsers, addChatForBothUsers } = require('./utils/chatDB');
 
 const app = express();
 app.use(express.json());
 app.use(cors());
-const server = https.createServer(app);
+
+const options = {
+    key: fs.readFileSync('server.key'),    // Must point to your real server.key
+    cert: fs.readFileSync('server.crt')   // Must point to your real server.crt
+};
+
+const server = https.createServer(options, app);
+
 const io = new Server(server, {
     cors: {
         origin: "*",
