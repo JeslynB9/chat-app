@@ -8,6 +8,16 @@ const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const db = require('./database'); // SQLite DB module
 const { getChatDB, addTask, saveMessage, getMessagesBetweenUsers, addChatForBothUsers } = require('./utils/chatDB');
+console.log('Current working directory:', process.cwd()); // Debugging log
+console.log('Loading .env from:', path.resolve(__dirname, '../.env')); // Debugging log
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') }); // Ensure .env is loaded
+
+const secretKey = process.env.SECRET_KEY; // Load SECRET_KEY
+console.log('Loaded SECRET_KEY:', secretKey); // Debugging log
+if (!secretKey) {
+    console.error('SECRET_KEY is not defined in the environment variables.');
+    throw new Error('SECRET_KEY is required but not defined.');
+}
 
 const app = express();
 app.use(express.json());
@@ -252,7 +262,6 @@ app.get('/messages', (req, res) => {
             return res.status(500).json({ success: false, message: 'Failed to fetch messages' });
         }
 
-        // Ensure the response includes the message ID
         res.json({ success: true, messages });
     });
 });
@@ -679,6 +688,15 @@ app.get('/get-chats-for-category', (req, res) => {
         const chats = rows.map(row => row.chat_username);
         res.json({ success: true, chats });
     });
+});
+
+// Endpoint to securely serve the SECRET_KEY
+app.get('/get-secret-key', (req, res) => {
+  const secretKey = process.env.SECRET_KEY;
+  if (!secretKey) {
+    return res.status(500).json({ success: false, message: 'SECRET_KEY is not defined.' });
+  }
+  res.json({ success: true, secretKey });
 });
 
 // ========== Socket.IO ==========
