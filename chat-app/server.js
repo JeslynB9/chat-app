@@ -5,7 +5,7 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcrypt'); // Replace bcryptjs with bcrypt
 const db = require('./database'); // SQLite DB module
 const { getChatDB, addTask, saveMessage, getMessagesBetweenUsers, addChatForBothUsers } = require('./utils/chatDB');
 console.log('Current working directory:', process.cwd()); // Debugging log
@@ -23,7 +23,6 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-<<<<<<< HEAD
 const options = {
     key: fs.readFileSync('server.key'),    // Must point to your real server.key
     cert: fs.readFileSync('server.crt')   // Must point to your real server.crt
@@ -31,18 +30,6 @@ const options = {
 
 const server = https.createServer(options, app);
 
-=======
-// Load your HTTPS certificate and key
-const httpsOptions = {
-    key: fs.readFileSync('server.key'), // Ensure these files exist in the correct location
-    cert: fs.readFileSync('server.crt')
-};
-
-// Create the HTTPS server (NOT http.createServer)
-const server = https.createServer(httpsOptions, app);
-
-// Attach Socket.IO to the HTTPS server
->>>>>>> 6f94b3676dd6ea45e8b2c26616da2a9e6ae38ccd
 const io = new Server(server, {
     cors: {
         origin: "*",
@@ -175,7 +162,7 @@ app.post('/register', async (req, res) => {
     }
 
     try {
-        const hashedPassword = bcrypt.hashSync(password, 10); // Use `hashSync` from `bcryptjs`
+        const hashedPassword = bcrypt.hashSync(password, 10); // Use bcrypt's hashSync
         db.registerUser(username, hashedPassword, (err, userId) => {
             if (err) {
                 console.error('Registration DB Error:', err);
@@ -203,7 +190,7 @@ app.post('/login', (req, res) => {
         if (err) return res.status(500).json({ success: false, message: 'Database error' });
         if (!user || !user.password) return res.status(401).json({ success: false, message: 'User not found or invalid password' });
 
-        const isMatch = bcrypt.compareSync(password, user.password); // Use `compareSync` from `bcryptjs`
+        const isMatch = bcrypt.compareSync(password, user.password); // Use bcrypt's compareSync
         if (!isMatch) return res.status(401).json({ success: false, message: 'Incorrect password' });
 
         res.status(200).json({ success: true, message: 'Login successful', user: { id: user.id, username: user.username } });
