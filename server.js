@@ -9,6 +9,23 @@ const crypto = require('crypto');
 const sqlite3 = require('sqlite3');
 const authRoutes = require('./authRoutes');
 const authenticate = require('./authMiddleware');
+
+const socket = io('http://localhost:3000'); // never omit the http!
+const bcrypt = require('bcrypt');
+require('dotenv').config({ path: path.resolve(__dirname, '../../.env') }); // Corrected .env path
+
+const secretKey = process.env.SECRET_KEY; // Load SECRET_KEY
+console.log('Loaded SECRET_KEY:', secretKey); // Debugging log
+if (!secretKey) {
+    console.error('SECRET_KEY is not defined in the environment variables.');
+    throw new Error('SECRET_KEY is required but not defined.');
+}
+
+console.log('SECRET_KEY loaded successfully.'); // Debugging log
+
+app.get('/profile', authenticate, (req, res) => {
+    res.json({ success: true, user: req.user });
+});
 const bcrypt = require('bcrypt'); // Reverting to bcrypt
 
 // Load server key and certificate
@@ -67,6 +84,44 @@ function saveFile(base64Data, fileType) {
         throw error;
     }
 }
+
+io.on('connection', (socket) => {
+    console.log('A user connected:', socket.id);
+
+    // Join chat room
+    socket.on('joinChat', ({ userA, userB }) => {
+        const room = [userA, userB].sort().join('_');
+        socket.join(room);
+        console.log(`User joined room: ${room}`);
+    });
+
+    // Handle sending messages
+    socket.on('sendMessage', (messageData) => {
+        console.log('Message received:', messageData);
+
+        // Broadcast the message to the receiver's room
+        const room = [messageData.sender, messageData.receiver].sort().join('_');
+        io.to(room).emit('receiveMessage', messageData);
+
+        // Save the message to the database
+        const db = getChatDB(messageData.sender, messageData.receiver);
+        const query = `
+            INSERT INTO messages (sender, receiver, message, createdAt)
+            VALUES (?, ?, ?, ?)
+        `;
+        db.run(query, [messageData.sender, messageData.receiver, messageData.message, messageData.timestamp], (err) => {
+            if (err) {
+                console.error('Error saving message to database:', err);
+            } else {
+                console.log('Message saved to database.');
+            }
+        });
+    });
+
+    socket.on('disconnect', () => {
+        console.log('A user disconnected:', socket.id);
+    });
+});
 
 io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
@@ -866,6 +921,16 @@ app.delete('/chatDB/tasks/:taskId', (req, res) => {
                 message: 'Error deleting task'
             });
         });
+});
+
+// Endpoint to securely serve the SECRET_KEY
+app.get('/get-secret-key', (req, res) => {
+    const secretKey = process.env.SECRET_KEY;
+    if (!secretKey) {
+        console.error('SECRET_KEY is not defined in the environment variables.');
+        return res.status(500).json({ success: false, message: 'SECRET_KEY is not defined.' });
+    }
+    res.json({ success: true, secretKey });
 });
 
 const bcrypt = require('bcrypt'); 

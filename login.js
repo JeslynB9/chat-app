@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        fetch('https://localhost:3000/login', {
+        fetch('https://localhost:3000/login', { // Use HTTPS
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password })
