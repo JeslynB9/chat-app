@@ -391,6 +391,65 @@ document.addEventListener('DOMContentLoaded', () => {
         toggleBtn.querySelector('img').src = isCollapsed ? 'images/arrowright-light.png' : 'images/arrowleft-light.png';
     });
 
+    // Import CryptoJS for encryption and decryption
+    let secretKey; // Declare secretKey globally
+
+    // Fetch the SECRET_KEY from the server
+    fetch('http://localhost:3000/get-secret-key') // Ensure the correct URL
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Failed to fetch SECRET_KEY: ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success && data.secretKey) {
+                secretKey = data.secretKey; // Assign the fetched key
+                console.log('SECRET_KEY fetched successfully:', secretKey); // Debugging log
+            } else {
+                console.error('Failed to fetch SECRET_KEY:', data.message || 'Unknown error');
+                alert('Encryption key is missing. Please contact support.');
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching SECRET_KEY:', error);
+            alert('Encryption key is missing. Please contact support.');
+        });
+
+    function encryptMessage(message) {
+        if (!secretKey) {
+            console.error('Encryption failed: SECRET_KEY is not loaded.');
+            return null;
+        }
+        return CryptoJS.AES.encrypt(message, secretKey).toString();
+    }
+
+    function decryptMessage(encryptedMessage) {
+        if (!secretKey) {
+            console.error('Decryption failed: SECRET_KEY is not loaded.');
+            return '[Decryption Error]';
+        }
+        try {
+            const bytes = CryptoJS.AES.decrypt(encryptedMessage, secretKey);
+            const decryptedMessage = bytes.toString(CryptoJS.enc.Utf8);
+            if (!decryptedMessage) {
+                throw new Error('Decryption resulted in an empty string');
+            }
+            return decryptedMessage;
+        } catch (error) {
+            console.error('Error decrypting message:', error.message, 'Encrypted data:', encryptedMessage);
+            return '[Decryption Error]';
+        }
+    }
+
+    // Emit joinChat event when a chat is opened
+    function joinChat(userA, userB) {
+        const room = [userA, userB].sort().join('_');
+        socket.emit('joinChat', { userA, userB });
+        console.log(`Joined chat room: ${room}`);
+    }
+
+    // Modify sendMessage to emit the message via Socket.IO
     function sendMessage() {
         const messageText = inputField.value.trim();
         if (messageText && activeReceiver) {
@@ -399,11 +458,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 return; // Prevent sending the message
             }
 
+            const encryptedMessage = encryptMessage(messageText); // Encrypt the message
+
             const messageData = {
-                message: messageText,
+                message: encryptedMessage, // Send the encrypted message
                 sender: username,
                 receiver: activeReceiver,
-                timestamp: Date.now() // Use the current timestamp
+                timestamp: Date.now()
             };
 
             // Emit the message via Socket.IO
@@ -413,30 +474,29 @@ document.addEventListener('DOMContentLoaded', () => {
             fetch('http://localhost:3000/messages', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(messageData)
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        console.log('Message saved:', data);
-
-                        // Append the sent message to the UI immediately
-                        const messageElement = document.createElement('div');
-                        messageElement.classList.add('message', 'sent');
-                        const messageBubble = document.createElement('div');
-                        messageBubble.classList.add('message-bubble');
-                        messageBubble.textContent = messageText;
-                        messageElement.appendChild(messageBubble);
-                        messagesContainer.appendChild(messageElement);
-                        messagesContainer.scrollTop = messagesContainer.scrollHeight; // Scroll to the bottom
-
-                        // Dynamically update the last message in the sidebar
-                        updateLastMessageInSidebar(activeReceiver, messageText, "You", messageData.timestamp);
-                    } else {
-                        console.error('Error saving message:', data.message);
-                    }
+                body: JSON.stringify({
+                    sender: username,
+                    receiver: activeReceiver,
+                    message: encryptedMessage
                 })
-                .catch(error => console.error('Error sending message:', error));
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) {
+                    console.error('Failed to save message to the database:', data.message);
+                }
+            })
+            .catch(error => console.error('Error saving message to the database:', error));
+
+            // Append the sent message to the UI immediately
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message', 'sent');
+            const messageBubble = document.createElement('div');
+            messageBubble.classList.add('message-bubble');
+            messageBubble.textContent = messageText; // Show decrypted message in UI
+            messageElement.appendChild(messageBubble);
+            messagesContainer.appendChild(messageElement);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight; // Scroll to the bottom
 
             inputField.value = ''; // Clear the input field
         } else if (!activeReceiver) {
@@ -476,91 +536,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Listen for real-time messages from the server
     socket.on('receiveMessage', (data) => {
         if (data.sender === username || data.receiver === username) {
+            const decryptedMessage = decryptMessage(data.message); // Decrypt the message
+
             // Update the last message in the sidebar
-            const displayText = data.type === 'file' ? `[${data.fileData.name}]` : data.message;
+            const displayText = decryptedMessage;
             const displaySender = data.sender === username ? "You" : data.sender;
             updateLastMessageInSidebar(data.sender === username ? data.receiver : data.sender, displayText, displaySender, data.timestamp);
 
             // Only display the message if it's in the current chat
             if ((data.sender === activeReceiver || data.receiver === activeReceiver) && data.sender !== username) {
-                try {
-                    const messageElement = document.createElement('div');
-                    messageElement.className = `message received`;
+                const messageElement = document.createElement('div');
+                messageElement.className = `message received`;
 
-                    if (data.type === 'file') {
-                        let fileData = data.fileData;
-                        // Try to parse the message if it's a string
-                        if (typeof data.message === 'string' && data.message.startsWith('{')) {
-                            try {
-                                const parsedMessage = JSON.parse(data.message);
-                                if (parsedMessage.type === 'file') {
-                                    fileData = parsedMessage.fileData;
-                                }
-                            } catch (e) {
-                                console.error('Error parsing file message:', e);
-                            }
-                        }
+                const messageBubble = document.createElement('div');
+                messageBubble.classList.add('message-bubble');
+                messageBubble.textContent = decryptedMessage; // Show decrypted message in UI
+                messageElement.appendChild(messageBubble);
 
-                        const fileContainer = document.createElement('div');
-                        fileContainer.className = 'file-container';
+                // Add timestamp
+                const timestamp = document.createElement('span');
+                timestamp.className = 'timestamp';
+                timestamp.textContent = new Date(data.timestamp).toLocaleTimeString();
+                messageElement.appendChild(timestamp);
 
-                        // Add file icon
-                        const icon = document.createElement('div');
-                        icon.className = 'file-icon';
-                        icon.textContent = getFileIcon(fileData.type);
-                        fileContainer.appendChild(icon);
-
-                        // Add file info
-                        const info = document.createElement('div');
-                        info.className = 'file-info';
-
-                        const name = document.createElement('div');
-                        name.className = 'file-name';
-                        name.textContent = fileData.name;
-                        info.appendChild(name);
-
-                        const size = document.createElement('div');
-                        size.className = 'file-size';
-                        size.textContent = formatFileSize(fileData.size);
-                        info.appendChild(size);
-
-                        fileContainer.appendChild(info);
-
-                        // Add download link if URL is available
-                        if (fileData.url) {
-                            const downloadLink = document.createElement('a');
-                            downloadLink.href = fileData.url;
-                            downloadLink.download = fileData.name;
-                            downloadLink.className = 'download-button';
-                            downloadLink.textContent = '⬇️';
-                            fileContainer.appendChild(downloadLink);
-                        }
-
-                        messageElement.appendChild(fileContainer);
-                    } else {
-            const messageBubble = document.createElement('div');
-            messageBubble.classList.add('message-bubble');
-                        messageBubble.textContent = data.message || '';
-            messageElement.appendChild(messageBubble);
-        }
-
-                    // Add timestamp
-                    const timestamp = document.createElement('span');
-                    timestamp.className = 'timestamp';
-                    timestamp.textContent = new Date(data.timestamp).toLocaleTimeString();
-                    messageElement.appendChild(timestamp);
-
-                    // Add to messages container
-                    const messagesContainer = document.querySelector('.messages');
-                    if (messagesContainer) {
-        messagesContainer.appendChild(messageElement);
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-                    }
-                } catch (error) {
-                    console.error('Error displaying message:', error);
-                }
+                messagesContainer.appendChild(messageElement);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
             }
         }
 
@@ -1558,8 +1561,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const lastMessageTimeElement = chatItem.querySelector('.last-message-time');
             const displaySender = sender === localStorage.getItem('username') ? "You" : sender;
 
+            // Decrypt the message before displaying it
+            const decryptedMessage = decryptMessage(message);
+
             // Update the last message and timestamp
-            lastMessageElement.textContent = `${displaySender}: ${message}`;
+            lastMessageElement.textContent = `${displaySender}: ${decryptedMessage}`;
             lastMessageTimeElement.textContent = formatTimestamp(timestamp);
             chatItem.setAttribute('data-last-timestamp', timestamp);
 
@@ -1824,8 +1830,9 @@ document.addEventListener('DOMContentLoaded', () => {
         selectedChat.classList.add('selected');
     }
 
+    // Modify loadMessages to decrypt messages when loading chat history
     function loadMessages(receiver) {
-        const sender = localStorage.getItem('username'); // Current logged-in user
+        const sender = localStorage.getItem('username');
         if (!sender || !receiver) {
             console.error('Cannot load messages. Missing sender or receiver:', { sender, receiver });
             return;
@@ -1835,31 +1842,23 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    const messagesContainer = document.getElementById('messages-container');
-                const isAtBottom = messagesContainer.scrollHeight - messagesContainer.scrollTop === messagesContainer.clientHeight;
+                    messagesContainer.innerHTML = '';
 
-                if (messagesContainer.children.length === data.messages.length) {
-                    return; // Skip rendering if nothing changed
-                }
+                    data.messages.forEach(message => {
+                        const decryptedMessage = decryptMessage(message.message); // Decrypt the message
 
-                messagesContainer.innerHTML = ''; // Clear only if changed
+                        const messageElement = document.createElement('div');
+                        messageElement.classList.add('message', message.sender === sender ? 'sent' : 'received');
 
-                data.messages.forEach(message => {
-                    const messageElement = document.createElement('div');
-                    messageElement.classList.add('message', message.sender === sender ? 'sent' : 'received');
+                        const messageBubble = document.createElement('div');
+                        messageBubble.classList.add('message-bubble');
+                        messageBubble.textContent = decryptedMessage; // Show decrypted message in UI
+                        messageElement.appendChild(messageBubble);
 
-                    const messageBubble = document.createElement('div');
-                    messageBubble.classList.add('message-bubble');
-                    messageBubble.textContent = message.message;
+                        messagesContainer.appendChild(messageElement);
+                    });
 
-                    messageElement.appendChild(messageBubble);
-                    messagesContainer.appendChild(messageElement);
-                });
-
-                    // Only scroll to the bottom if the user is already at the bottom
-                    if (isAtBottom) {
-                        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-                    }
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
                 } else {
                     console.error('Failed to load messages:', data.message);
                 }
