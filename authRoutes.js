@@ -21,6 +21,7 @@ userDB.serialize(() => {
 });
 
 router.post('/register', async (req, res) => {
+    console.log('⚡ Register API called with body:', req.body);  // ADD THIS LINE!
     const { username, password } = req.body;
 
     if (!username || !password) {
