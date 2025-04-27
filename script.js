@@ -57,7 +57,7 @@ function openCalendar() {
             },
             events: function(fetchInfo, successCallback, failureCallback) {
                 console.log('Fetching events for chat between:', userA, userB); // Debugging log
-                fetch(`http://localhost:3000/calendar/events?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`)
+                fetch(`https://localhost:3000/calendar/events?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`)
                     .then(res => res.json())
                     .then(data => {
                         if (data.success) {
@@ -102,7 +102,7 @@ function openCalendar() {
                     event.stopPropagation(); // Prevent triggering the event click
                     const eventId = arg.event.id;
                     if (confirm('Are you sure you want to delete this event?')) {
-                        fetch(`http://localhost:3000/calendar/events/${eventId}?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`, {
+                        fetch(`https://localhost:3000/calendar/events/${eventId}?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`, {
                             method: 'DELETE'
                         })
                             .then(res => res.json())
@@ -134,7 +134,7 @@ function openCalendar() {
                         created_by: userA 
                     };
                     console.log('Sending event data to server:', eventData); // Debugging log
-                    fetch('http://localhost:3000/calendar/events', {
+                    fetch(`https://localhost:3000/calendar/events`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(eventData)
@@ -152,7 +152,7 @@ function openCalendar() {
             },
             eventClick: function(info) {
                 if (confirm(`Do you want to delete the event "${info.event.title}"?`)) {
-                    fetch(`http://localhost:3000/calendar/events/${info.event.id}?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`, {
+                    fetch(`https://localhost:3000/calendar/events/${info.event.id}?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`, {
                         method: 'DELETE'
                     })
                         .then(res => res.json())
@@ -376,7 +376,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================
     // 🔌 SOCKET & MESSAGE HANDLING
     // ==========================
-    const socket = io('http://localhost:3000');
+    const socket = io('https://localhost:3000', {
+        secure: true,
+        rejectUnauthorized: true
+    });
     const inputField = document.querySelector('.input-area input');
     const messagesContainer = document.querySelector('.messages');
     const typingStatus = document.querySelector('.typing-status');
@@ -410,7 +413,7 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('sendMessage', messageData);
 
             // Save the message to the database
-            fetch('http://localhost:3000/messages', {
+            fetch('https://localhost:3000/messages', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(messageData)
@@ -645,7 +648,7 @@ document.addEventListener('DOMContentLoaded', () => {
             formData.append('receiver', activeReceiver);
             formData.append('file', file); // ← move this last
     
-        fetch('http://localhost:3000/upload', {
+        fetch('https://localhost:3000/upload', {
             method: 'POST',
             body: formData
         })
@@ -918,7 +921,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Function to delete a message
     function deleteMessage(message, messageContainer) {
         if (confirm('Are you sure you want to delete this message?')) {
-            fetch(`http://localhost:3000/messages/${message.id}`, {
+            fetch(`https://localhost:3000/messages/${message.id}`, {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' }
             })
@@ -1498,7 +1501,7 @@ document.addEventListener('DOMContentLoaded', () => {
     searchUserInput.addEventListener('input', () => {
         const query = searchUserInput.value.trim();
         if (query) {
-            fetch(`http://localhost:3000/search-users?query=${encodeURIComponent(query)}`)
+            fetch(`https://localhost:3000/search-users?query=${encodeURIComponent(query)}`)
                 .then(response => response.json())
                 .then(data => {
                     userResults.innerHTML = '';
@@ -1571,7 +1574,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const sender = localStorage.getItem('username'); // Current logged-in user
         const receiver = username;
 
-        fetch(`http://localhost:3000/messages?sender=${encodeURIComponent(sender)}&receiver=${encodeURIComponent(receiver)}`)
+        fetch(`https://localhost:3000/messages?sender=${encodeURIComponent(sender)}&receiver=${encodeURIComponent(receiver)}`)
             .then(response => response.json())
             .then(data => {
                 if (data.success && data.messages.length > 0) {
@@ -1831,7 +1834,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        fetch(`http://localhost:3000/messages?sender=${encodeURIComponent(sender)}&receiver=${encodeURIComponent(receiver)}`)
+        fetch(`https://localhost:3000/messages?sender=${encodeURIComponent(sender)}&receiver=${encodeURIComponent(receiver)}`)
             .then(response => response.json())
             .then(data => {
                 if (data.success) {

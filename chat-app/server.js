@@ -1,10 +1,10 @@
 const express = require('express');
-const http = require('http');
+const https = require('https');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const db = require('./database'); // SQLite DB module
 const { getChatDB, addTask, saveMessage, getMessagesBetweenUsers, addChatForBothUsers } = require('./utils/chatDB');
@@ -12,7 +12,17 @@ const { getChatDB, addTask, saveMessage, getMessagesBetweenUsers, addChatForBoth
 const app = express();
 app.use(express.json());
 app.use(cors());
-const server = http.createServer(app);
+
+// Load your HTTPS certificate and key
+const httpsOptions = {
+    key: fs.readFileSync('server.key'), // Ensure these files exist in the correct location
+    cert: fs.readFileSync('server.crt')
+};
+
+// Create the HTTPS server (NOT http.createServer)
+const server = https.createServer(httpsOptions, app);
+
+// Attach Socket.IO to the HTTPS server
 const io = new Server(server, {
     cors: {
         origin: "*",
@@ -145,7 +155,7 @@ app.post('/register', async (req, res) => {
     }
 
     try {
-        const hashedPassword = await bcrypt.hash(password, 10);
+        const hashedPassword = bcrypt.hashSync(password, 10); // Use `hashSync` from `bcryptjs`
         db.registerUser(username, hashedPassword, (err, userId) => {
             if (err) {
                 console.error('Registration DB Error:', err);
@@ -169,11 +179,11 @@ app.post('/login', (req, res) => {
         return res.status(400).json({ success: false, message: 'Username and password required' });
     }
 
-    db.authenticateUser(username, async (err, user) => {
+    db.authenticateUser(username, (err, user) => {
         if (err) return res.status(500).json({ success: false, message: 'Database error' });
         if (!user || !user.password) return res.status(401).json({ success: false, message: 'User not found or invalid password' });
 
-        const isMatch = await bcrypt.compare(password, user.password);
+        const isMatch = bcrypt.compareSync(password, user.password); // Use `compareSync` from `bcryptjs`
         if (!isMatch) return res.status(401).json({ success: false, message: 'Incorrect password' });
 
         res.status(200).json({ success: true, message: 'Login successful', user: { id: user.id, username: user.username } });
@@ -845,5 +855,5 @@ app.delete('/remove-pin/:pinId', (req, res) => {
 });
 
 server.listen(3000, () => {
-    console.log('Server running on http://localhost:3000');
+    console.log('Server running on https://localhost:3000');
 });

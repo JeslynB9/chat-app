@@ -1,0 +1,11 @@
+# Secrets
+server.key
+server.csr
+ca.key
+ca.srl
+
+# Node modules
+node_modules/
+
+# Uploaded files (optional)
+uploads/
