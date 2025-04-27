@@ -9,21 +9,29 @@ const crypto = require('crypto');
 const sqlite3 = require('sqlite3');
 const authRoutes = require('./authRoutes');
 const authenticate = require('./authMiddleware');
-const socket = io('http://localhost:3000'); // never omit the http!
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcrypt'); // Reverting to bcrypt
 
-
-app.get('/profile', authenticate, (req, res) => {
-    res.json({ success: true, user: req.user });
-});
+// Load server key and certificate
+const options = {
+    key: fs.readFileSync('server.key'),
+    cert: fs.readFileSync('server.crt')
+};
 
 const app = express();
-const server = http.createServer(app);
+
+// Create HTTPS server
+const server = https.createServer(options, app);
+
+// Attach socket.io to HTTPS server
 const io = new Server(server, {
     cors: {
         origin: "*",
         methods: ["GET", "POST"]
     }
+});
+
+app.get('/profile', authenticate, (req, res) => {
+    res.json({ success: true, user: req.user });
 });
 
 // Create uploads directory if it doesn't exist
@@ -906,5 +914,5 @@ app.post('/register', async (req, res) => {
 // Start the server
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-}); 
+    console.log(`HTTPS Server running at https://localhost:${PORT}`);
+});
