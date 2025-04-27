@@ -134,11 +134,7 @@ function openCalendar() {
                         created_by: userA 
                     };
                     console.log('Sending event data to server:', eventData); // Debugging log
-<<<<<<< HEAD
-                    fetch(`https://localhost:3000/calendar/events`, {
-=======
                     fetch('https://localhost:3000/calendar/events', {
->>>>>>> 56b4b1a6c741502fefa0a6f330a6f791e2f7c9e4
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(eventData)
