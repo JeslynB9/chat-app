@@ -57,7 +57,7 @@ function openCalendar() {
             },
             events: function(fetchInfo, successCallback, failureCallback) {
                 console.log('Fetching events for chat between:', userA, userB); // Debugging log
-                fetch(`http://localhost:3000/calendar/events?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`)
+                fetch(`https://localhost:3000/calendar/events?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`)
                     .then(res => res.json())
                     .then(data => {
                         if (data.success) {
@@ -102,7 +102,7 @@ function openCalendar() {
                     event.stopPropagation(); // Prevent triggering the event click
                     const eventId = arg.event.id;
                     if (confirm('Are you sure you want to delete this event?')) {
-                        fetch(`http://localhost:3000/calendar/events/${eventId}?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`, {
+                        fetch(`https://localhost:3000/calendar/events/${eventId}?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`, {
                             method: 'DELETE'
                         })
                             .then(res => res.json())
@@ -134,7 +134,7 @@ function openCalendar() {
                         created_by: userA 
                     };
                     console.log('Sending event data to server:', eventData); // Debugging log
-                    fetch('http://localhost:3000/calendar/events', {
+                    fetch('https://localhost:3000/calendar/events', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(eventData)
@@ -152,7 +152,7 @@ function openCalendar() {
             },
             eventClick: function(info) {
                 if (confirm(`Do you want to delete the event "${info.event.title}"?`)) {
-                    fetch(`http://localhost:3000/calendar/events/${info.event.id}?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`, {
+                    fetch(`https://localhost:3000/calendar/events/${info.event.id}?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`, {
                         method: 'DELETE'
                     })
                         .then(res => res.json())
@@ -376,7 +376,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================
     // 🔌 SOCKET & MESSAGE HANDLING
     // ==========================
-    const socket = io('http://localhost:3000');
+    const socket = io('https://localhost:3000');
     const inputField = document.querySelector('.input-area input');
     const messagesContainer = document.querySelector('.messages');
     const typingStatus = document.querySelector('.typing-status');
@@ -471,7 +471,7 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('sendMessage', messageData);
 
             // Save the message to the database
-            fetch('http://localhost:3000/messages', {
+            fetch('https://localhost:3000/messages', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -648,7 +648,7 @@ document.addEventListener('DOMContentLoaded', () => {
             formData.append('receiver', activeReceiver);
             formData.append('file', file); // ← move this last
     
-        fetch('http://localhost:3000/upload', {
+        fetch('https://localhost:3000/upload', {
             method: 'POST',
             body: formData
         })
@@ -881,7 +881,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const pinId = prompt('Enter a name for this pin:');
         
         if (pinId) {
-            fetch('http://localhost:3000/chatDB/pins', {
+            fetch('https://localhost:3000/chatDB/pins', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -921,7 +921,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Function to delete a message
     function deleteMessage(message, messageContainer) {
         if (confirm('Are you sure you want to delete this message?')) {
-            fetch(`http://localhost:3000/messages/${message.id}`, {
+            fetch(`https://localhost:3000/messages/${message.id}`, {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' }
             })
@@ -1022,7 +1022,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Fetch messages attached to the pin
-        fetch(`http://localhost:3000/chatDB/pins/messages?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}&pinId=${encodeURIComponent(pinId)}`)
+        fetch(`https://localhost:3000/chatDB/pins/messages?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}&pinId=${encodeURIComponent(pinId)}`)
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
@@ -1220,7 +1220,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const taskData = { task: taskText, userA, userB };
             console.log('Sending task data to server:', taskData); // Debugging log
 
-            fetch(`http://localhost:3000/chatDB/tasks`, {
+            fetch(`https://localhost:3000/chatDB/tasks`, {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -1308,7 +1308,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function fetchTasks(userA, userB) {
-        fetch(`http://localhost:3000/chatDB/tasks?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`)
+        fetch(`https://localhost:3000/chatDB/tasks?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`)
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
@@ -1370,7 +1370,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function deleteTask(userA, userB, taskId, taskElement) {
         if (confirm('Are you sure you want to delete this task?')) {
-            fetch(`http://localhost:3000/chatDB/tasks/${taskId}?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`, {
+            fetch(`https://localhost:3000/chatDB/tasks/${taskId}?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`, {
                 method: 'DELETE'
             })
                 .then(res => res.json())
@@ -1501,7 +1501,7 @@ document.addEventListener('DOMContentLoaded', () => {
     searchUserInput.addEventListener('input', () => {
         const query = searchUserInput.value.trim();
         if (query) {
-            fetch(`http://localhost:3000/search-users?query=${encodeURIComponent(query)}`)
+            fetch(`https://localhost:3000/search-users?query=${encodeURIComponent(query)}`)
                 .then(response => response.json())
                 .then(data => {
                     userResults.innerHTML = '';
@@ -1577,7 +1577,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const sender = localStorage.getItem('username'); // Current logged-in user
         const receiver = username;
 
-        fetch(`http://localhost:3000/messages?sender=${encodeURIComponent(sender)}&receiver=${encodeURIComponent(receiver)}`)
+        fetch(`https://localhost:3000/messages?sender=${encodeURIComponent(sender)}&receiver=${encodeURIComponent(receiver)}`)
             .then(response => response.json())
             .then(data => {
                 if (data.success && data.messages.length > 0) {
@@ -1718,7 +1718,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const confirmDelete = confirm(`Are you sure you want to delete the chat with ${username}?`);
                 if (confirmDelete) {
                     // Request server to delete the database
-                    fetch(`http://localhost:3000/delete-chat-database`, {
+                    fetch(`https://localhost:3000/delete-chat-database`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ userA: localStorage.getItem('username'), userB: username })
@@ -1781,7 +1781,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Fetch and display the chat list for the logged-in user
     function fetchChatList() {
-        return fetch(`http://localhost:3000/user-chats?username=${encodeURIComponent(username)}`)
+        return fetch(`https://localhost:3000/user-chats?username=${encodeURIComponent(username)}`)
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
@@ -1838,7 +1838,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        fetch(`http://localhost:3000/messages?sender=${encodeURIComponent(sender)}&receiver=${encodeURIComponent(receiver)}`)
+        fetch(`https://localhost:3000/messages?sender=${encodeURIComponent(sender)}&receiver=${encodeURIComponent(receiver)}`)
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
@@ -1879,7 +1879,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Notify the server when a new chat is added
     function notifyNewChat(username) {
-        fetch('http://localhost:3000/add-chat', {
+        fetch('https://localhost:3000/add-chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ sender: username, receiver: selectedUser })
@@ -2093,7 +2093,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            const response = await fetch(`http://localhost:3000/chatDB/tasks/${taskId}/status`, {
+            const response = await fetch(`https://localhost:3000/chatDB/tasks/${taskId}/status`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json'

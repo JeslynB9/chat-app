@@ -9,6 +9,7 @@ const crypto = require('crypto');
 const sqlite3 = require('sqlite3');
 const authRoutes = require('./authRoutes');
 const authenticate = require('./authMiddleware');
+
 const socket = io('http://localhost:3000'); // never omit the http!
 const bcrypt = require('bcrypt');
 require('dotenv').config({ path: path.resolve(__dirname, '../../.env') }); // Corrected .env path
@@ -25,14 +26,29 @@ console.log('SECRET_KEY loaded successfully.'); // Debugging log
 app.get('/profile', authenticate, (req, res) => {
     res.json({ success: true, user: req.user });
 });
+const bcrypt = require('bcrypt'); // Reverting to bcrypt
+
+// Load server key and certificate
+const options = {
+    key: fs.readFileSync('server.key'),
+    cert: fs.readFileSync('server.crt')
+};
 
 const app = express();
-const server = http.createServer(app);
+
+// Create HTTPS server
+const server = https.createServer(options, app);
+
+// Attach socket.io to HTTPS server
 const io = new Server(server, {
     cors: {
         origin: "*",
         methods: ["GET", "POST"]
     }
+});
+
+app.get('/profile', authenticate, (req, res) => {
+    res.json({ success: true, user: req.user });
 });
 
 // Create uploads directory if it doesn't exist
@@ -917,8 +933,51 @@ app.get('/get-secret-key', (req, res) => {
     res.json({ success: true, secretKey });
 });
 
+const bcrypt = require('bcrypt'); 
+const sqlite3 = require('sqlite3');
+
+app.post('/register', async (req, res) => {
+    console.log('⚡ Register API called with body:', req.body);
+
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+        return res.status(400).json({ success: false, message: 'Missing username or password' });
+    }
+
+    try {
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        const db = new sqlite3.Database('users.db', (err) => {
+            if (err) {
+                console.error('Error connecting to users.db:', err);
+            }
+        });
+
+        db.run('CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)', (err) => {
+            if (err) {
+                console.error('Error creating users table:', err);
+                return res.status(500).json({ success: false, message: 'Database error (table)' });
+            }
+        });
+
+        db.run('INSERT INTO users (username, password) VALUES (?, ?)', [username, hashedPassword], (err) => {
+            db.close();
+            if (err) {
+                console.error('Error inserting user:', err);
+                return res.status(500).json({ success: false, message: 'Database error (insert)' });
+            }
+            console.log('✅ Successfully registered user:', username);
+            return res.status(201).json({ success: true, message: 'Registration successful' });
+        });
+    } catch (error) {
+        console.error('Error during registration:', error);
+        return res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
 // Start the server
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`HTTPS Server running at https://localhost:${PORT}`);
 });

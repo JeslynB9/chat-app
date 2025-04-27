@@ -1,5 +1,5 @@
 const express = require('express');
-const http = require('http');
+const https = require('https');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const multer = require('multer');
@@ -22,7 +22,7 @@ if (!secretKey) {
 const app = express();
 app.use(express.json());
 app.use(cors());
-const server = http.createServer(app);
+const server = https.createServer(app);
 const io = new Server(server, {
     cors: {
         origin: "*",
@@ -863,5 +863,5 @@ app.delete('/remove-pin/:pinId', (req, res) => {
 });
 
 server.listen(3000, () => {
-    console.log('Server running on http://localhost:3000');
+    console.log('Server running on https://localhost:3000');
 });
