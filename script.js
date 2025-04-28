@@ -1871,6 +1871,9 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        localStorage.setItem(`unread_${receiver}`, 0);
+        updateUnreadCount(receiver, 0);
+
         fetch(`https://localhost:3000/messages?sender=${encodeURIComponent(sender)}&receiver=${encodeURIComponent(receiver)}`)
             .then(response => response.json())
             .then(data => {
