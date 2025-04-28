@@ -5,7 +5,7 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
-const bcrypt = require('bcrypt'); // Replace bcryptjs with bcrypt
+const bcrypt = require('bcryptjs'); // Replace bcryptjs with bcrypt
 const db = require('./database'); // SQLite DB module
 const { getChatDB, addTask, saveMessage, getMessagesBetweenUsers, addChatForBothUsers } = require('./utils/chatDB');
 console.log('Current working directory:', process.cwd()); // Debugging log
