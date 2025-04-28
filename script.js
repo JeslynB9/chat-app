@@ -549,15 +549,49 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function decryptLastMessageInSidebar(chatItem, encryptedMessage, sender, timestamp) {
+        const lastMessageElement = chatItem.querySelector('.last-message');
+        const lastMessageTimeElement = chatItem.querySelector('.last-message-time');
+        const displaySender = sender === localStorage.getItem('username') ? "You" : sender;
+
+        let decryptedMessage = '[Decryption Error]';
+        try {
+            decryptedMessage = decryptMessage(encryptedMessage); // Decrypt the message
+        } catch (error) {
+            console.error('Error decrypting last message for sidebar:', error);
+        }
+
+        // Update the last message and timestamp
+        lastMessageElement.textContent = `${displaySender}: ${decryptedMessage}`;
+        lastMessageTimeElement.textContent = formatTimestamp(timestamp);
+        chatItem.setAttribute('data-last-timestamp', timestamp);
+    }
+
+    // Update the last message in the sidebar
+    function updateLastMessageInSidebar(username, encryptedMessage, sender, timestamp) {
+        const chatItem = Array.from(chatList.children).find(chat =>
+            chat.querySelector('div > div:first-child').textContent.trim() === username
+        );
+
+        if (chatItem) {
+            decryptLastMessageInSidebar(chatItem, encryptedMessage, sender, timestamp);
+            reorderChatList(); // Reorder the chat list after updating the timestamp
+        }
+    }
+
     // Listen for real-time messages from the server
     socket.on('receiveMessage', (data) => {
         if (data.sender === username || data.receiver === username) {
             const decryptedMessage = decryptMessage(data.message); // Decrypt the message
 
             // Update the last message in the sidebar
-            const displayText = decryptedMessage;
             const displaySender = data.sender === username ? "You" : data.sender;
-            updateLastMessageInSidebar(data.sender === username ? data.receiver : data.sender, displayText, displaySender, data.timestamp);
+            updateLastMessageInSidebar(
+                data.sender === username ? data.receiver : data.sender,
+                data.message, // Pass the encrypted message
+                displaySender,
+                data.timestamp
+            );
 
             // Only display the message if it's in the current chat
             if ((data.sender === activeReceiver || data.receiver === activeReceiver) && data.sender !== username) {
@@ -1564,28 +1598,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatScreen = document.getElementById('chat-screen');
     const inputArea = document.getElementById('main-chat-footer'); // Correctly select the footer containing the input area
 
-    function updateLastMessageInSidebar(username, message, sender, timestamp) {
-        const chatItem = Array.from(chatList.children).find(chat =>
-            chat.querySelector('div > div:first-child').textContent.trim() === username
-        );
-
-        if (chatItem) {
-            const lastMessageElement = chatItem.querySelector('.last-message');
-            const lastMessageTimeElement = chatItem.querySelector('.last-message-time');
-            const displaySender = sender === localStorage.getItem('username') ? "You" : sender;
-
-            // Decrypt the message before displaying it
-            const decryptedMessage = decryptMessage(message);
-
-            // Update the last message and timestamp
-            lastMessageElement.textContent = `${displaySender}: ${decryptedMessage}`;
-            lastMessageTimeElement.textContent = formatTimestamp(timestamp);
-            chatItem.setAttribute('data-last-timestamp', timestamp);
-
-            reorderChatList(); // Reorder the chat list after updating the timestamp
-        }
-    }
-
     function fetchLastMessage(username, chatItem) {
         const sender = localStorage.getItem('username'); // Current logged-in user
         const receiver = username;
@@ -1600,8 +1612,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     const lastMessageTimeElement = chatItem.querySelector('.last-message-time');
                     const displaySender = lastMessage.sender === sender ? "You" : lastMessage.sender;
 
+                    // Decrypt the message before displaying
+                    const decryptedMessage = decryptMessage(lastMessage.message);
+
                     // Update the last message and timestamp
-                    lastMessageElement.textContent = `${displaySender}: ${lastMessage.message}`;
+                    lastMessageElement.textContent = `${displaySender}: ${decryptedMessage}`;
                     lastMessageTimeElement.textContent = formatTimestamp(new Date(lastMessage.createdAt).getTime());
                     chatItem.setAttribute('data-last-timestamp', new Date(lastMessage.createdAt).getTime());
 
