@@ -641,7 +641,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (username === sender || username === receiver) {
             if (activeReceiver === sender || activeReceiver === receiver) {
                 // Refetch messages for the active chat
-                loadMessages(activeReceiver);
+                // loadMessages(activeReceiver);
             }
         }
     });
@@ -1819,13 +1819,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     data.chats.forEach(chat => {
                         if (!localStorage.getItem(`deleted_chat_${chat.username}`)) {
                             addChatToSidebar(chat.username); // Only add chats that haven't been deleted
+                            
+                            // 👇 NEW: Automatically join all chat rooms
+                            const userA = localStorage.getItem('username');
+                            const userB = chat.username;
+                            socket.emit('joinChat', { userA, userB });
+                            console.log(`📡 Auto-joined chat room: ${userA}_${userB}`);
                         }
                     });
                 } else {
                     console.error('Error fetching chat list:', data.message);
                 }
             })
-            .catch(error => console.error('Error fetching chat list:', error));
     }
 
     // Call fetchChatList on page load to populate the chat list
@@ -1903,6 +1908,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (chatItem) {
             const receiver = chatItem.querySelector('div > div:first-child').textContent.trim();
             activeReceiver = receiver; // Set the active receiver
+            const userA = localStorage.getItem('username');
+            const userB = receiver;
+            socket.emit('joinChat', { userA, userB });
+            console.log(`🔔 Joined chat room for ${userA} and ${userB}`);
             loadMessages(receiver); // Load messages for the selected chat
         }
     });
