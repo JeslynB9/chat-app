@@ -484,6 +484,7 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('sendMessage', messageData);
 
             // Save the message to the database
+            console.log('Saving message to the database:', messageData); // Debugging log
             fetch('https://localhost:3000/messages', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -493,6 +494,8 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(data => {
                 if (!data.success) {
                     console.error('Failed to save message to the database:', data.message);
+                } else {
+                    console.log('Message saved successfully:', data); // Debugging log
                 }
             })
             .catch(error => console.error('Error saving message to the database:', error));
