@@ -398,8 +398,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let secretKey; // Declare secretKey globally
 
     // Fetch the SECRET_KEY from the server
-    fetch('http://localhost:3000/get-secret-key') // Ensure the correct URL
+    fetch('https://localhost:3000/get-secret-key', {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
         .then(response => {
+            console.log('Response status:', response.status); // Log response status
             if (!response.ok) {
                 throw new Error(`Failed to fetch SECRET_KEY: ${response.statusText}`);
             }
@@ -415,7 +421,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         })
         .catch(error => {
-            console.error('Error fetching SECRET_KEY:', error);
+            console.error('Error fetching SECRET_KEY:', error.message);
+            console.error('Possible causes:');
+            console.error('- Server is not running or reachable.');
+            console.error('- HTTPS certificate issues (self-signed or invalid).');
+            console.error('- CORS policy restrictions.');
             alert('Encryption key is missing. Please contact support.');
         });
 
@@ -454,7 +464,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Modify sendMessage to emit the message via Socket.IO
     function sendMessage() {
-        const messageText = inputField.value.trim();
+        const messageText = inputField.value.trim(); // Ensure the message is trimmed and not empty
         if (messageText && activeReceiver) {
             if (username === activeReceiver) {
                 alert("You cannot message yourself.");

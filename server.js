@@ -12,7 +12,7 @@ const authenticate = require('./authMiddleware');
 
 const socket = io('http://localhost:3000'); // never omit the http!
 const bcrypt = require('bcrypt');
-require('dotenv').config({ path: path.resolve(__dirname, '../../.env') }); // Corrected .env path
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') }); // Corrected .env path
 
 const secretKey = process.env.SECRET_KEY; // Load SECRET_KEY
 console.log('Loaded SECRET_KEY:', secretKey); // Debugging log

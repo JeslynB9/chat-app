@@ -169,6 +169,12 @@ function addTask(userA, userB, task, callback) {
 // Save a new message to the chat-specific database
 function saveMessage(userA, userB, sender, receiver, message, callback) {
   const db = getChatDB(userA, userB); // Get the chat-specific database
+
+  if (!message || message.trim() === '') {
+    console.error('Error: Message is empty or null. Cannot save to database.');
+    return callback(new Error('Message cannot be empty.'));
+  }
+
   const encryptedMessage = encryptMessage(message); // Encrypt the message
   const query = `
     INSERT INTO messages (sender, receiver, message, createdAt)
