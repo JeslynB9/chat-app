@@ -687,15 +687,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleFileUpload(file) {
-            if (!activeReceiver) {
+        if (!activeReceiver) {
             alert('Please select a chat before uploading a file.');
-                return;
-            }
+            return;
+        }
     
-            const formData = new FormData();
-            formData.append('uploader', username);
-            formData.append('receiver', activeReceiver);
-            formData.append('file', file); // ← move this last
+        const username = localStorage.getItem('username'); // <-- IMPORTANT!!
+    
+        const formData = new FormData();
+        formData.append('uploader', username);
+        formData.append('receiver', activeReceiver);
+        formData.append('file', file);
     
         fetch('https://localhost:3000/upload', {
             method: 'POST',
@@ -708,7 +710,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     name: file.name,
                     type: file.type,
                     size: file.size,
-                    url: data.url  // Use the URL from the response
+                    url: data.url
                 };
     
                 const messageData = {
@@ -718,9 +720,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     receiver: activeReceiver,
                     timestamp: Date.now()
                 };
-    
-                // Emit the message via Socket.IO
-                // socket.emit('sendMessage', messageData);
     
                 // Display the message in UI
                 const messageElement = document.createElement('div');
@@ -749,7 +748,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
                 fileContainer.appendChild(info);
     
-                // Add download link
                 const downloadLink = document.createElement('a');
                 downloadLink.href = fileData.url;
                 downloadLink.download = fileData.name;
@@ -767,7 +765,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const messagesContainer = document.querySelector('.messages');
                 messagesContainer.appendChild(messageElement);
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
+    
                 updateLastMessageInSidebar(activeReceiver, `[${file.name}]`, "You", messageData.timestamp);
             } else {
                 console.error('Upload failed:', data.error);

@@ -84,6 +84,26 @@ db.serialize(() => {
     });
 });
 
+// Create the `uploads` table
+db.serialize(() => {
+    db.run(`
+        CREATE TABLE IF NOT EXISTS uploads (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            filename TEXT,
+            filepath TEXT,
+            filetype TEXT,
+            uploader TEXT,
+            timestamp INTEGER
+        )
+    `, (err) => {
+        if (err) {
+            console.error('Error creating uploads table:', err.message);
+        } else {
+            console.log('Uploads table created or already exists.');
+        }
+    });
+});
+
 // Register new user
 function registerUser(username, hashedPassword, callback) {
     const query = `INSERT INTO users (username, password) VALUES (?, ?)`;

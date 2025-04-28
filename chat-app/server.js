@@ -3,11 +3,12 @@ const fs = require('fs');
 const express = require('express');
 const { Server } = require('socket.io');
 const cors = require('cors');
-const multer = require('multer');
 const path = require('path');
 const bcrypt = require('bcryptjs'); // Replace bcryptjs with bcrypt
 const db = require('./database'); // SQLite DB module
 const { getChatDB, addTask, saveMessage, getMessagesBetweenUsers, addChatForBothUsers } = require('./utils/chatDB');
+const multer = require('multer');
+const upload = multer({ dest: 'uploads/' }); // <-- fix here
 console.log('Current working directory:', process.cwd()); // Debugging log
 console.log('Loading .env from:', path.resolve(__dirname, '../.env')); // Debugging log
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') }); // Ensure .env is loaded
@@ -22,6 +23,7 @@ if (!secretKey) {
 const app = express();
 app.use(express.json());
 app.use(cors());
+app.use(express.urlencoded({ extended: true }));
 
 const options = {
     key: fs.readFileSync('server.key'),    // Must point to your real server.key
@@ -70,67 +72,59 @@ const storage = multer.diskStorage({
     }
 });
 
-const upload = multer({ storage }).single('file');
+
 
 // Fix the file upload endpoint
-app.post('/upload', (req, res) => {
+app.use('/uploads', express.static('uploads')); // serve uploads folder (important)
+
+app.post('/upload', upload.single('file'), (req, res) => { 
     console.log('📤 File upload request received:', req.body); // Debugging log
 
-    upload(req, res, function (err) {
-        if (err instanceof multer.MulterError) {
-            console.error('❌ Multer error:', err.message);
-            return res.status(400).json({ success: false, message: `Multer error: ${err.message}` });
-        } else if (err) {
-            console.error('❌ Unknown upload error:', err.message);
-            return res.status(500).json({ success: false, message: 'Unknown error during file upload' });
-        }
+    if (!req.file) {
+        console.error('❌ No file uploaded');
+        return res.status(400).json({ success: false, message: 'No file uploaded' });
+    }
 
-        if (!req.file) {
-            console.error('❌ No file uploaded');
-            return res.status(400).json({ success: false, message: 'No file uploaded' });
-        }
+    const uploader = req.body.uploader;   // ✅ should be req.body.uploader
+    const receiver = req.body.receiver;   // ✅ should be req.body.receiver
 
-        const uploader = req.body.username;
-        const receiver = req.body.receiver;
+    if (!uploader || !receiver) {
+        console.error('❌ Missing uploader or receiver:', { uploader, receiver });
+        return res.status(400).json({ success: false, message: 'Missing uploader or receiver' });
+    }
 
-        if (!uploader || !receiver) {
-            console.error('❌ Missing uploader or receiver:', { uploader, receiver });
-            return res.status(400).json({ success: false, message: 'Missing uploader or receiver' });
-        }
+    const filepath = `/uploads/${req.file.filename}`;
+    const filetype = req.file.mimetype;
+    const timestamp = Date.now();
 
-        const filepath = `/uploads/${req.file.filename}`;
-        const filetype = req.file.mimetype;
-        const timestamp = Date.now();
-
-        console.log('✅ File uploaded successfully:', {
-            filename: req.file.originalname,
-            filepath,
-            filetype,
-            uploader,
-            receiver,
-            timestamp
-        });
-
-        // Save to chat-specific DB
-        const db = getChatDB(uploader, receiver);
-        db.run(
-            `INSERT INTO uploads (filename, filepath, filetype, uploader, timestamp) VALUES (?, ?, ?, ?, ?)`,
-            [req.file.originalname, filepath, filetype, uploader, timestamp],
-            (err) => {
-                if (err) {
-                    console.error('❌ Upload save error:', err.message);
-                    return res.status(500).json({ success: false, message: 'Failed to save upload' });
-                }
-                console.log(`📎 Upload saved to chat DB: ${filepath}`);
-                res.json({
-                    success: true,
-                    imageUrl: filepath, // Provide the file URL
-                    filetype,
-                    name: req.file.originalname // Ensure the correct file name is returned
-                });
-            }
-        );
+    console.log('✅ File uploaded successfully:', {
+        filename: req.file.originalname,
+        filepath,
+        filetype,
+        uploader,
+        receiver,
+        timestamp
     });
+
+    // Save to chat-specific DB
+    const db = getChatDB(uploader, receiver);
+    db.run(
+        `INSERT INTO uploads (filename, filepath, filetype, uploader, timestamp) VALUES (?, ?, ?, ?, ?)`,
+        [req.file.originalname, filepath, filetype, uploader, timestamp],
+        (err) => {
+            if (err) {
+                console.error('❌ Upload save error:', err.message);
+                return res.status(500).json({ success: false, message: 'Failed to save upload' });
+            }
+            console.log(`📎 Upload saved to chat DB: ${filepath}`);
+            res.json({
+                success: true,
+                url: filepath,    // ⚡️ changed here to match what your frontend expects
+                filetype,
+                name: req.file.originalname
+            });
+        }
+    );
 });
 
 // Serve static files from the uploads directory
