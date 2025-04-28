@@ -487,11 +487,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fetch('https://localhost:3000/messages', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    sender: username,
-                    receiver: activeReceiver,
-                    message: encryptedMessage
-                })
+                body: JSON.stringify(messageData)
             })
             .then(response => response.json())
             .then(data => {
@@ -510,6 +506,9 @@ document.addEventListener('DOMContentLoaded', () => {
             messageElement.appendChild(messageBubble);
             messagesContainer.appendChild(messageElement);
             messagesContainer.scrollTop = messagesContainer.scrollHeight; // Scroll to the bottom
+
+            // Update the last message in the sidebar immediately
+            updateLastMessageInSidebar(activeReceiver, encryptedMessage, "You", messageData.timestamp);
 
             inputField.value = ''; // Clear the input field
         } else if (!activeReceiver) {
