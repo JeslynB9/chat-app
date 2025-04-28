@@ -23,15 +23,6 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-<<<<<<< HEAD
-const options = {
-    key: fs.readFileSync('server.key'),    // Must point to your real server.key
-    cert: fs.readFileSync('server.crt')   // Must point to your real server.crt
-};
-
-const server = https.createServer(options, app);
-
-=======
 // Load your HTTPS certificate and key
 const httpsOptions = {
     key: fs.readFileSync('server.key'), // Ensure these files exist in the correct location
@@ -42,7 +33,6 @@ const httpsOptions = {
 const server = https.createServer(httpsOptions, app);
 
 // Attach Socket.IO to the HTTPS server
->>>>>>> 6f94b3676dd6ea45e8b2c26616da2a9e6ae38ccd
 const io = new Server(server, {
     cors: {
         origin: "*",
