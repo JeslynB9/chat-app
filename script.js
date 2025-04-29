@@ -1881,17 +1881,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     messagesContainer.innerHTML = '';
 
                     data.messages.forEach(message => {
-                        const decryptedMessage = decryptMessage(message.message); // Decrypt the message
-
-                        const messageElement = document.createElement('div');
-                        messageElement.classList.add('message', message.sender === sender ? 'sent' : 'received');
-
-                        const messageBubble = document.createElement('div');
-                        messageBubble.classList.add('message-bubble');
-                        messageBubble.textContent = decryptedMessage; // Show decrypted message in UI
-                        messageElement.appendChild(messageBubble);
-
-                        messagesContainer.appendChild(messageElement);
+                        displayMessage({
+                            id: message.id,
+                            message: decryptMessage(message.message),
+                            sender: message.sender,
+                            receiver: message.receiver,
+                            timestamp: message.timestamp,
+                            type: 'text', // assume text here; or adjust if you detect file messages
+                            fileData: null // no fileData for text messages
+                        }, message.sender === sender); // true if it is sent by me
                     });
 
                     messagesContainer.scrollTop = messagesContainer.scrollHeight;
