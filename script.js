@@ -910,7 +910,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleMessageAction(action, message, messageContainer) {
         switch (action) {
             case 'pin':
-                pinMessage(message);
+                showPinPopup(message, messageContainer);
                 break;
             case 'copy':
                 copyMessage(message.message);
@@ -1024,6 +1024,146 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     `;
     document.head.appendChild(messageContextMenuStyle);
+
+    // Function to show available pins in a popup
+    function showPinPopup(message, messageContainer) {
+        // Fetch available pins from the server
+        fetch(`/chatDB/pins?userA=${localStorage.getItem('username')}&userB=${activeReceiver}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const pins = data.pins;
+
+                    // Create the popup
+                    const overlay = document.createElement('div');
+                    overlay.className = 'popup-overlay';
+                    document.body.appendChild(overlay);
+
+                    const popup = document.createElement('div');
+                    popup.className = 'pin-popup';
+                    popup.innerHTML = `
+                        <div class="popup-content">
+                            <h3>Select a Pin</h3>
+                            <ul class="pins-list">
+                                ${pins.map(pin => `<li class="pin-item" data-pin-id="${pin.id}">${pin.id}</li>`).join('')}
+                            </ul>
+                            <button class="close-button">&times;</button>
+                        </div>
+                    `;
+                    document.body.appendChild(popup);
+
+                    // Add event listeners
+                    popup.querySelectorAll('.pin-item').forEach(item => {
+                        item.addEventListener('click', () => {
+                            const pinId = item.dataset.pinId;
+
+                            // Assign the message to the selected pin
+                            fetch('/chatDB/pins/assign', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    userA: localStorage.getItem('username'),
+                                    userB: activeReceiver,
+                                    messageId: message.id,
+                                    pinId
+                                })
+                            })
+                                .then(response => response.json())
+                                .then(result => {
+                                    if (result.success) {
+                                        alert('Message pinned successfully!');
+                                    } else {
+                                        alert('Failed to pin the message.');
+                                    }
+                                })
+                                .catch(error => console.error('Error pinning message:', error));
+
+                            // Close the popup
+                            overlay.remove();
+                            popup.remove();
+                        });
+                    });
+
+                    // Close the popup
+                    popup.querySelector('.close-button').addEventListener('click', () => {
+                        overlay.remove();
+                        popup.remove();
+                    });
+
+                    overlay.addEventListener('click', () => {
+                        overlay.remove();
+                        popup.remove();
+                    });
+                } else {
+                    alert('Failed to fetch pins.');
+                }
+            })
+            .catch(error => console.error('Error fetching pins:', error));
+    }
+
+    // Add CSS for the pin popup
+    const pinPopupStyle = document.createElement('style');
+    pinPopupStyle.textContent = `
+        .pin-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            z-index: 1001;
+            padding: 20px;
+            width: 300px;
+        }
+
+        .pin-popup .popup-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .pin-popup .pins-list {
+            list-style: none;
+            padding: 0;
+            margin: 10px 0;
+            width: 100%;
+        }
+
+        .pin-popup .pin-item {
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            margin-bottom: 5px;
+            cursor: pointer;
+            text-align: center;
+            transition: background-color 0.2s;
+        }
+
+        .pin-popup .pin-item:hover {
+            background-color: var(--hover-color);
+        }
+
+        .pin-popup .close-button {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            align-self: flex-end;
+        }
+
+        .popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+    `;
+    document.head.appendChild(pinPopupStyle);
 
     plusButton.addEventListener('click', openCalendar);
 
