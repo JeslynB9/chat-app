@@ -1077,7 +1077,7 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // Filter unique pinId values
+                    // Use the correct columns from the pins table
                     const uniquePins = [...new Map(data.pins.map(pin => [pin.id, pin])).values()];
 
                     // Create the popup
@@ -1121,7 +1121,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                     if (result.success) {
                                         alert('Message pinned successfully!');
                                     } else {
-                                        alert('Failed to pin the message.');
+                                        console.error('Pinning failed:', result);
+                                        alert(`Failed to pin the message. Reason: ${result.message || result.error || 'Unknown error'}`);
                                     }
                                 })
                                 .catch(error => console.error('Error pinning message:', error));
@@ -1215,7 +1216,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
     plusButton.addEventListener('click', openCalendar);
 
+    function addNewPin(pinName) {
+        const userA = localStorage.getItem('username');
+        const userB = activeReceiver;
     
+        if (!userA || !userB || !pinName) {
+            console.error('Missing userA, userB, or pinName:', { userA, userB, pinName });
+            return;
+        }
+    
+        fetch('/chatDB/pins', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userA, userB, pinName })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log('Pin added successfully:', data.pin);
+                    // Add the new pin to the UI
+                    const pinsContainer = document.querySelector('.pins-container');
+                    const newPin = document.createElement('div');
+                    newPin.className = 'pin';
+                    newPin.innerHTML = `
+                        <span class="pin-text">${data.pin.id}</span>
+                        <button class="remove-pin-button">&times;</button>
+                    `;
+                    pinsContainer.insertBefore(newPin, document.getElementById('add-pin-button'));
+                } else {
+                    console.error('Failed to add pin:', data.message);
+                    alert('Failed to add pin.');
+                }
+            })
+            .catch(error => console.error('Error adding pin:', error));
+    }
 
     // ==========================
     // 📌 PINS (HEADER)
@@ -1226,12 +1260,7 @@ document.addEventListener('DOMContentLoaded', () => {
     addPinButton.addEventListener("click", () => {
         const pinText = prompt("Enter the text for the new pin:");
         if (pinText) {
-            const pin = document.createElement("div");
-            pin.className = "pin";
-            pin.innerHTML = `
-                <span class="pin-text">${pinText}</span>
-                <button class="remove-pin-button">&times;</button>
-            `;
+            addNewPin(pinText);
             pinsContainer.insertBefore(pin, addPinButton);
         }
     });

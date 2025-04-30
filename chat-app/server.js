@@ -485,19 +485,18 @@ app.post('/chatDB/pins', (req, res) => {
     }
 
     const db = getChatDB(userA, userB); // Use chat-specific database
-    const pinId = pinName; // Use the entered pin name as the ID
-
     const query = `
-        INSERT INTO pins (id, message_id)
-        VALUES (?, ?)
+        INSERT OR IGNORE INTO pins (id)
+        VALUES (?)
     `;
-    db.run(query, [pinId, pinName], function (err) {
+
+    db.run(query, [pinName], function (err) {
         if (err) {
             console.error('❌ Failed to add pin:', err.message);
             return res.status(500).json({ success: false, message: 'Failed to add pin' });
         }
-        console.log(`Pin with ID ${pinId} added successfully to chat_${[userA, userB].sort().join('_')}.db`);
-        res.status(201).json({ success: true, message: 'Pin added successfully', pin: { id: pinId, name: pinName } });
+        console.log(`Pin with ID ${pinName} added successfully.`);
+        res.status(201).json({ success: true, pin: { id: pinName, category: pinName } });
     });
 });
 
@@ -510,14 +509,13 @@ app.get('/chatDB/pins', (req, res) => {
     }
 
     const db = getChatDB(userA, userB);
-    const query = `SELECT * FROM pins`;
+    const query = `SELECT DISTINCT id FROM pins`;
 
     db.all(query, [], (err, rows) => {
         if (err) {
             console.error('❌ Failed to fetch pins:', err.message);
             return res.status(500).json({ success: false, message: 'Failed to fetch pins' });
         }
-
         res.json({ success: true, pins: rows });
     });
 });

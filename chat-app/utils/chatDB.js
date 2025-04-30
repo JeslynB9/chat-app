@@ -232,11 +232,10 @@ function addChatForBothUsers(userA, userB, callback) {
 }
 
 // Create a new pin for a message
-function createPin(userA, userB, messageId, callback) {
+function createPin(userA, userB, pinId, messageId, callback) {
   const db = getChatDB(userA, userB);
-  const pinId = `${userA}_${userB}_${messageId}`; // Unique pin ID
   const query = `
-    INSERT INTO pins (id, message_id)
+    INSERT OR IGNORE INTO pins (id, message_id)
     VALUES (?, ?)
   `;
   db.run(query, [pinId, messageId], function (err) {
@@ -267,9 +266,8 @@ function assignMessageToPin(userA, userB, pinId, messageId, callback) {
 }
 
 // Remove a pin for a message
-function removePin(userA, userB, messageId, callback) {
+function removePin(userA, userB, pinId, messageId, callback) {
   const db = getChatDB(userA, userB);
-  const pinId = `${userA}_${userB}_${messageId}`; // Unique pin ID
   const query = `
     DELETE FROM pins
     WHERE id = ? AND message_id = ?
@@ -284,37 +282,37 @@ function removePin(userA, userB, messageId, callback) {
   });
 }
 
-// Fetch all pinned messages for a chat
-function getPinnedMessages(userA, userB, callback) {
+// Fetch all pins for a chat
+function getPins(userA, userB, callback) {
   const db = getChatDB(userA, userB);
   const query = `
-    SELECT DISTINCT pins.id, pins.name
+    SELECT DISTINCT id
     FROM pins
   `;
   db.all(query, [], (err, rows) => {
     if (err) {
-      console.error('Error fetching pinned messages:', err);
+      console.error('Error fetching pins:', err);
       return callback(err);
     }
-    callback(null, rows);
+    callback(null, rows.map(row => row.id)); // Return only the pin IDs
   });
 }
 
-// Check if a message is pinned
-function isMessagePinned(userA, userB, messageId, callback) {
+// Fetch messages for a specific pin
+function getMessagesForPin(userA, userB, pinId, callback) {
   const db = getChatDB(userA, userB);
-  const pinId = `${userA}_${userB}_${messageId}`; // Unique pin ID
   const query = `
-    SELECT COUNT(*) AS count
+    SELECT messages.*
     FROM pins
-    WHERE id = ? AND message_id = ?
+    JOIN messages ON pins.message_id = messages.id
+    WHERE pins.id = ?
   `;
-  db.get(query, [pinId, messageId], (err, row) => {
+  db.all(query, [pinId], (err, rows) => {
     if (err) {
-      console.error('Error checking if message is pinned:', err);
+      console.error('Error fetching messages for pin:', err);
       return callback(err);
     }
-    callback(null, row.count > 0);
+    callback(null, rows);
   });
 }
 
@@ -453,8 +451,8 @@ module.exports = {
   createPin,
   assignMessageToPin,
   removePin,
-  getPinnedMessages,
-  isMessagePinned,
+  getPins,
+  getMessagesForPin,
   createCategory,
   assignChatToCategory,
   getCategories,
