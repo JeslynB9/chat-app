@@ -265,11 +265,20 @@ function displayPinMessagesPopup(pinId, messages) {
             <button class="close-button">&times;</button>
             <h3>Messages for Pin: ${pinId}</h3>
             <ul class="messages-list">
-                ${messages.map(msg => `
-                    <li>
-                        <strong>${msg.sender}:</strong> ${msg.message}
-                    </li>
-                `).join('')}
+                ${messages.map(msg => {
+                    let decryptedMessage = '[Decryption Error]';
+                    try {
+                        // Fetch and decrypt the message using its message_id
+                        decryptedMessage = decryptMessageById(msg.message_id);
+                    } catch (error) {
+                        console.error('Error decrypting message:', error);
+                    }
+                    return `
+                        <li>
+                            <strong>${msg.sender}:</strong> ${decryptedMessage}
+                        </li>
+                    `;
+                }).join('')}
             </ul>
         </div>
     `;
@@ -286,6 +295,22 @@ function displayPinMessagesPopup(pinId, messages) {
         popup.remove();
         overlay.remove();
     });
+}
+
+function decryptMessageById(messageId) {
+    // Fetch the message content using the message_id
+    const message = fetchMessageById(messageId);
+    if (!message) {
+        throw new Error('Message not found');
+    }
+    return decryptMessage(message);
+}
+
+function fetchMessageById(messageId) {
+    // Simulate fetching the message content from the database
+    // Replace this with an actual API call if needed
+    const messages = JSON.parse(localStorage.getItem('messages') || '[]');
+    return messages.find(msg => msg.id === messageId)?.message || null;
 }
 
 // Add CSS for the popup
@@ -434,26 +459,46 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Encryption failed: SECRET_KEY is not loaded.');
             return null;
         }
-        return CryptoJS.AES.encrypt(message, secretKey).toString();
+        try {
+            const encrypted = CryptoJS.AES.encrypt(message, secretKey).toString();
+            console.log('Encrypted message:', encrypted); // Debugging log
+            return encrypted;
+        } catch (error) {
+            console.error('Error during encryption:', error.message);
+            return null;
+        }
     }
 
     function decryptMessage(encryptedMessage) {
         if (!secretKey) {
             console.error('Decryption failed: SECRET_KEY is not loaded.');
-            return '[Decryption Error]';
+            return '[Decryption Error: Missing Key]';
         }
         try {
+            console.log('Attempting to decrypt message:', encryptedMessage); // Debugging log
             const bytes = CryptoJS.AES.decrypt(encryptedMessage, secretKey);
             const decryptedMessage = bytes.toString(CryptoJS.enc.Utf8);
             if (!decryptedMessage) {
                 throw new Error('Decryption resulted in an empty string');
             }
+            console.log('Decrypted message:', decryptedMessage); // Debugging log
             return decryptedMessage;
         } catch (error) {
             console.error('Error decrypting message:', error.message, 'Encrypted data:', encryptedMessage);
-            return '[Decryption Error]';
+            return '[Decryption Error: Invalid Data]';
         }
     }
+
+    // Validate encryption and decryption
+    document.addEventListener('DOMContentLoaded', () => {
+        const testMessage = 'Test message for encryption and decryption';
+        const encrypted = encryptMessage(testMessage);
+        const decrypted = decryptMessage(encrypted);
+        console.log('Validation - Original:', testMessage, 'Decrypted:', decrypted);
+        if (testMessage !== decrypted) {
+            console.error('Validation failed: Decrypted message does not match the original.');
+        }
+    });
 
     // Emit joinChat event when a chat is opened
     function joinChat(userA, userB) {
@@ -1032,7 +1077,8 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    const pins = data.pins;
+                    // Filter unique pinId values
+                    const uniquePins = [...new Map(data.pins.map(pin => [pin.id, pin])).values()];
 
                     // Create the popup
                     const overlay = document.createElement('div');
@@ -1043,11 +1089,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     popup.className = 'pin-popup';
                     popup.innerHTML = `
                         <div class="popup-content">
-                            <h3>Select a Pin</h3>
+                            <div class="popup-header">
+                                <h3>Select a Pin</h3>
+                                <button class="close-button">&times;</button>
+                            </div>
                             <ul class="pins-list">
-                                ${pins.map(pin => `<li class="pin-item" data-pin-id="${pin.id}">${pin.id}</li>`).join('')}
+                                ${uniquePins.map(pin => `<li class="pin-item" data-pin-id="${pin.id}">${pin.id}</li>`).join('')}
                             </ul>
-                            <button class="close-button">&times;</button>
                         </div>
                     `;
                     document.body.appendChild(popup);
@@ -1224,6 +1272,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Function to display the popup with messages
     function displayPinMessagesPopup(pinId, messages) {
+        const decryptedMessages = decryptPinMessages(messages);
+
         const overlay = document.createElement('div');
         overlay.className = 'popup-overlay';
         document.body.appendChild(overlay);
@@ -1235,7 +1285,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <button class="close-button">&times;</button>
                 <h3>Messages for Pin: ${pinId}</h3>
                 <ul class="messages-list">
-                    ${messages.map(msg => `
+                    ${decryptedMessages.map(msg => `
                         <li>
                             <strong>${msg.sender}:</strong> ${msg.message}
                         </li>
@@ -1255,6 +1305,14 @@ document.addEventListener('DOMContentLoaded', () => {
         overlay.addEventListener('click', () => {
             popup.remove();
             overlay.remove();
+        });
+    }
+
+    // Function to decrypt pin messages
+    function decryptPinMessages(messages) {
+        return messages.map(msg => {
+            const decryptedMessage = decryptMessage(msg.message);
+            return { ...msg, message: decryptedMessage };
         });
     }
 
@@ -1338,6 +1396,7 @@ document.addEventListener('DOMContentLoaded', () => {
             settingsButtonImg.src = 'images/settings-light.png';
             cameraButtonImg.src = 'images/camera-light.png';
             calendarButtonImg.src = 'images/plus-light.png';
+            infoButtonImg.src = 'images/info-light.png';
             searchButtonImg.src = 'images/search-light.png';
         }
     

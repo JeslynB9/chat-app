@@ -1447,28 +1447,29 @@ body {
     position: relative;
 }
 
-.pin-messages-popup .popup-content h3 {
-    margin: 0;
-    font-size: 1.2rem;
-    flex-grow: 1; /* Allow the title to take up available space */
+.popup-header {
     display: flex;
-    align-items: center; /* Vertically align the title */
-}
-
-.pin-messages-popup .popup-content .close-button {
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+  
+.popup-header h3 {
+    display: inline-block;
+    margin: 0;
+    color: var(--text-color);
+  }
+.popup-header .close-button {
     position: absolute;
-    top: -20px;
-    right: 0;
+    top: 1rem;
+    right: 1rem;
     background: none;
     border: none;
-    font-size: 1.2rem;
+    font-size: 24px;
     cursor: pointer;
     color: var(--text-color);
-    height: 100%; /* Match the height of the title */
-    display: flex;
-    align-items: center; /* Vertically align with the title */
-    padding: 0 10px; /* Add padding for spacing */
 }
+
 
 .pin-messages-popup .messages-list {
     list-style: none;
