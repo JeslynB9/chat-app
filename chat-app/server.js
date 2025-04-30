@@ -509,7 +509,8 @@ app.get('/chatDB/pins', (req, res) => {
     }
 
     const db = getChatDB(userA, userB);
-    const query = `SELECT DISTINCT id FROM pins`;
+    const query = `SELECT id FROM pins`; // Fetch all pins, including non-default ones
+    console.log('Fetching pins for chat:', { userA, userB }); // Debugging log
 
     db.all(query, [], (err, rows) => {
         if (err) {
@@ -517,7 +518,7 @@ app.get('/chatDB/pins', (req, res) => {
             return res.status(500).json({ success: false, message: 'Failed to fetch pins' });
         }
         res.json({ success: true, pins: rows });
-        console.log(`Fetched pins for chat_${[userA, userB].sort().join('_')}.db:`, rows); // Debugging log
+        console.log('✅ Pins fetched successfully:', rows); // Debugging log
     });
 });
 

@@ -30,8 +30,6 @@
             </div>
         </div>
         <div class="chat-list" id="chat-list">
-            <!-- Example chat item structure -->
-            <div class="chat-list-item">
                 <img src="default-avatar.jpg" alt="User" width="40" height="40">
                 <div>
                     <div>Username</div>
@@ -40,7 +38,7 @@
                 <div class="last-message-time">12:34 PM</div> <!-- Placeholder for the timestamp -->
             </div>
             <!-- Chats will be dynamically added here -->
-        </div>
+        
         <div class="sidebar-footer">
             <img src="user.jpg" alt="User" width="37.5" height="37.5" class="footer-profile-picture"> <!-- Add class for styling -->
             <div id="sidebar-username">Username</div> <!-- 🔥 Keep the username text -->
@@ -109,13 +107,10 @@
             <div class="pins-task-container">
                 <div class="pins-container">
                     <!-- Default pins -->
-                    <div class="pin">
-                        <span class="pin-text">Urgent</span>
-                        <button class="remove-pin-button">&times;</button>
-                    </div>
-                    <div class="pin">
-                        <span class="pin-text">General</span>
-                        <button class="remove-pin-button">&times;</button>
+                    
+                    <!-- New div for additional pins -->
+                    <div id="additional-pins">
+                        <!-- Dynamically add pins fetched from the database here -->
                     </div>
                     <button id="add-pin-button">+</button>
                 </div>

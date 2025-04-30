@@ -1260,8 +1260,9 @@ document.addEventListener('DOMContentLoaded', () => {
     addPinButton.addEventListener("click", () => {
         const pinText = prompt("Enter the text for the new pin:");
         if (pinText) {
-            addNewPin(pinText);
-            pinsContainer.insertBefore(pin, addPinButton);
+            addNewPin(pinText); // Save to DB
+            const pin = createPinElement(pinText); // Create DOM element
+            pinsContainer.insertBefore(pin, addPinButton); // Insert into DOM
         }
     });
 
@@ -1345,6 +1346,49 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    document.addEventListener("DOMContentLoaded", () => {
+        loadPinsFromDB();
+    });
+    
+    function loadPinsFromDB() {
+        const userA = localStorage.getItem('username');
+        const userB = activeReceiver;
+    
+        console.log("Fetching pins for:", userA, userB);
+    
+        if (!userA || !userB) {
+            console.warn("Missing userA or userB. Skipping pin fetch.");
+            return;
+        }
+    
+        fetch(`https://localhost:3000/chatDB/pins?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`)
+            .then(res => res.json())
+            .then(data => {
+                console.log("Fetched pin data:", data);
+    
+                if (data.success && Array.isArray(data.pins)) {
+                    data.pins.forEach(pinText => {
+                        const pinElement = createPinElement(pinText);
+                        const addButton = document.getElementById("add-pin-button");
+                        pinsContainer.insertBefore(pinElement, addButton);
+                    });
+                } else {
+                    console.error("Failed to load pins:", data.message);
+                }
+            })
+            .catch(err => console.error("Error fetching pins:", err));
+    }    
+
+    function createPinElement(pinText) {
+        const pin = document.createElement("div");
+        pin.className = "pin";
+        pin.innerHTML = `
+            <span class="pin-text">${pinText}</span>
+            <button class="remove-pin-button">&times;</button>
+        `;
+        return pin;
+    }
+    
     // ==========================
     // 📌 PINS (SIDEBAR)
     // ==========================
@@ -1739,7 +1783,35 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    async function fetchAndDisplayPins() {
+        try {
+            const response = await fetch('/api/pins'); // Replace with your API endpoint
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
 
+            const pins = await response.json();
+            console.log('Fetched pins:', pins); // Debugging: Log fetched pins
+
+            const additionalPinsContainer = document.getElementById('additional-pins');
+            additionalPinsContainer.innerHTML = ''; // Clear existing pins
+
+            pins.forEach(pin => {
+                const pinDiv = document.createElement('div');
+                pinDiv.className = 'pin';
+                pinDiv.innerHTML = `
+                    <span class="pin-text">${pin.name}</span>
+                    <button class="remove-pin-button">&times;</button>
+                `;
+                additionalPinsContainer.appendChild(pinDiv);
+            });
+        } catch (error) {
+            console.error('Error fetching pins:', error); // Debugging: Log errors
+        }
+    }
+
+    // Call the function to fetch and display pins when the page loads
+    document.addEventListener('DOMContentLoaded', fetchAndDisplayPins);
 
     // ==========================
     // ✉️ COMPOSE MESSAGE MODAL
@@ -2423,4 +2495,97 @@ document.addEventListener('DOMContentLoaded', () => {
         taskElement.appendChild(taskText);
         return taskElement;
     }
+
+    // Function to fetch and render pins
+    function initializePins() {
+        const userA = localStorage.getItem('username');
+        const userB = activeReceiver;
+
+        if (!userA || !userB) {
+            console.error('Missing userA or userB:', { userA, userB });
+            return;
+        }
+
+        fetch(`/chatDB/pins?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const pinsContainer = document.querySelector('.pins-container');
+                    pinsContainer.innerHTML = ''; // Clear existing pins
+
+                    // Render each pin dynamically
+                    data.pins.forEach(pin => {
+                        const pinElement = document.createElement('div');
+                        pinElement.className = 'pin';
+                        pinElement.innerHTML = `
+                            <span class="pin-text">${pin.id}</span>
+                            <button class="remove-pin-button">&times;</button>
+                        `;
+                        pinsContainer.insertBefore(pinElement, document.getElementById('add-pin-button'));
+                    });
+                } else {
+                    console.error('Failed to fetch pins:', data.message);
+                }
+            })
+            .catch(error => console.error('Error fetching pins:', error));
+    }
+
+    // Call initializePins when the application starts
+    document.addEventListener('DOMContentLoaded', () => {
+        initializePins();
+    });
+});
+
+// Function to fetch and debug pins for a specific chat
+async function fetchPinsForChat(userA, userB) {
+    try {
+        const url = `https://localhost:3000/chatDB/pins?userA=${encodeURIComponent(userA)}&userB=${encodeURIComponent(userB)}`;
+        console.log(`Fetching pins from: ${url}`); // Debugging: Log the URL
+
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log(`Raw response for pins:`, data); // Debugging: Log raw response
+
+        if (!data.success || !Array.isArray(data.pins)) {
+            throw new TypeError('Expected an array of pins but received:', data);
+        }
+
+        const pins = data.pins;
+        const uniquePins = Array.from(new Set(pins.map(pin => pin.id))).map(id => {
+            return pins.find(pin => pin.id === id);
+        }); // Extract unique pins based on their `id`
+
+        const additionalPinsContainer = document.getElementById('additional-pins');
+        additionalPinsContainer.innerHTML = ''; // Clear existing pins
+
+        uniquePins.forEach(pin => {
+            const pinDiv = document.createElement('div');
+            pinDiv.className = 'pin';
+            pinDiv.style.display = 'inline-flex'; // Ensure pins are displayed inline
+            pinDiv.innerHTML = `
+                <span class="pin-text">${pin.id}</span>
+                <button class="remove-pin-button">&times;</button>
+            `;
+            additionalPinsContainer.appendChild(pinDiv);
+        });
+    } catch (error) {
+        console.error(`Error fetching pins for chat between ${userA} and ${userB}:`, error); // Debugging: Log errors
+    }
+}
+
+// Add click event listener to chat items
+document.addEventListener('DOMContentLoaded', () => {
+    const chatList = document.getElementById('chat-list');
+    chatList.addEventListener('click', (event) => {
+        const chatItem = event.target.closest('.chat-list-item');
+        if (chatItem) {
+            const userA = 'hi'; // Replace with dynamic userA if needed
+            const userB = 'janis'; // Replace with dynamic userB if needed
+            fetchPinsForChat(userA, userB);
+        }
+    });
 });
