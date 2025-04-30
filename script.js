@@ -1368,9 +1368,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
                 if (data.success && Array.isArray(data.pins)) {
                     data.pins.forEach(pinText => {
-                        const pinElement = createPinElement(pinText);
-                        const addButton = document.getElementById("add-pin-button");
-                        pinsContainer.insertBefore(pinElement, addButton);
+                        // const pinElement = createPinElement(pinText);
+                        // const addButton = document.getElementById("add-pin-button");
+                        // pinsContainer.insertBefore(pinElement, addButton);
                     });
                 } else {
                     console.error("Failed to load pins:", data.message);
@@ -1381,7 +1381,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function createPinElement(pinText) {
         const pin = document.createElement("div");
-        pin.className = "pin";
+        pin.className = "additional-pins";
         pin.innerHTML = `
             <span class="pin-text">${pinText}</span>
             <button class="remove-pin-button">&times;</button>
@@ -2583,8 +2583,8 @@ document.addEventListener('DOMContentLoaded', () => {
     chatList.addEventListener('click', (event) => {
         const chatItem = event.target.closest('.chat-list-item');
         if (chatItem) {
-            const userA = 'hi'; // Replace with dynamic userA if needed
-            const userB = 'janis'; // Replace with dynamic userB if needed
+            const userA = localStorage.getItem('username');; // Replace with dynamic userA if needed
+            const userB = activeReceiver; // Replace with dynamic userB if needed
             fetchPinsForChat(userA, userB);
         }
     });

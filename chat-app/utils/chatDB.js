@@ -60,7 +60,7 @@ function getChatDB(userA, userB) {
     db.run(`
       CREATE TABLE IF NOT EXISTS pins (
         id TEXT NOT NULL,
-        message_id INTEGER NOT NULL, -- Ensure message_id is an integer
+        message_id INTEGER NOT NULL,
         PRIMARY KEY (id, message_id)
       )
     `);
@@ -316,92 +316,6 @@ function getMessagesForPin(userA, userB, pinId, callback) {
   });
 }
 
-/**
- * Create a new category for a user.
- * @param {string} userId - The ID of the user.
- * @param {string} categoryName - The name of the category.
- * @param {function} callback - Callback function.
- */
-function createCategory(userId, categoryName, callback) {
-  const db = new sqlite3.Database(path.join(chatDBPath, 'categories.db'));
-  const query = `
-    INSERT INTO categories (user_id, name)
-    VALUES (?, ?)
-  `;
-  db.run(query, [userId, categoryName], function (err) {
-    if (err) {
-      console.error('Error creating category:', err);
-      return callback(err);
-    }
-    console.log('Category created with ID:', this.lastID);
-    callback(null, { id: this.lastID, name: categoryName });
-  });
-}
-
-/**
- * Assign a chat to a category.
- * @param {string} userA - The first user in the chat.
- * @param {string} userB - The second user in the chat.
- * @param {number} categoryId - The ID of the category.
- * @param {function} callback - Callback function.
- */
-function assignChatToCategory(userA, userB, categoryId, callback) {
-  const db = getChatDB(userA, userB);
-  const chatId = getChatDBName(userA, userB);
-  const query = `
-    INSERT INTO chat_categories (chat_id, category_id)
-    VALUES (?, ?)
-  `;
-  db.run(query, [chatId, categoryId], function (err) {
-    if (err) {
-      console.error('Error assigning chat to category:', err);
-      return callback(err);
-    }
-    console.log('Chat assigned to category with ID:', categoryId);
-    callback(null, { chatId, categoryId });
-  });
-}
-
-/**
- * Get all categories for a user.
- * @param {string} userId - The ID of the user.
- * @param {function} callback - Callback function.
- */
-function getCategories(userId, callback) {
-  const db = new sqlite3.Database(path.join(chatDBPath, 'categories.db'));
-  const query = `
-    SELECT * FROM categories
-    WHERE user_id = ?
-  `;
-  db.all(query, [userId], (err, rows) => {
-    if (err) {
-      console.error('Error fetching categories:', err);
-      return callback(err);
-    }
-    callback(null, rows);
-  });
-}
-
-/**
- * Get all chats in a category.
- * @param {number} categoryId - The ID of the category.
- * @param {function} callback - Callback function.
- */
-function getChatsInCategory(categoryId, callback) {
-  const db = new sqlite3.Database(path.join(chatDBPath, 'categories.db'));
-  const query = `
-    SELECT chat_id FROM chat_categories
-    WHERE category_id = ?
-  `;
-  db.all(query, [categoryId], (err, rows) => {
-    if (err) {
-      console.error('Error fetching chats in category:', err);
-      return callback(err);
-    }
-    callback(null, rows.map(row => row.chat_id));
-  });
-}
-
 function updateTaskStatus(userA, userB, taskId, status, callback) {
   console.log('Updating task status in database:', { userA, userB, taskId, status }); // Debugging log
   if (!userA || !userB || !taskId || !status) {
@@ -453,10 +367,6 @@ module.exports = {
   removePin,
   getPins,
   getMessagesForPin,
-  createCategory,
-  assignChatToCategory,
-  getCategories,
-  getChatsInCategory,
   updateTaskStatus,
   deleteTask,
 };

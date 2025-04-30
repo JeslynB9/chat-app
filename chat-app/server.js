@@ -486,17 +486,17 @@ app.post('/chatDB/pins', (req, res) => {
 
     const db = getChatDB(userA, userB); // Use chat-specific database
     const query = `
-        INSERT OR IGNORE INTO pins (id)
-        VALUES (?)
+        INSERT OR IGNORE INTO pins (id, message_id)
+        VALUES (?, ?)
     `;
 
-    db.run(query, [pinName], function (err) {
+    db.run(query, [pinName, 0], function (err) {
         if (err) {
             console.error('❌ Failed to add pin:', err.message);
             return res.status(500).json({ success: false, message: 'Failed to add pin' });
         }
         console.log(`Pin with ID ${pinName} added successfully.`);
-        res.status(201).json({ success: true, pin: { id: pinName, category: pinName } });
+        res.status(201).json({ success: true, pin: { id: pinName} });
     });
 });
 
@@ -518,7 +518,7 @@ app.get('/chatDB/pins', (req, res) => {
             return res.status(500).json({ success: false, message: 'Failed to fetch pins' });
         }
         res.json({ success: true, pins: rows });
-        console.log('✅ Pins fetched successfully:', rows); // Debugging log
+        console.log('Pins fetched successfully:', rows); // Debugging log
     });
 });
 
@@ -602,7 +602,7 @@ app.get('/get-pins', (req, res) => {
         return res.status(400).json({ success: false, message: 'User is required.' });
     }
 
-    const query = `SELECT id, category FROM pins WHERE user = ?`;
+    const query = `SELECT id FROM pins WHERE user = ?`;
     db.all(query, [user], (err, rows) => {
         if (err) {
             console.error('Error fetching pins:', err.message);
