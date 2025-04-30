@@ -517,6 +517,7 @@ app.get('/chatDB/pins', (req, res) => {
             return res.status(500).json({ success: false, message: 'Failed to fetch pins' });
         }
         res.json({ success: true, pins: rows });
+        console.log(`Fetched pins for chat_${[userA, userB].sort().join('_')}.db:`, rows); // Debugging log
     });
 });
 
