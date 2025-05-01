@@ -369,9 +369,10 @@ function addPin(user, category, callback) {
     const query = `INSERT INTO pins (user, category) VALUES (?, ?)`;
     db.run(query, [user, category], function (err) {
         if (err) {
-            console.error('Error adding pin:', err.message);
+            console.error('❌ Error adding pin to database:', err.message);
             callback(err);
         } else {
+            console.log(`✅ Pin added to database for user "${user}" with category "${category}" (ID: ${this.lastID})`);
             callback(null, { id: this.lastID, user, category });
         }
     });
@@ -382,9 +383,10 @@ function getPins(user, callback) {
     const query = `SELECT * FROM pins WHERE user = ?`;
     db.all(query, [user], (err, rows) => {
         if (err) {
-            console.error('Error fetching pins:', err.message);
+            console.error('❌ Error fetching pins from database:', err.message);
             callback(err);
         } else {
+            console.log(`✅ Pins fetched from database for user "${user}":`, rows);
             callback(null, rows);
         }
     });

@@ -1451,19 +1451,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const sidebarPinsContainer = document.querySelector(".pins-container-sidebar");
     const addSidebarPinButton = document.getElementById("add-pin-button-sidebar");
 
-    addSidebarPinButton.addEventListener("click", () => {
-        const pinText = prompt("Enter the text for the new pin:");
-        if (pinText) {
-            const pin = document.createElement("div");
-            pin.className = "pin-sidebar";
-            pin.innerHTML = `
-                <span class="pin-text-sidebar">${pinText}</span>
-                <button class="remove-pin-button-sidebar">&times;</button>
-            `;
-            sidebarPinsContainer.insertBefore(pin, addSidebarPinButton);
-        }
-    });
-
     sidebarPinsContainer.addEventListener("click", (event) => {
         if (event.target.classList.contains("remove-pin-button-sidebar")) {
             const pinElement = event.target.parentElement;
@@ -2645,3 +2632,74 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+document.addEventListener('DOMContentLoaded', () => {
+    const addPinSidebarButton = document.getElementById('add-pin-button-sidebar');
+    const sidebarPinsContainer = document.querySelector('.pins-container-sidebar');
+
+    addPinSidebarButton.addEventListener('click', () => {
+        const pinTitle = prompt('Enter the title for the new pin:');
+        if (pinTitle) {
+            fetch('/pins/add-pin', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ user: localStorage.getItem('username'), category: pinTitle })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log(`✅ Pin added successfully: ${pinTitle}`, data);
+                        const pinElement = document.createElement('div');
+                        pinElement.className = 'pin-sidebar';
+                        pinElement.innerHTML = `
+                            <span class="pin-text-sidebar">${pinTitle}</span>
+                            <button class="remove-pin-button-sidebar">&times;</button>
+                        `;
+                        sidebarPinsContainer.insertBefore(pinElement, addPinSidebarButton);
+                    } else {
+                        console.error('❌ Failed to add pin:', data.message);
+                        alert('Failed to add pin. Please try again.');
+                    }
+                })
+                .catch(err => {
+                    console.error('❌ Error adding pin:', err);
+                    alert('An error occurred while adding the pin.');
+                });
+        }
+    });
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Fetch and display pins on app start
+    fetch('/get-pins', {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        params: { user: localStorage.getItem('username') }
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('✅ Pins fetched successfully:', data.pins);
+                displayPinsInCategorizedContainer(data.pins);
+            } else {
+                console.error('❌ Failed to fetch pins:', data.message);
+            }
+        })
+        .catch(err => console.error('❌ Error fetching pins:', err));
+});
+
+function displayPinsInCategorizedContainer(pins) {
+    const categorizedContainer = document.getElementById('categorized-chats-container');
+    categorizedContainer.innerHTML = ''; // Clear existing content
+
+    pins.forEach(pin => {
+        const pinElement = document.createElement('div');
+        pinElement.className = 'categorized-pin';
+        pinElement.textContent = pin.category;
+        categorizedContainer.appendChild(pinElement);
+    });
+}

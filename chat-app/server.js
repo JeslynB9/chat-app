@@ -615,16 +615,18 @@ app.get('/chatDB/pins/messages', (req, res) => {
 
 app.get('/get-pins', (req, res) => {
     const { user } = req.query;
+
     if (!user) {
+        console.error('❌ Missing user parameter');
         return res.status(400).json({ success: false, message: 'User is required.' });
     }
 
-    const query = `SELECT id FROM pins WHERE user = ?`;
-    db.all(query, [user], (err, rows) => {
+    db.getPins(user, (err, rows) => {
         if (err) {
-            console.error('Error fetching pins:', err.message);
+            console.error('❌ Error fetching pins:', err.message);
             return res.status(500).json({ success: false, message: 'Failed to fetch pins.' });
         }
+        console.log(`✅ Pins fetched for user "${user}":`, rows);
         res.json({ success: true, pins: rows });
     });
 });
@@ -842,17 +844,20 @@ app.get('/calendar/events', (req, res) => {
     });
 });
 
-app.post('/add-pin', (req, res) => {
+app.post('/pins/add-pin', (req, res) => {
     const { user, category } = req.body;
+
     if (!user || !category) {
+        console.error('❌ Missing user or category:', { user, category });
         return res.status(400).json({ success: false, message: 'User and category are required.' });
     }
 
     db.addPin(user, category, (err, result) => {
         if (err) {
-            console.error('Error adding pin:', err.message);
+            console.error('❌ Error adding pin:', err.message);
             return res.status(500).json({ success: false, message: 'Failed to add pin.' });
         }
+        console.log(`✅ Pin added successfully for user "${user}" with category "${category}":`, result);
         res.json({ success: true, pin: result });
     });
 });
