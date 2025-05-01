@@ -910,17 +910,44 @@ app.get('/get-upload', (req, res) => {
             return res.status(404).json({ success: false, message: 'Upload not found' });
         }
 
-        res.json({
+        console.log('✅ Upload found:', row);
+
+        // This MUST be reached
+        return res.json({
             success: true,
             file: {
-                filename: row.filename,
-                filepath: row.filepath,
-                filetype: row.filetype,
-                size: row.size || 0
+                name: row.filename,
+                type: row.filetype,
+                size: row.size || 0,
+                url: row.filepath  // ✅ IMPORTANT: Must be "url", not "filepath"
             }
         });
     });
 });
+
+// app.get('/get-upload', (req, res) => {
+//     console.log('⚡ Route hit /get-upload');
+
+//     try {
+//         const { id, userA, userB } = req.query;
+//         console.log('🧪 Params:', id, userA, userB);
+
+//         // Sanity dummy return
+//         const file = {
+//             name: 'test.pdf',
+//             type: 'application/pdf',
+//             url: '/uploads/test.pdf',
+//         };
+
+//         console.log('✅ Responding with:', file);
+//         return res.json({ success: true, file });
+
+//     } catch (err) {
+//         console.error('❌ /get-upload crashed:', err);
+//         res.status(500).json({ success: false, message: 'Server error' });
+//     }
+// });
+
 
 server.listen(3000, () => {
     console.log('Server running on https://localhost:3000');

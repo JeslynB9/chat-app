@@ -833,11 +833,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function displayMessage(message, isSent = false) {
-        // If message has upload_id and no type, assume it's a file
-        if (message.upload_id && !message.type) {
+        // If message has upload_id and no fileData/type, fetch file metadata first
+        if (message.upload_id && (!message.type || !message.fileData)) {
             fetch(`/get-upload?id=${message.upload_id}&userA=${message.sender}&userB=${message.receiver}`)
                 .then(res => res.json())
                 .then(upload => {
+                    console.log("📂 Got upload data:", upload);
                     if (upload.success && upload.file) {
                         const fileMessage = {
                             ...message,
@@ -846,10 +847,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                 name: upload.file.filename,
                                 type: upload.file.filetype,
                                 size: upload.file.size || 0,
-                                url: upload.file.filepath
+                                url: upload.file.filepath  // ✅ this must be "url"
                             }
                         };
-                        displayMessage(fileMessage, isSent);
+                        console.log("📂 Loaded upload fileData:", fileMessage.fileData);
+                        displayMessage(fileMessage, isSent); // recursive call to render it
                     } else {
                         console.warn("📂 Upload not found for ID", message.upload_id);
                     }
@@ -857,8 +859,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 .catch(err => {
                     console.error("❌ Failed to fetch file for upload_id:", message.upload_id, err);
                 });
-            return; // Stop here, will re-render after file is loaded
+            return;
         }
+    
         const messageContainer = document.createElement('div');
         messageContainer.className = `message ${isSent ? 'sent' : 'received'}`;
         messageContainer.dataset.messageId = message.id;
@@ -868,13 +871,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const isFileMessage = message.type === 'file' || message.upload_id || message.fileData;
     
             if (isFileMessage) {
-                const fileData = message.fileData || {
-                    name: message.name || 'file',
-                    type: message.filetype || 'application/octet-stream',
-                    size: message.size || 0,
-                    url: message.url || message.message || '' // fallback
-                };
-    
+                let fileData = message.fileData;
+
+                if (!fileData && message.upload_id) {
+                    // fallback safety: shouldn't happen if fetch was correct
+                    fileData = {
+                        name: message.name || 'Unknown File',
+                        type: message.filetype || 'application/octet-stream',
+                        size: message.size || 0,
+                        url: message.url || ''
+                    };
+                }
+
+                if (!fileData || !fileData.url) {
+                    console.warn("⚠️ Skipping file render due to missing fileData or URL", message);
+                    return;
+                }
                 // Handle image
                 if (fileData.type.startsWith('image/')) {
                     const img = document.createElement('img');

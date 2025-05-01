@@ -976,6 +976,62 @@ app.post('/register', async (req, res) => {
     }
 });
 
+app.get('/get-upload', (req, res) => {
+    console.log('💡 /get-upload handler triggered');
+
+    const { id, userA, userB } = req.query;
+
+    // Validate query params
+    if (!id || !userA || !userB) {
+        console.warn('⚠️ Missing parameters:', { id, userA, userB });
+        return res.status(400).json({ success: false, message: 'Missing parameters' });
+    }
+
+    let db;
+    try {
+        db = getChatDB(userA, userB);
+        console.log(`📂 Using DB: chat_${userA}_${userB}.db`);
+    } catch (e) {
+        console.error('❌ Failed to get DB:', e.message);
+        return res.status(500).json({ success: false, message: 'DB error' });
+    }
+
+    // Now actually run the query
+    db.get('SELECT * FROM uploads WHERE id = ?', [id], (err, row) => {
+        console.log('🔍 db.get callback triggered');
+        if (err) {
+            console.error('❌ Upload fetch error:', err.message);
+            return res.status(500).json({ success: false, message: 'DB query failed' });
+        }
+
+        if (!row) {
+            console.warn(`⚠️ No upload found for ID ${id}`);
+            return res.status(404).json({ success: false, message: 'Upload not found' });
+        }
+
+        console.log('✅ Upload row:', row);
+
+        // Ensure all expected fields exist
+        res.json({
+            success: true,
+            file: {
+                name: row.filename,
+                type: row.filetype,
+                size: row.size || 0,
+                url: row.filepath  // ✅ Change this from `filepath:` to `url:`
+            }
+        });
+    });
+
+    // Failsafe response if something hangs
+    setTimeout(() => {
+        if (!res.headersSent) {
+            console.error('⏱ Timeout: /get-upload failed to send');
+            res.status(500).json({ success: false, message: 'Timeout — no response sent' });
+        }
+    }, 5000);
+});
+
 // Start the server
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
