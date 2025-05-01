@@ -265,32 +265,27 @@ function displayPinMessagesPopup(pinId, messages) {
             <button class="close-button">&times;</button>
             <h3>Messages for Pin: ${pinId}</h3>
             <ul class="messages-list">
-                ${messages.map(msg => {
-                    let decryptedMessage = '[Decryption Error]';
-                    try {
-                        // Fetch and decrypt the message using its message_id
-                        decryptedMessage = decryptMessageById(msg.message_id);
-                    } catch (error) {
-                        console.error('Error decrypting message:', error);
-                    }
-                    return `
-                        <li>
-                            <strong>${msg.sender}:</strong> ${decryptedMessage}
-                        </li>
-                    `;
-                }).join('')}
+            ${messages.map(msg => {
+                let decryptedMessage = '[Decryption Error: Invalid Data]';
+                try {
+                    const encrypted = typeof msg === 'object' ? msg.message : msg;
+                    decryptedMessage = decryptMessage(encrypted);
+                } catch (e) {
+                    console.error("Decryption failed:", e);
+                }
+                const sender = typeof msg === 'object' ? msg.sender : 'Unknown';
+                return `<li><strong>${sender}:</strong> ${decryptedMessage}</li>`;
+            }).join('')}
             </ul>
         </div>
     `;
     document.body.appendChild(popup);
 
-    // Add event listener to close the popup
     popup.querySelector('.close-button').addEventListener('click', () => {
         popup.remove();
         overlay.remove();
     });
 
-    // Close the popup when clicking on the overlay
     overlay.addEventListener('click', () => {
         popup.remove();
         overlay.remove();
@@ -303,7 +298,7 @@ function decryptMessageById(messageId) {
     if (!message) {
         throw new Error('Message not found');
     }
-    return decryptMessage(message);
+    return decryptMessage(msg.message_id);
 }
 
 function fetchMessageById(messageId) {
@@ -1284,8 +1279,15 @@ document.addEventListener('DOMContentLoaded', () => {
         fetch('/chatDB/pins', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userA, userB, pinName })
-        })
+            body: JSON.stringify({
+              userA,
+              userB,
+              pinId: pinName, // e.g. "Urgent"
+              message_id: message.id, // the real message ID
+              message: message.message, // the encrypted text
+              sender: message.sender
+            })
+          })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
@@ -1371,12 +1373,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 <button class="close-button">&times;</button>
                 <h3>Messages for Pin: ${pinId}</h3>
                 <ul class="messages-list">
-                    ${decryptedMessages.map(msg => `
-                        <li>
-                            <strong>${msg.sender}:</strong> ${msg.message}
-                        </li>
-                    `).join('')}
-                </ul>
+                    ${messages.map(msg => {
+                        let decrypted = '[Decryption Error]';
+                        try {
+                            decrypted = decryptMessage(msg.message);
+                        } catch (e) {
+                            console.error('Decryption error:', e);
+                        }
+                        return `<li><strong>${msg.sender}:</strong> ${decrypted}</li>`;
+                    }).join('')}
+                    </ul>
             </div>
         `;
         document.body.appendChild(popup);
@@ -2021,12 +2027,14 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Add click event for selecting chat
         chatItem.addEventListener('click', () => {
+            
             highlightSelectedChat(chatItem);
             activeReceiver = username;
             chatHeaderUsername.textContent = username;
             const profilePicture = getOrGenerateProfilePictureForUser(username);
             chatHeaderProfilePicture.src = profilePicture;
             toggleChatScreen(true);
+            document.getElementById('main-chat-footer').classList.remove('hidden');
             loadMessages(username);
         });
 
