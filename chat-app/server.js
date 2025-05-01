@@ -109,22 +109,39 @@ app.post('/upload', upload.single('file'), (req, res) => {
     // Save to chat-specific DB
     const db = getChatDB(uploader, receiver);
     db.run(
-        `INSERT INTO uploads (filename, filepath, filetype, uploader, timestamp) VALUES (?, ?, ?, ?, ?)`,
-        [req.file.originalname, filepath, filetype, uploader, timestamp],
-        (err) => {
-            if (err) {
-                console.error('❌ Upload save error:', err.message);
-                return res.status(500).json({ success: false, message: 'Failed to save upload' });
-            }
-            console.log(`📎 Upload saved to chat DB: ${filepath}`);
-            res.json({
+        `INSERT INTO uploads (filename, filepath, filetype, uploader) VALUES (?, ?, ?, ?)`,
+        [req.file.originalname, filepath, filetype, uploader],
+        function (err) {
+          if (err) {
+            console.error('❌ Upload save error:', err.message);
+            return res.status(500).json({ success: false, message: 'Failed to save upload' });
+          }
+      
+          const uploadId = this.lastID; // 🆔 get ID of just-inserted upload
+      
+          console.log(`📎 Upload saved to chat DB: ${filepath}`);
+      
+          // Insert into messages table
+          db.run(
+            `INSERT INTO messages (message, sender, receiver, upload_id) VALUES (?, ?, ?, ?)`,
+            ["", uploader, receiver, uploadId],
+            function (err2) {
+              if (err2) {
+                console.error('❌ Failed to save file message into messages table:', err2.message);
+                return res.status(500).json({ success: false, message: 'Failed to save message' });
+              }
+      
+              console.log(`✅ File message saved to messages table with upload_id = ${uploadId}`);
+              res.json({
                 success: true,
-                url: filepath,    // ⚡️ changed here to match what your frontend expects
+                url: filepath,
                 filetype,
                 name: req.file.originalname
-            });
+              });
+            }
+          );
         }
-    );
+      );
 });
 
 // Serve static files from the uploads directory
@@ -859,6 +876,48 @@ app.delete('/remove-pin/:pinId', (req, res) => {
             }
 
             res.json({ success: true, message: 'Pin removed successfully.' });
+        });
+    });
+});
+
+app.get('/get-upload', (req, res) => {
+    console.log('💡 /get-upload handler triggered');
+
+    const { id, userA, userB } = req.query;
+
+    if (!id || !userA || !userB) {
+        console.warn('⚠️ Missing parameters:', { id, userA, userB });
+        return res.status(400).json({ success: false, message: 'Missing parameters' });
+    }
+
+    let db;
+    try {
+        db = getChatDB(userA, userB);
+        console.log(`📂 Using DB for chat_${userA}_${userB}.db`);
+    } catch (e) {
+        console.error('❌ Failed to get DB:', e.message);
+        return res.status(500).json({ success: false, message: 'Failed to load chat database' });
+    }
+
+    db.get('SELECT * FROM uploads WHERE id = ?', [id], (err, row) => {
+        if (err) {
+            console.error('❌ Upload fetch error:', err.message);
+            return res.status(500).json({ success: false, message: 'Database error' });
+        }
+
+        if (!row) {
+            console.warn(`⚠️ No upload found for ID ${id}`);
+            return res.status(404).json({ success: false, message: 'Upload not found' });
+        }
+
+        res.json({
+            success: true,
+            file: {
+                filename: row.filename,
+                filepath: row.filepath,
+                filetype: row.filetype,
+                size: row.size || 0
+            }
         });
     });
 });

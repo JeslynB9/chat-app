@@ -474,13 +474,22 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Decryption failed: SECRET_KEY is not loaded.');
             return '[Decryption Error: Missing Key]';
         }
+    
+        // 🛑 Skip decryption if message is empty or null (likely a file message)
+        if (!encryptedMessage || encryptedMessage.trim() === '') {
+            console.log('Skipped decryption for empty message. Likely a file message.');
+            return '';
+        }
+    
         try {
             console.log('Attempting to decrypt message:', encryptedMessage); // Debugging log
             const bytes = CryptoJS.AES.decrypt(encryptedMessage, secretKey);
             const decryptedMessage = bytes.toString(CryptoJS.enc.Utf8);
+    
             if (!decryptedMessage) {
                 throw new Error('Decryption resulted in an empty string');
             }
+    
             console.log('Decrypted message:', decryptedMessage); // Debugging log
             return decryptedMessage;
         } catch (error) {
@@ -824,79 +833,114 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function displayMessage(message, isSent = false) {
+        // If message has upload_id and no type, assume it's a file
+        if (message.upload_id && !message.type) {
+            fetch(`/get-upload?id=${message.upload_id}&userA=${message.sender}&userB=${message.receiver}`)
+                .then(res => res.json())
+                .then(upload => {
+                    if (upload.success && upload.file) {
+                        const fileMessage = {
+                            ...message,
+                            type: 'file',
+                            fileData: {
+                                name: upload.file.filename,
+                                type: upload.file.filetype,
+                                size: upload.file.size || 0,
+                                url: upload.file.filepath
+                            }
+                        };
+                        displayMessage(fileMessage, isSent);
+                    } else {
+                        console.warn("📂 Upload not found for ID", message.upload_id);
+                    }
+                })
+                .catch(err => {
+                    console.error("❌ Failed to fetch file for upload_id:", message.upload_id, err);
+                });
+            return; // Stop here, will re-render after file is loaded
+        }
         const messageContainer = document.createElement('div');
         messageContainer.className = `message ${isSent ? 'sent' : 'received'}`;
         messageContainer.dataset.messageId = message.id;
-
+    
         try {
-            if (message.type === 'file') {
-                const fileData = message.fileData;
-                
+            // Check if this is a file message
+            const isFileMessage = message.type === 'file' || message.upload_id || message.fileData;
+    
+            if (isFileMessage) {
+                const fileData = message.fileData || {
+                    name: message.name || 'file',
+                    type: message.filetype || 'application/octet-stream',
+                    size: message.size || 0,
+                    url: message.url || message.message || '' // fallback
+                };
+    
+                // Handle image
                 if (fileData.type.startsWith('image/')) {
-                    // Handle image files
                     const img = document.createElement('img');
-                    img.src = fileData.data;
+                    img.src = fileData.url;
                     img.alt = fileData.name;
                     img.style.maxWidth = '200px';
                     img.style.borderRadius = '8px';
                     img.style.cursor = 'pointer';
-                    img.onclick = () => window.open(fileData.data, '_blank');
+                    img.onclick = () => window.open(fileData.url, '_blank');
                     messageContainer.appendChild(img);
                 } else {
-                    // Handle other file types
                     const fileContainer = document.createElement('div');
                     fileContainer.className = 'file-container';
-
+    
                     const icon = document.createElement('div');
                     icon.className = 'file-icon';
                     icon.textContent = getFileIcon(fileData.type);
                     fileContainer.appendChild(icon);
-
+    
                     const info = document.createElement('div');
                     info.className = 'file-info';
-
+    
                     const name = document.createElement('div');
                     name.className = 'file-name';
                     name.textContent = fileData.name;
                     info.appendChild(name);
-
+    
                     const size = document.createElement('div');
                     size.className = 'file-size';
                     size.textContent = formatFileSize(fileData.size);
                     info.appendChild(size);
-
+    
                     fileContainer.appendChild(info);
-
+    
                     const downloadLink = document.createElement('a');
-                    downloadLink.href = fileData.data;
+                    downloadLink.href = fileData.url;
                     downloadLink.download = fileData.name;
                     downloadLink.className = 'download-button';
                     downloadLink.textContent = '⬇️';
                     fileContainer.appendChild(downloadLink);
-
+    
                     messageContainer.appendChild(fileContainer);
                 }
-            } else {
-                // Handle text messages
+            } else if (message.message && message.message.trim() !== '') {
                 const messageBubble = document.createElement('div');
                 messageBubble.classList.add('message-bubble');
-                messageBubble.textContent = message.message || '';
+                messageBubble.textContent = message.message;
                 messageContainer.appendChild(messageBubble);
+            } else {
+                // Don't add any bubble – it's likely an empty message from file upload
+                console.log("🛑 Skipped rendering empty text message.");
             }
-
+    
             // Add timestamp
             const timestamp = document.createElement('span');
             timestamp.className = 'timestamp';
             timestamp.textContent = new Date(message.timestamp).toLocaleTimeString();
             messageContainer.appendChild(timestamp);
-
-            // Add context menu event listener
+    
+            // Right-click context menu
             messageContainer.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
                 showMessageContextMenu(e, messageContainer, message);
             });
-
-            // Add to messages container
+    
+            // Append to chat window
             const messagesContainer = document.querySelector('.messages');
             if (messagesContainer) {
                 messagesContainer.appendChild(messageContainer);
