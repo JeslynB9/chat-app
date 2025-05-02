@@ -2681,13 +2681,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 document.addEventListener('DOMContentLoaded', () => {
     // Fetch and display pins on app start
-    fetch('/get-pins', {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        params: { user: localStorage.getItem('username') }
-    })
+    fetch('/get-pins?user=' + encodeURIComponent(localStorage.getItem('username')))
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -2700,14 +2694,35 @@ document.addEventListener('DOMContentLoaded', () => {
         .catch(err => console.error('❌ Error fetching pins:', err));
 });
 
-function displayPinsInCategorizedContainer(pins) {
-    const categorizedContainer = document.getElementById('categorized-chats-container');
-    categorizedContainer.innerHTML = ''; // Clear existing content
+// 
 
+// Fetch and display pins in the sidebar on app start
+fetch('/get-pins?user=' + encodeURIComponent(localStorage.getItem('username')))
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('✅ Pins fetched successfully:', data.pins);
+            displayPinsInSidebar(data.pins);
+        } else {
+            console.error('❌ Failed to fetch pins:', data.message);
+        }
+    })
+    .catch(err => console.error('❌ Error fetching pins:', err));
+
+function displayPinsInSidebar(pins) {
+    const pinsContainer = document.querySelector('.pins-container-sidebar');
+    const addPinButton = document.getElementById('add-pin-button-sidebar');
+
+    // Clear existing dynamic pins
+    const existingPins = pinsContainer.querySelectorAll('.dynamic-pin');
+    existingPins.forEach(pin => pin.remove());
+
+    // Add fetched pins before the "+" button
     pins.forEach(pin => {
         const pinElement = document.createElement('div');
-        pinElement.className = 'categorized-pin';
-        pinElement.textContent = pin.category;
-        categorizedContainer.appendChild(pinElement);
+        pinElement.className = 'pin-sidebar dynamic-pin';
+        pinElement.innerHTML = `<span class="pin-text-sidebar">${pin.category}</span>
+                                <button class="remove-pin-button-sidebar">&times;</button>`;
+        pinsContainer.insertBefore(pinElement, addPinButton);
     });
 }
