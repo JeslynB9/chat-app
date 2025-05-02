@@ -2695,7 +2695,6 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(data => {
             if (data.success) {
                 console.log('✅ Pins fetched successfully:', data.pins);
-                displayPinsInCategorizedContainer(data.pins);
             } else {
                 console.error('❌ Failed to fetch pins:', data.message);
             }
@@ -2735,8 +2734,6 @@ function displayPinsInSidebar(pins) {
         pinsContainer.insertBefore(pinElement, addPinButton);
     });
 }
-
-// ...existing code...
 
 document.addEventListener('DOMContentLoaded', () => {
     const contextMenu = document.getElementById('chat-context-menu');
@@ -2919,4 +2916,45 @@ categorisePopupStyle.textContent = `
 `;
 document.head.appendChild(categorisePopupStyle);
 
-// ...existing code...
+// Function to fetch and display chats for a specific pin category
+function fetchChatsForCategory(category) {
+    const user = localStorage.getItem('username');
+    fetch(`/get-chats-for-category?user=${encodeURIComponent(user)}&category=${encodeURIComponent(category)}`)
+        .then(async (response) => {
+            if (!response.ok) {
+                const errorText = await response.text(); // Read the response body as text
+                console.error('❌ Server error response:', errorText);
+                throw new Error(`Server returned status ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                const chatList = document.getElementById('chat-list');
+                chatList.innerHTML = ''; // Clear existing chats
+
+                data.chats.forEach(chatUsername => {
+                    addChatToSidebar(chatUsername); // Reuse existing function to add chats to the sidebar
+                });
+            } else {
+                console.error('Failed to fetch chats for category:', data.message);
+            }
+        })
+        .catch(error => console.error('Error fetching chats for category:', error));
+}
+
+// Add event listener for pin clicks in the sidebar
+document.querySelector('.pins-container-sidebar').addEventListener('click', (event) => {
+    const pinElement = event.target.closest('.pin-sidebar');
+    if (!pinElement) return;
+
+    const category = pinElement.querySelector('.pin-text-sidebar').textContent.trim();
+    if (category === 'All') {
+        fetchChatList(); // Show all chats
+    } else if (category === 'Unread') {
+        filterChatsByUnread(); // Show unread chats
+    } else {
+        fetchChatsForCategory(category); // Show chats for the selected category
+    }
+});
+

@@ -681,7 +681,9 @@ app.get('/get-messages-for-pin', (req, res) => {
 
 app.get('/get-chats-for-category', (req, res) => {
     const { user, category } = req.query;
+
     if (!user || !category) {
+        console.error('❌ Missing user or category:', { user, category });
         return res.status(400).json({ success: false, message: 'User and category are required.' });
     }
 
@@ -690,12 +692,20 @@ app.get('/get-chats-for-category', (req, res) => {
         INNER JOIN pins ON pinned_chats.pin_id = pins.id
         WHERE pins.user = ? AND pins.category = ?
     `;
+
     db.all(query, [user, category], (err, rows) => {
         if (err) {
-            console.error('Error fetching chats for category:', err.message);
+            console.error('❌ Error fetching chats for category:', err.message);
             return res.status(500).json({ success: false, message: 'Failed to fetch chats for category.' });
         }
+
+        if (!rows.length) {
+            console.warn(`⚠️ No chats found for user "${user}" and category "${category}".`);
+            return res.json({ success: true, chats: [] });
+        }
+
         const chats = rows.map(row => row.chat_username);
+        console.log(`✅ Chats fetched for user "${user}" and category "${category}":`, chats);
         res.json({ success: true, chats });
     });
 });
