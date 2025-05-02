@@ -2121,6 +2121,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     })
                     .catch(error => console.error('Error deleting chat database:', error));
                 }
+            } else if (action === 'categorise') {
+                const username = contextMenu.dataset.username;
+                if (username) {
+                    console.log(`Categorising chat for username: ${username}`); // Debugging log
+                    showCategorisePopup(username);
+                    contextMenu.style.display = 'none'; // Hide the context menu after clicking
+                } else {
+                    console.error('No username found in context menu dataset.');
+                }
             }
 
             // Hide context menu after action
@@ -2726,3 +2735,188 @@ function displayPinsInSidebar(pins) {
         pinsContainer.insertBefore(pinElement, addPinButton);
     });
 }
+
+// ...existing code...
+
+document.addEventListener('DOMContentLoaded', () => {
+    const contextMenu = document.getElementById('chat-context-menu');
+
+    // Ensure the context menu is displayed correctly
+    document.addEventListener('click', (event) => {
+        if (!event.target.closest('#chat-context-menu')) {
+            contextMenu.style.display = 'none';
+            contextMenu.classList.add('hidden');
+        }
+    });
+
+    // Handle "Categorise" option in the context menu
+    contextMenu.addEventListener('click', (event) => {
+        const action = event.target.dataset.action;
+        if (action === 'categorise') {
+            const username = contextMenu.dataset.username;
+            if (username) {
+                console.log(`Categorising chat for username: ${username}`); // Debugging log
+                showCategorisePopup(username);
+                contextMenu.style.display = 'none'; // Hide the context menu after clicking
+            } else {
+                console.error('No username found in context menu dataset.');
+            }
+        }
+    });
+});
+
+function showCategorisePopup(chatUsername) {
+    console.log(`Fetching pins for categorising chat with username: ${chatUsername}`); // Debugging log
+
+    // Fetch available pins from the server
+    fetch(`/get-pins?user=${encodeURIComponent(localStorage.getItem('username'))}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('Pins fetched successfully:', data.pins); // Debugging log
+
+                // Remove any existing popup
+                document.querySelectorAll('.categorise-popup, .popup-overlay').forEach(el => el.remove());
+
+                // Create the popup
+                const overlay = document.createElement('div');
+                overlay.className = 'popup-overlay';
+                document.body.appendChild(overlay);
+
+                const popup = document.createElement('div');
+                popup.className = 'categorise-popup';
+                popup.innerHTML = `
+                    <div class="popup-content">
+                        <h3>Select a Category for ${chatUsername}</h3>
+                        <ul class="pins-list">
+                            ${data.pins.map(pin => `<li class="pin-item" data-pin-id="${pin.id}">${pin.category}</li>`).join('')}
+                        </ul>
+                        <button class="close-button">&times;</button>
+                    </div>
+                `;
+                document.body.appendChild(popup);
+
+                // Add event listeners
+                popup.querySelectorAll('.pin-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        const pinId = item.dataset.pinId;
+                        console.log(`Assigning chat "${chatUsername}" to pin ID: ${pinId}`); // Debugging log
+
+                        // Assign the chat to the selected pin
+                        fetch('/add-chat-to-pin', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ pinId, chatUsername })
+                        })
+                            .then(response => response.json())
+                            .then(result => {
+                                if (result.success) {
+                                    alert(`Chat categorised under "${item.textContent}" successfully!`);
+                                } else {
+                                    alert(`Failed to categorise chat: ${result.message}`);
+                                }
+                            })
+                            .catch(error => console.error('Error categorising chat:', error));
+
+                        // Close the popup
+                        overlay.remove();
+                        popup.remove();
+                    });
+                });
+
+                // Close the popup
+                popup.querySelector('.close-button').addEventListener('click', () => {
+                    overlay.remove();
+                    popup.remove();
+                });
+
+                overlay.addEventListener('click', () => {
+                    overlay.remove();
+                    popup.remove();
+                });
+            } else {
+                alert('Failed to fetch categories.');
+            }
+        })
+        .catch(error => console.error('Error fetching pins:', error));
+}
+
+// Ensure the context menu is properly positioned and visible
+document.addEventListener('contextmenu', (event) => {
+    const chatItem = event.target.closest('.chat-list-item');
+    if (chatItem) {
+        event.preventDefault();
+        const contextMenu = document.getElementById('chat-context-menu');
+        contextMenu.style.display = 'block';
+        contextMenu.style.left = `${event.pageX}px`;
+        contextMenu.style.top = `${event.pageY}px`;
+        contextMenu.dataset.username = chatItem.querySelector('div > div:first-child').textContent.trim();
+        contextMenu.classList.remove('hidden');
+    }
+});
+
+// Add CSS for the categorise popup
+const categorisePopupStyle = document.createElement('style');
+categorisePopupStyle.textContent = `
+    .categorise-popup {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background-color: white;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        z-index: 1001;
+        padding: 20px;
+        width: 300px;
+    }
+
+    .categorise-popup .popup-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .categorise-popup .pins-list {
+        list-style: none;
+        padding: 0;
+        margin: 10px 0;
+        width: 100%;
+    }
+
+    .categorise-popup .pin-item {
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        margin-bottom: 5px;
+        cursor: pointer;
+        text-align: center;
+        transition: background-color 0.2s;
+    }
+
+    .categorise-popup .pin-item:hover {
+        background-color: #f0f0f0;
+    }
+
+    .categorise-popup .close-button {
+        background: none;
+        border: none;
+        font-size: 20px;
+        cursor: pointer;
+        align-self: flex-end;
+    }
+
+    .popup-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+    }
+`;
+document.head.appendChild(categorisePopupStyle);
+
+// ...existing code...
