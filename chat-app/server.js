@@ -683,31 +683,32 @@ app.get('/get-chats-for-category', (req, res) => {
     const { user, category } = req.query;
 
     if (!user || !category) {
-        console.error('❌ Missing user or category:', { user, category });
-        return res.status(400).json({ success: false, message: 'User and category are required.' });
+        return res.status(400).json({ success: false, message: 'Missing user or category' });
     }
 
-    const query = `
-        SELECT chat_username FROM pinned_chats
-        INNER JOIN pins ON pinned_chats.pin_id = pins.id
-        WHERE pins.user = ? AND pins.category = ?
-    `;
+    const db = getMainDB();
 
-    db.all(query, [user, category], (err, rows) => {
-        if (err) {
-            console.error('❌ Error fetching chats for category:', err.message);
-            return res.status(500).json({ success: false, message: 'Failed to fetch chats for category.' });
-        }
-
-        if (!rows.length) {
-            console.warn(`⚠️ No chats found for user "${user}" and category "${category}".`);
-            return res.json({ success: true, chats: [] });
-        }
-
-        const chats = rows.map(row => row.chat_username);
-        console.log(`✅ Chats fetched for user "${user}" and category "${category}":`, chats);
-        res.json({ success: true, chats });
-    });
+    if (category === "Unread") {
+        db.all(
+            `SELECT DISTINCT receiver FROM messages WHERE receiver = ? AND read = 0`,
+            [user],
+            (err, rows) => {
+                if (err) return res.status(500).json({ success: false });
+                const chats = rows.map(row => row.receiver);
+                res.json({ success: true, chats });
+            }
+        );
+    } else {
+        db.all(
+            `SELECT DISTINCT receiver FROM pinned_chats WHERE user = ? AND category = ?`,
+            [user, category],
+            (err, rows) => {
+                if (err) return res.status(500).json({ success: false });
+                const chats = rows.map(row => row.receiver);
+                res.json({ success: true, chats });
+            }
+        );
+    }
 });
 
 // Endpoint to securely serve the SECRET_KEY

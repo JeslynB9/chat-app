@@ -249,8 +249,8 @@ function openInfoPopup(username, profilePicture, files) {
 }
 
 function closeInfoPopup() {
-    const popup = document.getElementById('info-popup');
-    popup.style.display = 'none';
+    document.getElementById('info-popup').style.display = 'none';
+    document.getElementById('popup-overlay').style.display = 'none';
 }
 
 function displayPinMessagesPopup(pinId, messages) {
@@ -2958,3 +2958,68 @@ document.querySelector('.pins-container-sidebar').addEventListener('click', (eve
     }
 });
 
+function attachSidebarPinListeners() {
+    document.querySelectorAll('.pin-sidebar').forEach(pinEl => {
+        pinEl.addEventListener('click', () => {
+            const category = pinEl.textContent.trim(); // ✅ use trimmed category
+            const username = localStorage.getItem("username");
+
+            if (!username || !category) return;
+
+            fetch(`/get-chats-for-category?user=${username}&category=${category}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        renderCategorizedChats(data.chats);
+                    } else {
+                        console.warn('⚠️ Failed to fetch chats for pin:', category);
+                    }
+                })
+                .catch(err => {
+                    console.error('❌ Error fetching categorized chats:', err);
+                });
+        });
+    });
+}
+
+function renderCategorizedChats(chatUsernames) {
+    const container = document.getElementById('categorized-chats-container');
+    container.innerHTML = ''; // clear previous content
+
+    chatUsernames.forEach(username => {
+        const div = document.createElement('div');
+        div.textContent = username;
+        div.className = 'categorized-chat';
+        div.addEventListener('click', () => {
+            startChatWith(username);
+        });
+        container.appendChild(div);
+    });
+}
+
+attachSidebarPinListeners();
+function openInfoPopup(username, profilePicture, filesSent) {
+    document.getElementById('popup-username').textContent = username;
+    document.getElementById('popup-profile-picture').src = profilePicture;
+
+    const filesList = document.getElementById('popup-files');
+    filesList.innerHTML = '';
+    filesSent.forEach(file => {
+        const li = document.createElement('li');
+        li.textContent = file.name || 'Unnamed file';
+        filesList.appendChild(li);
+    });
+
+    // Show popup and overlay
+    document.getElementById('info-popup').style.display = 'block';
+    document.getElementById('popup-overlay').style.display = 'block';
+}
+
+// 🔒 Add this to close both when overlay is clicked
+document.getElementById('popup-overlay').addEventListener('click', closeInfoPopup);
+
+// 🔒 Add this to your close button too
+function closeInfoPopup() {
+    document.getElementById('info-popup').style.display = 'none';
+    document.getElementById('popup-overlay').style.display = 'none';
+}
