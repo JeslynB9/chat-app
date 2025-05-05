@@ -2926,8 +2926,10 @@ function fetchChatsForCategory(category) {
         .then(data => {
             if (data.success) {
                 const chatList = document.getElementById('chat-list');
-                chatList.innerHTML = ''; // Clear existing chats
-                data.chats.forEach(chatUsername => addChatToSidebar(chatUsername));
+                Array.from(chatList.children).forEach(chatItem => {
+                    const chatUsername = chatItem.querySelector('div > div:first-child').textContent.trim();
+                    chatItem.style.display = data.chats.includes(chatUsername) ? 'flex' : 'none';
+                });
             } else {
                 console.error('❌ Server error response:', data.message);
             }
@@ -3039,8 +3041,10 @@ function fetchChatsForCategory(category) {
         .then(data => {
             if (data.success) {
                 const chatList = document.getElementById('chat-list');
-                chatList.innerHTML = ''; // Clear existing chats
-                data.chats.forEach(chatUsername => addChatToSidebar(chatUsername));
+                Array.from(chatList.children).forEach(chatItem => {
+                    const chatUsername = chatItem.querySelector('div > div:first-child').textContent.trim();
+                    chatItem.style.display = data.chats.includes(chatUsername) ? 'flex' : 'none';
+                });
             } else {
                 console.error('❌ Server error response:', data.message);
             }
