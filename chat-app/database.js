@@ -418,6 +418,24 @@ function getChatsForPin(pinId, callback) {
     });
 }
 
+// Fetch chats associated with a specific pin
+function getChatsByPin(user, category, callback) {
+    const query = `
+        SELECT DISTINCT chat_username 
+        FROM pinned_chats 
+        JOIN pins ON pinned_chats.pin_id = pins.id 
+        WHERE pins.user = ? AND pins.category = ?
+    `;
+    db.all(query, [user, category], (err, rows) => {
+        if (err) {
+            console.error('Error fetching chats for pin:', err.message);
+            callback(err);
+        } else {
+            callback(null, rows.map(row => row.chat_username));
+        }
+    });
+}
+
 // Remove a chat from a pin
 function removeChatFromPin(pinId, chatUsername, callback) {
     const query = `DELETE FROM pinned_chats WHERE pin_id = ? AND chat_username = ?`;
@@ -474,6 +492,7 @@ module.exports = {
     getPins,
     addChatToPin,
     getChatsForPin,
+    getChatsByPin,
     removeChatFromPin,
     removePin
 };

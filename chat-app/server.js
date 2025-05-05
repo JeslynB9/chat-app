@@ -686,29 +686,30 @@ app.get('/get-chats-for-category', (req, res) => {
         return res.status(400).json({ success: false, message: 'Missing user or category' });
     }
 
-    const db = getMainDB();
+    // Use the database instance directly instead of getMainDB
+    db.getChatsByPin(user, category, (err, chats) => {
+        if (err) {
+            console.error('Error fetching chats for category:', err.message);
+            return res.status(500).json({ success: false, message: 'Failed to fetch chats for category.' });
+        }
+        res.json({ success: true, chats });
+    });
+});
 
-    if (category === "Unread") {
-        db.all(
-            `SELECT DISTINCT receiver FROM messages WHERE receiver = ? AND read = 0`,
-            [user],
-            (err, rows) => {
-                if (err) return res.status(500).json({ success: false });
-                const chats = rows.map(row => row.receiver);
-                res.json({ success: true, chats });
-            }
-        );
-    } else {
-        db.all(
-            `SELECT DISTINCT receiver FROM pinned_chats WHERE user = ? AND category = ?`,
-            [user, category],
-            (err, rows) => {
-                if (err) return res.status(500).json({ success: false });
-                const chats = rows.map(row => row.receiver);
-                res.json({ success: true, chats });
-            }
-        );
+app.get('/get-chats-for-pin', (req, res) => {
+    const { user, category } = req.query;
+
+    if (!user || !category) {
+        return res.status(400).json({ success: false, message: 'User and category are required.' });
     }
+
+    db.getChatsByPin(user, category, (err, chats) => {
+        if (err) {
+            console.error('Error fetching chats for pin:', err.message);
+            return res.status(500).json({ success: false, message: 'Failed to fetch chats for pin.' });
+        }
+        res.json({ success: true, chats });
+    });
 });
 
 // Endpoint to securely serve the SECRET_KEY
