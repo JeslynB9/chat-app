@@ -85,8 +85,8 @@ app.post('/upload', upload.single('file'), (req, res) => {
         return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
 
-    const uploader = req.body.uploader;   // ✅ should be req.body.uploader
-    const receiver = req.body.receiver;   // ✅ should be req.body.receiver
+    const uploader = req.body.uploader;
+    const receiver = req.body.receiver;
 
     if (!uploader || !receiver) {
         console.error('❌ Missing uploader or receiver:', { uploader, receiver });
@@ -132,6 +132,22 @@ app.post('/upload', upload.single('file'), (req, res) => {
               }
       
               console.log(`✅ File message saved to messages table with upload_id = ${uploadId}`);
+              
+              // Broadcast file message to chat room
+              const room = [uploader, receiver].sort().join('_');
+              io.to(room).emit('receiveMessage', {
+                  sender: uploader,
+                  receiver: receiver,
+                  message: "",
+                  timestamp,
+                  type: 'file',
+                  fileData: {
+                      filename: req.file.originalname,
+                      filepath,
+                      filetype
+                  }
+              });
+
               res.json({
                 success: true,
                 url: filepath,
@@ -211,18 +227,33 @@ app.post('/login', (req, res) => {
 app.get('/chat/history', (req, res) => {
     const { user1, user2 } = req.query;
     if (!user1 || !user2) {
-      return res.status(400).json({ error: 'Missing users' });
+        return res.status(400).json({ error: 'Missing users' });
     }
-  
+
     const db = getChatDB(user1, user2);
-    db.all(`SELECT * FROM messages ORDER BY timestamp ASC`, [], (err, rows) => {
-      if (err) {
-        console.error('❌ Failed to fetch messages:', err.message);
-        return res.status(500).json({ error: 'Failed to load messages' });
-      }
-      res.json({ messages: rows });
+    const query = `
+        SELECT 
+            m.id,
+            m.sender,
+            m.receiver,
+            m.message,
+            m.timestamp,
+            u.filepath,
+            u.filename,
+            u.filetype
+        FROM messages m
+        LEFT JOIN uploads u ON m.upload_id = u.id
+        ORDER BY m.timestamp ASC
+    `;
+
+    db.all(query, [], (err, rows) => {
+        if (err) {
+            console.error('❌ Failed to fetch messages:', err.message);
+            return res.status(500).json({ error: 'Failed to load messages' });
+        }
+        res.json({ messages: rows });
     });
-  });
+});
 
 // ========== Username (if still needed) ==========
 app.post('/save-username', (req, res) => {

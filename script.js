@@ -526,7 +526,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 message: encryptedMessage, // Send the encrypted message
                 sender: username,
                 receiver: activeReceiver,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                encrypted: true // Mark as encrypted
             };
 
             // Emit the message via Socket.IO
@@ -926,9 +927,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     messageContainer.appendChild(fileContainer);
                 }
             } else if (message.message && message.message.trim() !== '') {
+                // Decrypt if necessary
+                let content = message.message;
+                if (message.encrypted) {
+                    try {
+                        const decrypted = CryptoJS.AES.decrypt(content, secretKey).toString(CryptoJS.enc.Utf8);
+                        if (decrypted) {
+                            content = decrypted;
+                        } else {
+                            console.warn("⚠️ Decryption failed or empty for content:", content);
+                        }
+                    } catch (err) {
+                        console.error("❌ Error during decryption:", err, "for content:", content);
+                    }
+                }
                 const messageBubble = document.createElement('div');
                 messageBubble.classList.add('message-bubble');
-                messageBubble.textContent = message.message;
+                messageBubble.textContent = content;
                 messageContainer.appendChild(messageBubble);
             } else {
                 // Don't add any bubble – it's likely an empty message from file upload
@@ -2230,28 +2245,58 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Cannot load messages. Missing sender or receiver:', { sender, receiver });
             return;
         }
-
+    
         localStorage.setItem(`unread_${receiver}`, 0);
         updateUnreadCount(receiver, 0);
-
+    
         fetch(`https://localhost:3000/messages?sender=${encodeURIComponent(sender)}&receiver=${encodeURIComponent(receiver)}`)
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
                     messagesContainer.innerHTML = '';
-
+    
                     data.messages.forEach(message => {
-                        displayMessage({
-                            id: message.id,
-                            message: decryptMessage(message.message),
-                            sender: message.sender,
-                            receiver: message.receiver,
-                            timestamp: message.timestamp,
-                            type: 'text', // assume text here; or adjust if you detect file messages
-                            fileData: null // no fileData for text messages
-                        }, message.sender === sender); // true if it is sent by me
+                        // Check if the message is a file message
+                        if (message.upload_id) {
+                            // Fetch file metadata and render as a file message
+                            fetch(`/get-upload?id=${message.upload_id}&userA=${message.sender}&userB=${message.receiver}`)
+                                .then(res => res.json())
+                                .then(upload => {
+                                    if (upload.success && upload.file) {
+                                        displayMessage({
+                                            id: message.id,
+                                            sender: message.sender,
+                                            receiver: message.receiver,
+                                            timestamp: message.timestamp,
+                                            type: 'file',
+                                            fileData: {
+                                                name: upload.file.filename,
+                                                type: upload.file.filetype,
+                                                size: upload.file.size || 0,
+                                                url: upload.file.filepath
+                                            }
+                                        }, message.sender === sender);
+                                    } else {
+                                        console.warn("📂 Upload not found for ID", message.upload_id);
+                                    }
+                                })
+                                .catch(err => {
+                                    console.error("❌ Failed to fetch file for upload_id:", message.upload_id, err);
+                                });
+                        } else {
+                            // Render as a text message
+                            displayMessage({
+                                id: message.id,
+                                message: decryptMessage(message.message),
+                                sender: message.sender,
+                                receiver: message.receiver,
+                                timestamp: message.timestamp,
+                                type: 'text',
+                                fileData: null
+                            }, message.sender === sender);
+                        }
                     });
-
+    
                     messagesContainer.scrollTop = messagesContainer.scrollHeight;
                 } else {
                     console.error('Failed to load messages:', data.message);
