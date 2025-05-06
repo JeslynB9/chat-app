@@ -287,6 +287,25 @@ app.get('/search-users', (req, res) => {
     });
 });
 
+// DEMO ONLY VERSION
+// app.get('/search-users', (req, res) => {
+//     const username = req.query.username;
+
+//     const sqlite3 = require('sqlite3');
+//     const db = new sqlite3.Database('./chat-app.db'); // Adjust the path if needed
+
+//     const query = `SELECT * FROM users;`
+
+//     db.all(query, (err, rows) => {
+//         if (err) {
+
+//             console.error('❌ SQL error:', err.message);
+//             return res.status(500).send('Database error');
+//         }
+//         res.json(rows);
+//     });
+// });
+
 // ========== Fetch Messages ==========
 app.get('/messages', (req, res) => {
     const { sender, receiver } = req.query;
