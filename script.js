@@ -2191,6 +2191,8 @@ document.addEventListener('DOMContentLoaded', () => {
             })
     }
 
+    window.fetchChatList = fetchChatList; // Expose fetchChatList for external use
+
     // Call fetchChatList on page load to populate the chat list
     fetchChatList().then(() => {
         initializeUnreadCounts();
@@ -2376,6 +2378,8 @@ document.addEventListener('DOMContentLoaded', () => {
             chatItem.style.display = unreadCount > 0 ? 'flex' : 'none'; // Show only chats with unread messages
         });
     }
+
+    window.filterChatsByUnread = filterChatsByUnread; // Expose the function for external use
 
     function showAllChats() {
         Array.from(chatList.children).forEach(chatItem => {
@@ -2916,11 +2920,13 @@ categorisePopupStyle.textContent = `
 `;
 document.head.appendChild(categorisePopupStyle);
 
+
 // Function to fetch and display chats for a specific pin category
 function fetchChatsForCategory(category) {
     const username = localStorage.getItem('username');
     if (!username || !category) return;
-
+    
+    // Fetch chats for the selected category
     fetch(`/get-chats-for-category?user=${encodeURIComponent(username)}&category=${encodeURIComponent(category)}`)
         .then(res => res.json())
         .then(data => {
