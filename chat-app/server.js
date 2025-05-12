@@ -571,8 +571,20 @@ app.post('/chatDB/pins', (req, res) => {
 app.get('/chatDB/pins', (req, res) => {
     const { userA, userB } = req.query;
 
+    // Get the logged-in user from session or token
+    const loggedInUser = req.session?.username || req.user?.username;
+
+    if (!loggedInUser) {
+        return res.status(401).json({ success: false, message: 'You are not authorized to access this chat.' });
+    }
+
     if (!userA || !userB) {
         return res.status(400).json({ success: false, message: 'userA and userB are required' });
+    }
+
+    // Ensure the logged-in user is either userA or userB
+    if (loggedInUser !== userA && loggedInUser !== userB) {
+        return res.status(403).json({ success: false, message: 'You are not authorized to access this chat.' });
     }
 
     const db = getChatDB(userA, userB);
@@ -588,6 +600,27 @@ app.get('/chatDB/pins', (req, res) => {
         console.log('Pins fetched successfully:', rows); // Debugging log
     });
 });
+
+// app.get('/chatDB/pins', (req, res) => {
+//     const { userA, userB } = req.query;
+
+//     if (!userA || !userB) {
+//         return res.status(400).json({ success: false, message: 'userA and userB are required' });
+//     }
+
+//     const db = getChatDB(userA, userB);
+//     const query = `SELECT id FROM pins`; // Fetch all pins, including non-default ones
+//     console.log('Fetching pins for chat:', { userA, userB }); // Debugging log
+
+//     db.all(query, [], (err, rows) => {
+//         if (err) {
+//             console.error('❌ Failed to fetch pins:', err.message);
+//             return res.status(500).json({ success: false, message: 'Failed to fetch pins' });
+//         }
+//         res.json({ success: true, pins: rows });
+//         console.log('Pins fetched successfully:', rows); // Debugging log
+//     });
+// });
 
 // Assign a message to a pin
 app.post('/chatDB/pins/assign', (req, res) => {

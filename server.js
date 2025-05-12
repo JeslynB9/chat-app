@@ -1032,6 +1032,42 @@ app.get('/get-upload', (req, res) => {
     }, 5000);
 });
 
+app.get('/chatDB/pins', async (req, res) => {
+    try {
+        // Get the logged-in user from session or token
+        const loggedInUser = req.session?.username || req.user?.username;
+
+        if (!loggedInUser) {
+            // Redirect to login page if the user is not authenticated
+            return res.redirect('/login.html');
+        }
+
+        // Get userB from the query parameters
+        const userB = req.query.userB;
+
+        if (!userB) {
+            return res.status(400).json({ success: false, message: 'Missing userB parameter' });
+        }
+
+        // Ensure the logged-in user is part of the chat
+        const dbName = `chat_${[loggedInUser, userB].sort().join('_')}.db`;
+        const db = new sqlite3.Database(dbName);
+
+        db.all('SELECT * FROM pins ORDER BY created_at DESC', [], (err, rows) => {
+            db.close();
+            if (err) {
+                console.error('Error fetching pins:', err);
+                return res.status(500).json({ success: false, message: 'Error fetching pins' });
+            }
+
+            res.json({ success: true, pins: rows });
+        });
+    } catch (error) {
+        console.error('Error fetching pins:', error);
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+});
+
 // Start the server
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
