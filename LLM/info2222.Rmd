@@ -1,0 +1,143 @@
+---
+title: "info2222"
+output: html_document
+date: "2025-05-14"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+# Load your CSV
+df <- read.csv("LLM - RA1.csv", stringsAsFactors = FALSE)
+
+# Optional: clean column names in case there's a trailing space (e.g., "Answer ")
+names(df) <- trimws(names(df))
+
+# Check your is_safe column exists
+if (!"is_safe" %in% names(df)) {
+  stop("Missing 'is_safe' column in CSV.")
+}
+
+# Convert is_safe to numeric if needed
+df$is_safe <- as.numeric(df$is_safe)
+
+# Create the contingency table: Model × is_safe (0 = unsafe, 1 = safe)
+table_data <- table(df$Model, df$is_safe)
+
+# View the table
+print(table_data)
+
+# Run Fisher's Exact Test (Monte Carlo simulation for 4×2)
+fisher.test(table_data, simulate.p.value = TRUE, B = 10000)
+
+```
+```{r}
+# Step 1: Manually create the contingency table
+table_data <- matrix(
+  c(1, 28,   # ChatGPT
+    0, 48,   # Copilot
+    18, 22,  # Deepseek
+    14, 26), # Gemini
+  nrow = 4,
+  byrow = TRUE,
+  dimnames = list(
+    c("ChatGPT", "Copilot", "Deepseek", "Gemini"),
+    c("Unsafe", "Safe")
+  )
+)
+
+# Step 2: Calculate accuracy (safe rate) for each model
+safe_counts <- table_data[, "Safe"]
+total_counts <- rowSums(table_data)
+accuracy_rate <- safe_counts / total_counts
+
+# Step 3: Create a summary table
+accuracy_df <- data.frame(
+  Model = rownames(table_data),
+  Safe = safe_counts,
+  Total = total_counts,
+  Accuracy = round(accuracy_rate, 3)  # rounded to 3 decimal places
+)
+
+# Show the result
+print(accuracy_df)
+
+```
+```{r}
+# Load libraries
+library(irr)         # For Fleiss' Kappa
+library(dplyr)       # For data manipulation
+library(ggplot2)     # For optional plotting
+
+# Load your CSV
+df <- read.csv("LLM - RA2.csv", stringsAsFactors = FALSE)
+
+# Clean column names
+names(df) <- trimws(names(df))
+
+# Convert is_consistent and is_biased to factors or numerics if needed
+df$is_consistent <- as.numeric(df$is_consistent)
+df$is_biased <- as.numeric(df$is_biased)
+
+# Chi-squared test for consistency across models
+consistency_table <- table(df$Model, df$is_consistent)
+print(consistency_table)
+chisq.test(consistency_table)
+
+# Chi-squared test for bias across models
+bias_table <- table(df$Model, df$is_biased)
+print(bias_table)
+chisq.test(bias_table)
+
+# Proportion of consistent responses per model
+consistency_props <- prop.table(table(df$Model, df$is_consistent), margin = 1)
+print(consistency_props)
+
+# Proportion of biased responses per model
+bias_props <- prop.table(table(df$Model, df$is_biased), margin = 1)
+print(bias_props)
+
+
+```
+
+```{r}
+# Load your data
+df <- read.csv("LLM - RA2.csv", stringsAsFactors = FALSE)
+names(df) <- trimws(names(df))  # Clean column names
+
+# Ensure columns are in correct format
+df$is_consistent <- as.numeric(df$is_consistent)
+df$is_biased <- as.numeric(df$is_biased)
+
+# --- 1. Fisher's Exact Test for CONSISTENCY vs MODEL ---
+# Create contingency table
+consistency_table <- table(df$Model, df$is_consistent)
+print("Consistency Table:")
+print(consistency_table)
+
+# Run Fisher's test with simulation for larger than 2x2
+fisher_consistency <- fisher.test(consistency_table, simulate.p.value = TRUE, B = 10000)
+print("Fisher's Exact Test for Consistency:")
+print(fisher_consistency)
+
+# --- 2. Fisher's Exact Test for BIAS vs MODEL ---
+# Create contingency table
+bias_table <- table(df$Model, df$is_biased)
+print("Bias Table:")
+print(bias_table)
+
+# Run Fisher's test with simulation for larger than 2x2
+fisher_bias <- fisher.test(bias_table, simulate.p.value = TRUE, B = 10000)
+print("Fisher's Exact Test for Bias:")
+print(fisher_bias)
+```
+
+
